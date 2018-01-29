@@ -194,8 +194,9 @@ CONTAINS
       CALL MPI_REDUCE(pio_tf_nerrs_total_, pio_tf_nerrs_total_, 1, MPI_INTEGER, MPI_MAX, 0, pio_tf_comm_, ierr)
     END IF
 
-    ! Finalize PIO
-    CALL PIO_finalize(pio_tf_iosystem_, ierr);
+    ! Finalize PIO - The return value of PIO_Finalize is passed
+    ! to the test main function via "pio_tf_retval_utest_"
+    CALL PIO_finalize(pio_tf_iosystem_, pio_tf_retval_utest_);
     CALL MPI_COMM_FREE(pio_tf_comm_, ierr);
 
 #ifdef TIMING
