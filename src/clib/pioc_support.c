@@ -187,15 +187,22 @@ void pio_init_gptl(void )
  * Finalize GPTL timer library, if needed
  * The library is only finalized if the timing is internal
  */
-void pio_finalize_gptl(void)
+int pio_finalize_gptl(void)
 {
 #ifdef TIMING_INTERNAL
     pio_timer_ref_cnt -= 1;
     if(pio_timer_ref_cnt == 0)
     {
-        GPTLfinalize();
+        int ret;
+        ret = GPTLfinalize();
+        if(ret != 0)
+        {
+            LOG((2, "GPTLfinalize() failed, ret = %d", ret));
+            return pio_err(NULL, NULL, PIO_EINTERNAL, __FILE__, __LINE__);
+        }
     }
 #endif
+    return PIO_NOERR;
 }
 
 #if PIO_ENABLE_LOGGING

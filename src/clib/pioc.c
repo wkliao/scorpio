@@ -1115,7 +1115,12 @@ int PIOc_finalize(int iosysid)
         GPTLpr_file(gptl_log_fname);
         LOG((2, "Finished writing gptl summary"));
     }
-    pio_finalize_gptl();
+    ierr = pio_finalize_gptl();
+    if(ierr != PIO_NOERR)
+    {
+        LOG((2, "pio_finalize_gptl() failed"));
+        return ierr;
+    }
 #endif
 #endif
     if (ios->union_comm != MPI_COMM_NULL)
