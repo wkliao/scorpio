@@ -1106,13 +1106,23 @@ int PIOc_finalize(int iosysid)
     if(ios->io_comm != MPI_COMM_NULL)
     {
         snprintf(gptl_iolog_fname, PIO_MAX_NAME, "piorwgptlioinfo%010dwrank.dat", ios->ioroot);
-        GPTLpr_summary_file(ios->io_comm, gptl_iolog_fname);
+        ierr = GPTLpr_summary_file(ios->io_comm, gptl_iolog_fname);
+        if(ierr != PIO_NOERR)
+        {
+            LOG((2, "Writing gptl io proc summary failed, ierr = %d", ierr));
+            return pio_err(NULL, NULL, PIO_EINTERNAL, __FILE__, __LINE__);
+        }
         LOG((2, "Finished writing gptl io proc summary"));
     }
     snprintf(gptl_log_fname, PIO_MAX_NAME, "piorwgptlinfo%010dwrank.dat", ios->ioroot);
     if(ios->io_rank == 0)
     {
-        GPTLpr_file(gptl_log_fname);
+        ierr = GPTLpr_file(gptl_log_fname);
+        if(ierr != PIO_NOERR)
+        {
+            LOG((2, "Writing gptl summary failed, ierr = %d", ierr));
+            return pio_err(NULL, NULL, PIO_EINTERNAL, __FILE__, __LINE__);
+        }
         LOG((2, "Finished writing gptl summary"));
     }
     ierr = pio_finalize_gptl();
