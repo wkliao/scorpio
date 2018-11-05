@@ -162,6 +162,20 @@ else ()
   target_compile_definitions (pioc
     PUBLIC _NOADIOS)
 endif ()
+if (WITH_ADIOS2)
+  find_package (ADIOS2 "2.2.0")
+endif ()
+if (ADIOS_FOUND)
+  target_include_directories (pioc
+    PUBLIC ${ADIOS_INCLUDE_DIRS})
+  target_compile_definitions (pioc
+    PUBLIC _ADIOS2)
+  target_link_libraries (pioc
+    PUBLIC ${ADIOS_LIBRARIES})
+else ()
+  target_compile_definitions (pioc
+    PUBLIC _NOADIOS)
+endif ()
 
 #===== Add EXTRAs =====
 target_include_directories (pioc

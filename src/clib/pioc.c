@@ -800,10 +800,17 @@ int PIOc_InitDecomp_bc(int iosysid, int pio_type, int ndims, const int *gdimlen,
                            &rearr, NULL, NULL);
 }
 
-#ifdef _ADIOS
-    /* Initialize ADIOS once */
-    static int adios_init_ref_cnt = 0;
+#if defined(_ADIOS) || defined(_ADIOS2)
+/* Initialize ADIOS once */
+static int adios_init_ref_cnt = 0;
 #endif
+#ifdef _ADIOS2
+static adios2_adios *adiosH;
+adios2_adios *adios2_get_adios()
+{
+	return adiosH;
+}
+#endif 
 
 /**
  * Library initialization used when IO tasks are a subset of compute
@@ -886,6 +893,12 @@ int PIOc_Init_Intracomm(MPI_Comm comp_comm, int num_iotasks, int stride, int bas
     {
         adios_init_noxml(comp_comm);
     }
+    adios_init_ref_cnt++;
+#endif
+#ifdef _ADIOS2
+    /* Initialize ADIOS once */
+    if (!adios_init_ref_cnt)
+		adiosH = adios2_init(comp_comm, adios2_debug_mode_on);
     adios_init_ref_cnt++;
 #endif
 
@@ -1206,6 +1219,11 @@ int PIOc_finalize(int iosysid)
     {
         adios_finalize(ios->comp_rank);
     }
+#endif
+#ifdef _ADIOS2
+    --adios_init_ref_cnt;
+    if (!adios_init_ref_cnt)
+    	adios2_finalize(adiosH);
 #endif
 
     LOG((1, "about to finalize logging"));

@@ -12,7 +12,7 @@
 
 #include <execinfo.h>
 
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
 #include <dirent.h>
 #endif
 
@@ -42,7 +42,7 @@ extern int default_error_handler;
 
 extern bool fortran_order;
 
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
 /**
  * Utility function to remove a directory and all its contents.
  */
@@ -143,7 +143,7 @@ int PIOc_strerror(int pioerr, char *errmsg)
         case PIO_EBADIOTYPE:
             strcpy(errmsg, "Bad IO type");
             break;
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
         case PIO_EADIOSREAD:
              strcpy(errmsg, "ADIOS IO type does not support read operations");
              break;
@@ -2017,6 +2017,75 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 		}
 	}
 #endif
+#ifdef _ADIOS2
+    if (file->iotype == PIO_IOTYPE_ADIOS) 
+	{
+		LOG((2, "Calling adios_open mode = %d", file->mode));
+        /* Create a new ADIOS variable group */
+		int len = strlen(filename);
+		file->filename = malloc(len+3+3);
+		sprintf(file->filename, "%s.bp", filename);
+
+		ierr = PIO_NOERR;
+		if (file->mode & PIO_NOCLOBBER) { /* check adios file/folder exists */
+			struct stat sf, sd;
+			char *filefolder = malloc(strlen(file->filename)+6);
+			sprintf(filefolder,"%s.dir",file->filename);
+			if (0==stat(file->filename,&sf) || 0==stat(filefolder,&sd)) 
+				ierr = PIO_EEXIST; 
+			free(filefolder);
+		} else {
+             /* Delete directory filename.bp.dir if it exists */
+             if (ios->io_rank == 0)
+             {
+                  char bpdirname[PIO_MAX_NAME + 1];
+                  assert(len + 7 <= PIO_MAX_NAME);
+                  sprintf(bpdirname, "%s.bp.dir", filename);
+                  struct stat sd;
+                  if (0 == stat(bpdirname, &sd))
+                      remove_directory(bpdirname);
+             }
+        }
+
+		if (PIO_NOERR==ierr) {
+    		file->ioH = adios2_declare_io(adios2_get_adios(), "E3SM_ADIOS");
+			adios2_set_engine(file->ioH,"BPFile");
+			int num_adios_iotasks; // set MPI Aggregate params
+           	if (ios->num_comptasks != ios->num_iotasks) {
+				num_adios_iotasks = ios->num_iotasks;
+			} else {
+				num_adios_iotasks = ios->num_comptasks/16;
+				if (num_adios_iotasks==0) num_adios_iotasks = 1;
+			}
+			sprintf(file->params,"%d",num_adios_iotasks);
+			adios2_set_parameter(file->ioH,"substreams",file->params);
+			adios2_set_parameter(file->ioH,"CollectiveMetadata","OFF");
+			file->engineH = adios2_open(file->ioH,file->filename,adios2_mode_write);
+
+           	memset(file->dim_names, 0, sizeof(file->dim_names));
+           	file->num_dim_vars = 0;
+           	file->num_vars = 0;
+           	file->num_gattrs = 0;
+           	file->fillmode = NC_NOFILL;
+           	file->n_written_ioids = 0;
+
+			if (ios->union_rank==0) 
+				file->adios_iomaster = MPI_ROOT;
+			else
+				file->adios_iomaster = MPI_PROC_NULL;
+
+			/* Track attributes */
+			file->num_attrs = 0;
+
+			size_t shape[1],start[1],count[1];
+    		shape[0] = 1; start[0] = 0; count[0] = 1;
+			adios2_variable *variableH = adios2_define_variable(file->ioH, "/__pio__/info/nproc", 
+								adios2_type_int, 1, shape, start, count, adios2_constant_dims_true);
+    		adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
+		}
+	}
+#endif
+ 
  
     /* If this task is in the IO component, do the IO. */
     if (ios->ioproc)
@@ -2227,7 +2296,7 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
     file->fh = -1;
     strncpy(file->fname, filename, PIO_MAX_NAME);
     file->iotype = *iotype;
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
 #  ifdef _PNETCDF
@@ -2664,7 +2733,7 @@ int iotype_is_valid(int iotype)
         ret++;
 #endif /* _PNETCDF */
 
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
     if (iotype == PIO_IOTYPE_ADIOS)
         ret++;
 #endif
@@ -2933,6 +3002,64 @@ char *strdup(const char *str)
     return dup;
 }
 #  endif
+#endif 
+#ifdef _ADIOS2
+adios2_type PIOc_get_adios_type(nc_type xtype)
+{
+    adios2_type t;
+    switch (xtype)
+    {
+    case NC_BYTE:   t = adios2_type_char; break;
+    case NC_CHAR:   t = adios2_type_char; break;
+    case NC_SHORT:  t = adios2_type_short; break;
+    case NC_INT:    t = adios2_type_int; break;
+    case NC_FLOAT:  t = adios2_type_float; break;
+    case NC_DOUBLE: t = adios2_type_double; break;
+    case NC_UBYTE:  t = adios2_type_unsigned_char; break;
+    case NC_USHORT: t = adios2_type_unsigned_short; break;
+    case NC_UINT:   t = adios2_type_unsigned_int; break;
+    case NC_INT64:  t = adios2_type_long_int; break;
+    case NC_UINT64: t = adios2_type_unsigned_long_int; break;
+    case NC_STRING: t = adios2_type_string; break;
+    default: t = adios2_type_char;
+    }
+    return t;
+}
+
+nc_type PIOc_get_nctype_from_adios_type(adios2_type atype)
+{
+    nc_type t;
+    switch (atype)
+    {
+    case adios2_type_char:                t = NC_CHAR; break;
+    case adios2_type_short:               t = NC_SHORT; break;
+    case adios2_type_int:                 t = NC_INT; break;
+    case adios2_type_float:               t = NC_FLOAT; break;
+    case adios2_type_double:              t = NC_DOUBLE; break;
+    case adios2_type_unsigned_char:       t = NC_UBYTE; break;
+    case adios2_type_unsigned_short:      t = NC_USHORT; break;
+    case adios2_type_unsigned_int:        t = NC_UINT; break;
+    case adios2_type_long_int:            t = NC_INT64; break;
+    case adios2_type_unsigned_long_int:   t = NC_UINT64; break;
+	case adios2_type_string:			  t = NC_STRING; break;
+    default:                        	  t = NC_BYTE;
+    }
+    return t;
+}
+
+#  ifndef strdup
+char *strdup(const char *str)
+{
+    int n = strlen(str) + 1;
+    char *dup = (char*)malloc(n);
+    if(dup)
+    {
+        strcpy(dup, str);
+    }
+    return dup;
+}
+#  endif
+
 
 
 
