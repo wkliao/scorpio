@@ -21,6 +21,53 @@
 #include "pio_timer.h"
 #endif
 
+#ifdef _ADIOS2
+int adios2_type_size(adios2_type type, const void *var)
+{
+    switch (type)
+    {
+        case adios2_type_char:
+        case adios2_type_unsigned_char:
+            return 1;
+
+        case adios2_type_string:
+            if (!var)
+                return 1;
+            else
+                return strlen ((const char *) var) + 1;
+
+        case adios2_type_short:
+        case adios2_type_unsigned_short:
+            return 2;
+
+        case adios2_type_int:
+        case adios2_type_unsigned_int:
+            return 4;
+
+        case adios2_type_long_int:
+        case adios2_type_unsigned_long_int:
+            return 8;
+
+        case adios2_type_float:
+            return 4;
+
+        case adios2_type_double:
+            return 8;
+
+        case adios2_type_float_complex:
+            return 2 * 4;
+
+        case adios2_type_double_complex:
+            return 2 * 8;
+
+        default:
+            return -1;
+    }
+}
+#endif 
+
+
+
 /**
  * @ingroup PIO_inq
  * The PIO-C interface for the NetCDF function nc_inq.

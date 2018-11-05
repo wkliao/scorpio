@@ -1491,21 +1491,21 @@ extern "C" {
     int PIOc_get_varm_long(int ncid, int varid, const PIO_Offset *start, const PIO_Offset *count,
                            const PIO_Offset *stride, const PIO_Offset *imap, long *buf);
 
-#   ifdef _ADIOS
+#ifdef _ADIOS
     enum ADIOS_DATATYPES PIOc_get_adios_type(nc_type xtype);
     nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype);
-#      ifndef strdup
+#ifndef strdup
     char *strdup(const char *str);
-#      endif
-#   endif
-#   ifdef _ADIOS2
+#endif
+#endif
+#ifdef _ADIOS2
     adios2_type PIOc_get_adios_type(nc_type xtype);
     nc_type PIOc_get_nctype_from_adios_type(adios2_type atype);
 	int adios2_type_size(adios2_type type, const void *var);
-#      ifndef strdup
+#ifndef strdup
     char *strdup(const char *str);
-#      endif
-#   endif
+#endif
+#endif
 
 #if defined(__cplusplus)
 }
