@@ -221,6 +221,7 @@ int PIOc_closefile(int ncid)
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
     int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+
 #if defined(_ADIOS) || defined(_ADIOS2)
     char outfilename[PIO_MAX_NAME + 1];
     size_t len = 0;

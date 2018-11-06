@@ -2034,18 +2034,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			if (0==stat(file->filename,&sf) || 0==stat(filefolder,&sd)) 
 				ierr = PIO_EEXIST; 
 			free(filefolder);
-		} else {
-             /* Delete directory filename.bp.dir if it exists */
-             if (ios->io_rank == 0)
-             {
-                  char bpdirname[PIO_MAX_NAME + 1];
-                  assert(len + 7 <= PIO_MAX_NAME);
-                  sprintf(bpdirname, "%s.bp.dir", filename);
-                  struct stat sd;
-                  if (0 == stat(bpdirname, &sd))
-                      remove_directory(bpdirname);
-             }
-        }
+		}
 
 		if (PIO_NOERR==ierr) {
     		file->ioH = adios2_declare_io(adios2_get_adios(), "E3SM_ADIOS");
@@ -2055,9 +2044,10 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				num_adios_iotasks = ios->num_iotasks;
 			} else {
 				num_adios_iotasks = ios->num_comptasks/16;
-				if (num_adios_iotasks==0) num_adios_iotasks = 1;
+				if (num_adios_iotasks==0) num_adios_iotasks = 2;
 			}
 			sprintf(file->params,"%d",num_adios_iotasks);
+			printf("num of iotasks: %d\n",num_adios_iotasks);
 			adios2_set_parameter(file->ioH,"substreams",file->params);
 			adios2_set_parameter(file->ioH,"CollectiveMetadata","OFF");
 			file->engineH = adios2_open(file->ioH,file->filename,adios2_mode_write);
@@ -2085,7 +2075,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 		}
 	}
 #endif
- 
  
     /* If this task is in the IO component, do the IO. */
     if (ios->ioproc)
@@ -3003,6 +2992,7 @@ char *strdup(const char *str)
 }
 #  endif
 #endif 
+
 #ifdef _ADIOS2
 adios2_type PIOc_get_adios_type(nc_type xtype)
 {
@@ -3059,8 +3049,5 @@ char *strdup(const char *str)
     return dup;
 }
 #  endif
-
-
-
 
 #endif

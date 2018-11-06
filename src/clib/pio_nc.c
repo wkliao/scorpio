@@ -66,8 +66,6 @@ int adios2_type_size(adios2_type type, const void *var)
 }
 #endif 
 
-
-
 /**
  * @ingroup PIO_inq
  * The PIO-C interface for the NetCDF function nc_inq.
@@ -469,7 +467,7 @@ int PIOc_inq_type(int ncid, nc_type xtype, char *name, PIO_Offset *sizep)
             ierr = 0;
     }
 #endif
- #ifdef _ADIOS2
+#ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
             if (sizep)
@@ -2428,7 +2426,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                				dimnames[i] = file->dim_names[av->gdimids[i]];
 						sprintf(att_name,"%s/__pio__/dims",av->name);
 						if (adios2_inquire_attribute(file->ioH,att_name)==NULL) {
-							adios2_define_attribute(file->ioH,att_name,adios2_type_string,dimnames);
+							adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
 						}
 					}
          		}

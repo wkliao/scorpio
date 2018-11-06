@@ -1326,7 +1326,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                         dimnames[i] = file->dim_names[av->gdimids[i]];
 					char att_name[128];
 					sprintf(att_name,"%s/__pio__/dims",av->name);
-					adios2_define_attribute(file->ioH,att_name,adios2_type_string,dimnames);
+					adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
                 }
             }
             else
@@ -1371,7 +1371,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				char att_name[128];
                 sprintf(att_name,"%s/__pio__/dims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
-                	adios2_define_attribute(file->ioH,att_name,adios2_type_string,dimnames);
+                	adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
             }
 
 			if (file->adios_iomaster == MPI_ROOT)
@@ -1389,6 +1389,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             }
     }
 #endif
+
+
 
     /* If this is an IO task, then call the netCDF function. */
     if (ios->ioproc)

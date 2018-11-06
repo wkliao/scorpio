@@ -83,6 +83,8 @@ int main(int argc, char* argv[])
     for (int i = 0; i < elements_per_pe; i++)
       buffer[i] = START_DATA_VAL + my_rank;
 
+	printf("BUFFER: %d\n",(int)buffer[0]); fflush(stdout);
+
     PIOc_write_darray(ncid, varid, ioid, (PIO_Offset)elements_per_pe, buffer, NULL);
     PIOc_sync(ncid);
 

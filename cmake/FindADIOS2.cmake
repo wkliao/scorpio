@@ -122,10 +122,10 @@ find_file(ADIOS_CONFIG
     PATHS $ENV{ADIOS_PATH}/bin $ENV{ADIOS_DIR}/bin $ENV{INSTALL_PREFIX}/bin $ENV{PATH})
 
 if(ADIOS_CONFIG)
-    message(STATUS "Found 'adios_config': ${ADIOS_CONFIG}")
+    message(STATUS "Found 'adios2-config': ${ADIOS_CONFIG}")
 else(ADIOS_CONFIG)
     set(ADIOS_FOUND FALSE)
-    message(STATUS "Can NOT find 'adios_config' - set ADIOS_PATH, ADIOS_DIR or INSTALL_PREFIX, or check your PATH")
+    message(STATUS "Can NOT find 'adios2-config' - set ADIOS_PATH, ADIOS_DIR or INSTALL_PREFIX, or check your PATH")
 endif(ADIOS_CONFIG)
 
 # check `adios_config` program ################################################
@@ -136,7 +136,7 @@ if(ADIOS_FOUND)
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT ADIOS_CONFIG_RETURN EQUAL 0)
         set(ADIOS_FOUND FALSE)
-        message(STATUS "Can NOT execute 'adios_config' - check file permissions")
+        message(STATUS "Can NOT execute 'adios2-config' - check file permissions")
     endif()
 
     # find ADIOS_ROOT_DIR
@@ -145,7 +145,7 @@ if(ADIOS_FOUND)
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT IS_DIRECTORY "${ADIOS_ROOT_DIR}")
         set(ADIOS_FOUND FALSE)
-        message(STATUS "The directory provided by 'adios_config -d' does not exist: ${ADIOS_ROOT_DIR}")
+        message(STATUS "The directory provided by 'adios2-config --prefix' does not exist: ${ADIOS_ROOT_DIR}")
     endif()
 endif(ADIOS_FOUND)
 

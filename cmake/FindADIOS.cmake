@@ -122,7 +122,7 @@ find_file(ADIOS_CONFIG
     PATHS $ENV{ADIOS_PATH}/bin $ENV{ADIOS_DIR}/bin $ENV{INSTALL_PREFIX}/bin $ENV{PATH})
 
 if(ADIOS_CONFIG)
-    message(STATUS "Found 'adios_config': ${ADIOS_CONFIG}")
+    message(STATUS "Found 'DONE: adios_config': ${ADIOS_CONFIG}")
 else(ADIOS_CONFIG)
     set(ADIOS_FOUND FALSE)
     message(STATUS "Can NOT find 'adios_config' - set ADIOS_PATH, ADIOS_DIR or INSTALL_PREFIX, or check your PATH")
