@@ -21,7 +21,6 @@ using namespace std;
 /* debug output */
 static int debug_out = 0;
 
-/* TAHSIN */
 /* static MPI_Comm comm = MPI_COMM_WORLD; */
 /*
 static int mpirank;
@@ -155,11 +154,11 @@ std::vector<int> AssignWriteRanks(int n_bp_writers, MPI_Comm comm, int mpirank, 
 void ProcessGlobalFillmode(ADIOS_FILE **infile, int ncid)
 {
     int  asize;
-    void *fillmode;
+    void *fillmode = NULL;
     ADIOS_DATATYPES atype;
     adios_get_attr(infile[0], "/__pio__/fillmode", &atype, &asize, &fillmode);
     PIOc_set_fill(ncid, *(int*)fillmode, NULL);
-    free(fillmode);
+    if (fillmode) free(fillmode);
 }
 
 void ProcessVarAttributes(ADIOS_FILE **infile, int adios_varid, std::string varname, int ncid, int nc_varid)
@@ -170,7 +169,7 @@ void ProcessVarAttributes(ADIOS_FILE **infile, int adios_varid, std::string varn
 		if (debug_out)
         	cout << "    Attribute: " << infile[0]->attr_namelist[vi->attr_ids[i]] << std::endl;
         int asize;
-        char *adata;
+        char *adata = NULL;
         ADIOS_DATATYPES atype;
         adios_get_attr(infile[0], infile[0]->attr_namelist[vi->attr_ids[i]], &atype, &asize, (void**)&adata);
         nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
@@ -182,7 +181,7 @@ void ProcessVarAttributes(ADIOS_FILE **infile, int adios_varid, std::string varn
         if (atype == adios_string)
             len = strlen(adata);
         PIOc_put_att(ncid, nc_varid, attname, piotype, len, adata);
-        free(adata);
+        if (adata) free(adata);	
     }
     adios_free_varinfo(vi);
 }
@@ -323,7 +322,7 @@ Decomposition ProcessOneDecomposition(ADIOS_FILE **infile, int ncid, const char 
 
    	string attname;
    	int asize;
-   	int *piotype;
+   	int *piotype = NULL;
    	ADIOS_DATATYPES atype;
    	if (forced_type == NC_NAT) {
    		 attname = string(varname) + "/piotype";
@@ -333,10 +332,10 @@ Decomposition ProcessOneDecomposition(ADIOS_FILE **infile, int ncid, const char 
    		 *piotype = forced_type;
    	}
    	attname = string(varname) + "/ndims";
-   	int *decomp_ndims;
+   	int *decomp_ndims = NULL;
    	adios_get_attr(infile[0], attname.c_str(), &atype, &asize, (void**)&decomp_ndims);
 
-   	int *decomp_dims;
+   	int *decomp_dims = NULL;
    	attname = string(varname) + "/dimlen";
    	adios_get_attr(infile[0], attname.c_str(), &atype, &asize, (void**)&decomp_dims);
    	TimerStop(read);
@@ -344,14 +343,14 @@ Decomposition ProcessOneDecomposition(ADIOS_FILE **infile, int ncid, const char 
    	TimerStart(write);
    	int ioid;
    	PIOc_InitDecomp(iosysid, *piotype, *decomp_ndims, decomp_dims, (PIO_Offset)nelems,
-   		     		d.data(), &ioid, NULL, NULL, NULL);
+					d.data(), &ioid, NULL, NULL, NULL);
    	TimerStop(write);
 
 	int decomp_piotype = *piotype;
 
-   	free(piotype);
-   	free(decomp_ndims);
-   	free(decomp_dims);
+   	if (piotype) free(piotype);
+   	if (decomp_ndims) free(decomp_ndims);
+   	if (decomp_dims) free(decomp_dims);
 
     return Decomposition{ioid, decomp_piotype};
 }
@@ -662,48 +661,6 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
    			adios_free_varinfo(vb);
 		}
 
-#if 0
-		if (mpirank==0) {
-			size_t mysize = 1;
-			char   *buf   = NULL;
-			adios_inq_var_blockinfo(infile[0], vi);
-			for (int d=0;d<vi->ndim;d++) 
-				mysize *= (size_t)vi->blockinfo[0].count[d];
-			mysize = mysize*adios_type_size(vi->type,NULL);
-   	    	if ((buf = (char *)malloc(mysize))==NULL) {
-				printf("ERROR: cannot allocate memory: %ld\n",mysize);
-				return 1;
-			}
-			ADIOS_SELECTION *wbsel = adios_selection_writeblock(0);
-   	    	int ret = adios_schedule_read(infile[0], wbsel, varname, 0, 1, buf);
-   	    	adios_perform_reads(infile[0], 1);
-	
-			for (int d=0;d<vi->ndim;d++) {
-				start[d] = (PIO_Offset) vi->blockinfo[0].start[d];
-   	    		count[d] = (PIO_Offset) vi->blockinfo[0].count[d];
-			}
- 			ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vi->type, start, count, buf);
-   	    	if (ret != PIO_NOERR) {
-   	    		cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
-   	    			 << " at " << __func__ << ":" << __LINE__ << endl;
-				return 1;
-			}
-			adios_selection_delete(wbsel);
-			if (buf) free(buf);
-		} else {
-			char temp_buf;
-			for (int d=0;d<vi->ndim;d++) {
-				start[d] = (PIO_Offset) 0;
-   	    		count[d] = (PIO_Offset) 0;
-			}
-			ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vi->type, start, count, &temp_buf);
-   	    	if (ret != PIO_NOERR) {
-   	    		cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
-   	    			 << " at " << __func__ << ":" << __LINE__ << endl;
-				return 1;
-			}
-		}
-#endif 
         TimerStop(write);
     }
 
@@ -891,7 +848,7 @@ int ConvertVariableTimedPutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int
 
 int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variable& var,
         std::vector<int>& wfiles, DecompositionMap& decomp_map, int nblocks_per_step, int iosysid,
-		MPI_Comm comm, int mpirank, int nproc)
+		MPI_Comm comm, int mpirank, int nproc, int mem_opt)
 {
     int ret = 0;
 
@@ -1037,11 +994,22 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
         TimerStop(read);
 
         TimerStart(write);
-		sprintf(decompname,"%d",decomp_id);
-    	Decomposition decomp = decomp_map[decompname];
+		Decomposition decomp;
+		if (mem_opt) {
+			sprintf(decompname,"/__pio__/decomp/%d",decomp_id);
+        	decomp = ProcessOneDecomposition(infile, ncid, decompname, wfiles, iosysid, mpirank, nproc);
+		} else {
+			sprintf(decompname,"%d",decomp_id);
+			decomp = decomp_map[decompname];
+		} 
     	if (decomp.piotype != var.nctype) {
        		/* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
-        	decomp = GetNewDecomposition(decomp_map, decompname, infile, ncid, wfiles, var.nctype, iosysid, mpirank, nproc);
+			if (mem_opt) {
+				PIOc_freedecomp(iosysid,decomp.ioid);
+        		decomp = ProcessOneDecomposition(infile, ncid, decompname, wfiles, iosysid, mpirank, nproc, var.nctype);
+			} else {
+        		decomp = GetNewDecomposition(decomp_map, decompname, infile, ncid, wfiles, var.nctype, iosysid, mpirank, nproc);
+			} 
 		}
 		if (frame_id<0) frame_id = 0;
         if (wfiles[0] < nblocks_per_step)
@@ -1057,6 +1025,10 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
 						d.data(), NULL); 
 			}
         }
+		if (mem_opt) {
+			PIOc_sync(ncid); 
+			PIOc_freedecomp(iosysid,decomp.ioid);
+		}
         TimerStop(write);
     }
     adios_free_varinfo(vi);
@@ -1081,7 +1053,7 @@ int GetNumOfFiles(string infilename)
 	}
     struct dirent * dp;
     while ((dp = readdir(dirp)) != NULL) {
-		if (dp->d_type==DT_REG) file_count++;
+		if (dp->d_type==DT_REG && strstr(dp->d_name,".bp.")!=NULL) file_count++; 
     }
     closedir(dirp);	
 	return file_count;
@@ -1107,7 +1079,7 @@ std::string ExtractPathname(std::string pathname)
 	}
 }
 
-void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int iosysid, MPI_Comm comm, int mpirank, int nproc)
+void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int iosysid, MPI_Comm comm, int mpirank, int nproc, int mem_opt)
 {
 	ADIOS_FILE **infile = NULL;
 	int num_infiles = 0; 
@@ -1156,6 +1128,7 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 		string file0 = infilepath + ".dir/" + basefilename + ".0";
 		if (debug_out) printf("FILE0: %s\n",file0.c_str()); fflush(stdout);
 		infile[0] = adios_read_open_file(file0.c_str(), ADIOS_READ_METHOD_BP, comm);
+		if (debug_out) printf("AFTER FILE0: %s\n",file0.c_str()); fflush(stdout);
 		if (infile[0]==NULL) { 
 			printf("ERROR: file open returned an error.\n");
 			fflush(stdout);
@@ -1164,6 +1137,7 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 		if (ret)
 			throw std::runtime_error("Invalid BP file: missing '/__pio__/info/nproc' variable\n");
 		adios_perform_reads(infile[0], 1);
+		if (debug_out) printf("AFTER AFTER FILE0: %s %d\n",file0.c_str(),n_bp_writers); fflush(stdout);
 		if (n_bp_writers!=n_bp_files) {
 			if (debug_out) std::cout  << "WARNING: #writers (" 
 					<< n_bp_writers << ") != #files (" 
@@ -1190,9 +1164,6 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 			if (debug_out) std::cout << "myrank " << mpirank << " file: " << filei << std::endl;
 		}
 
-		/* First process decompositions */
-		DecompositionMap decomp_map = ProcessDecompositions(infile, ncid, wfiles,iosysid,comm, mpirank, nproc);
-
 		/* Create output file */
 		TimerStart(write);
 		/* 
@@ -1203,6 +1174,10 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 		TimerStop(write);
 		if (ret)
 			throw std::runtime_error("Could not create output file " + outfilename + "\n");
+
+		/* First process decompositions */
+		DecompositionMap decomp_map;
+		if (!mem_opt) decomp_map = ProcessDecompositions(infile, ncid, wfiles,iosysid,comm, mpirank, nproc);
 
 		/* Process the global fillmode */
 		ProcessGlobalFillmode(infile, ncid);
@@ -1237,11 +1212,11 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 					TimerStart(read);
 					string attname = string(infile[0]->var_namelist[i]) + "/__pio__/ncop";
 					int asize;
-					char *ncop;
+					char *ncop = NULL;
 					ADIOS_DATATYPES atype;
 					adios_get_attr(infile[0], attname.c_str(), &atype, &asize, (void**)&ncop);
 					TimerStop(read);
-	
+
 					std::string op(ncop);
 					if (op == "put_var") {
 						if (var.is_timed) {
@@ -1254,12 +1229,12 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 					} else if (op == "darray") {
 						/* Variable was written with pio_write_darray() with a decomposition */
 						if (debug_out) printf("ConvertVariableDarray: %d\n",mpirank); fflush(stdout);
-						ConvertVariableDarray(infile, i, ncid, var, wfiles, decomp_map, n_bp_writers,iosysid, comm, mpirank, nproc);
+						ConvertVariableDarray(infile, i, ncid, var, wfiles, decomp_map, n_bp_writers, iosysid, comm, mpirank, nproc, mem_opt);
 					} else {
 						if (!mpirank && debug_out)
 							cout << "  WARNING: unknown operation " << op << ". Will not process this variable\n";
 					}
-					free(ncop);
+					if (ncop) free(ncop);
 				}
 			}
 			FlushStdout_nm(comm);
@@ -1302,9 +1277,10 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 
 void usage_nm(string prgname)
 {
-        cout << "Usage: " << prgname << " bp_file  nc_file  pio_io_type\n";
+        cout << "Usage: " << prgname << " bp_file  nc_file  pio_io_type memory_opt\n";
         cout << "   bp file   :  data produced by PIO with ADIOS format\n";
         cout << "   nc file   :  output file name after conversion\n";
+        cout << "   memory opt:  (0/1) reduce memory usage. Reduces execution speed.\n";
         cout << "   pio format:  output PIO_IO_TYPE. Supported parameters:\n";
         cout << "                pnetcdf  netcdf  netcdf4c  netcdf4p   or:\n";
         cout << "                   1       2        3         4\n";
@@ -1336,7 +1312,7 @@ enum PIO_IOTYPE GetIOType_nm(string t)
     return iotype;
 }
 
-int ConvertBPToNC(string infilepath, string outfilename, string piotype, MPI_Comm comm_in)
+int ConvertBPToNC(string infilepath, string outfilename, string piotype, int mem_opt, MPI_Comm comm_in)
 {
 	int ret = 0;
 	int iosysid = 0;
@@ -1349,6 +1325,12 @@ int ConvertBPToNC(string infilepath, string outfilename, string piotype, MPI_Com
     MPI_Comm_set_errhandler(w_comm, MPI_ERRORS_RETURN);
     MPI_Comm_rank(w_comm, &w_mpirank);
     MPI_Comm_size(w_comm, &w_nproc);
+
+	if (mem_opt) 
+		printf("INFO: Option selected to reduce memory usage. Execution time will likely increase.\n");
+	else
+		printf("INFO: Reduce memory usage option is set to 0.\n");
+	fflush(stdout);
 
 	/* 
  	 * Check if the number of nodes is less than or equal to the number of BP files.
@@ -1378,7 +1360,7 @@ int ConvertBPToNC(string infilepath, string outfilename, string piotype, MPI_Com
 		if (io_proc) {
         	enum PIO_IOTYPE pio_iotype = GetIOType_nm(piotype);
         	iosysid = InitPIO(comm,mpirank,nproc);
-        	ConvertBPFile(infilepath, outfilename, pio_iotype, iosysid,comm, mpirank, nproc);
+        	ConvertBPFile(infilepath, outfilename, pio_iotype, iosysid, comm, mpirank, nproc, mem_opt);
         	PIOc_finalize(iosysid);
         	TimerReport_nm(comm);
 		}
@@ -1399,9 +1381,9 @@ int ConvertBPToNC(string infilepath, string outfilename, string piotype, MPI_Com
 extern "C" {
 #endif
 
-int C_API_ConvertBPToNC(const char *infilepath, const char *outfilename, const char *piotype, MPI_Comm comm_in)
+int C_API_ConvertBPToNC(const char *infilepath, const char *outfilename, const char *piotype, int mem_opt, MPI_Comm comm_in)
 {
-    return ConvertBPToNC(string(infilepath), string(outfilename), string(piotype), comm_in);
+    return ConvertBPToNC(string(infilepath), string(outfilename), string(piotype), mem_opt, comm_in);
 }
 
 #ifdef __cplusplus
