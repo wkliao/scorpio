@@ -850,8 +850,9 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
     	shape[0] = (size_t)iodesc->maplen;
     	start[0] = (size_t)0;
     	count[0] = (size_t)iodesc->maplen;
-		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type, 1, 
-									shape, start, count, adios2_constant_dims_true);
+		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
+															1, NULL, NULL, count, 
+															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, iodesc->map, adios2_mode_sync);
 	} else if (iodesc->maplen==0) { // Handle the case where maplen is 0
 		printf("No elements in decomp array.\n"); fflush(stdout);
@@ -862,8 +863,9 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 		count[0] = 2;
 		mapbuf[0] = 0; 
 		mapbuf[1] = 0;
-		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type, 1,
-							shape, start, count, adios2_constant_dims_true);
+		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
+															1, NULL, NULL, count, 
+															adios2_constant_dims_true);
        	adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 	} else { // Handle the case where maplen is 1
 		int maplen = iodesc->maplen+1; 
@@ -886,8 +888,9 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
     	shape[0] = (size_t)maplen;
     	start[0] = (size_t)0;
     	count[0] = (size_t)maplen;
-		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type, 1, 
-									shape, start, count, adios2_constant_dims_true);
+		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
+															1, NULL, NULL, count, 
+															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 		free(mapbuf);
 	}
@@ -1025,20 +1028,24 @@ static int PIOc_write_darray_adios(
         adios2_type atype = av->adios_type;
 		size_t shape[1],start[1],count[1];
 		shape[0] = (size_t)arraylen; start[0] = 0; count[0] = (size_t)arraylen;
-        av->adios_varid = adios2_define_variable(file->ioH,av->name,atype,1,shape,start,count,
+        av->adios_varid = adios2_define_variable(file->ioH,av->name,atype,
+												1,NULL,NULL,count,
 												adios2_constant_dims_true);
 
 		/* different decompositions at different frames */
 		char name_varid[256];
-		sprintf(name_varid,"decomp_id/%s",av->name);
 		shape[0] = 1; start[0] = 0; count[0] = 1;
-		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,1,shape,start,count,
+		sprintf(name_varid,"decomp_id/%s",av->name);
+		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
+												1, NULL, NULL,count,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"frame_id/%s",av->name);
-		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,1,shape,start,count,
+		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
+												1,NULL,NULL,count,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"fillval_id/%s",av->name);
-		av->fillval_varid = adios2_define_variable(file->ioH,name_varid,atype,1,shape,start,count,
+		av->fillval_varid = adios2_define_variable(file->ioH,name_varid,atype,
+												1,NULL,NULL,count,
                                                 adios2_constant_dims_true);
 		
         if (file->adios_iomaster == MPI_ROOT)

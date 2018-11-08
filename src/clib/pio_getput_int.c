@@ -175,7 +175,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
             char path[256];
             if (varid != PIO_GLOBAL)
             {
-                adios_var_desc_t * av = &(file->adios_vars[varid]);
+                adios_var_desc_t *av = &(file->adios_vars[varid]);
                 strncpy(path, av->name, sizeof(path));
                 ++file->adios_vars[varid].nattrs;
             }
@@ -189,20 +189,23 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			int num_attrs = file->num_attrs;
 			if (num_attrs>=PIO_MAX_VARS) {
 				fprintf(stderr, "ERROR: Num of attributes exceeds maximum (%d).\n",PIO_MAX_VARS);
-				fflush(stderr);
 				return PIO_EMAXATTS;
 			}
-			file->adios_attrs[num_attrs].att_name = strdup(name);
-			file->adios_attrs[num_attrs].att_len = len;
-			file->adios_attrs[num_attrs].att_type = atttype;
-			file->adios_attrs[num_attrs].att_varid = varid;
-			file->adios_attrs[num_attrs].att_ncid = ncid;
+			file->adios_attrs[num_attrs].att_name   = strdup(name);
+			file->adios_attrs[num_attrs].att_len    = len;
+			file->adios_attrs[num_attrs].att_type   = atttype;
+			file->adios_attrs[num_attrs].att_varid  = varid;
+			file->adios_attrs[num_attrs].att_ncid   = ncid;
 			file->adios_attrs[num_attrs].adios_type = adios_type;
 			file->num_attrs++;
 			
 			char att_name[256];
 			sprintf(att_name,"%s/%s",path,name);
-            adios2_define_attribute(file->ioH, att_name, adios_type, op);
+			printf("OP: %s %d %d\n",op,adios_type,atttype);
+			if (NC_CHAR==atttype)
+            	adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
+			else
+            	adios2_define_attribute(file->ioH, att_name, adios_type, op);
             ierr = 0;
     }
 #endif
@@ -1148,7 +1151,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 
                 /* Only the IO master does the IO, so we are not really
                  * getting parallel IO here. */
-				        if (file->adios_iomaster == MPI_ROOT)
+				if (file->adios_iomaster == MPI_ROOT)
                 {
                     if (av->adios_varid == 0)
                     {
@@ -1256,9 +1259,10 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             if (varid < 0 || varid >= file->num_vars)
                 return pio_err(file->iosystem, file, PIO_EBADID, __FILE__, __LINE__);
             /* First we need to define the variable now that we know it's decomposition */
-            adios_var_desc_t * av = &(file->adios_vars[varid]);
+            adios_var_desc_t *av = &(file->adios_vars[varid]);
 
-            /* Write ADIOS with memory type since ADIOS does not do conversions.
+            /* 
+			 * Write ADIOS with memory type since ADIOS does not do conversions.
              * Add an attribute describing the target output type (defined type).
              */
             if (xtype == NC_NAT)
@@ -1286,18 +1290,17 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				if (file->adios_iomaster == MPI_ROOT)
                 {
 					size_t av_shape[1],av_start[1],av_count[1];
+            		av_shape[0] = 1; av_start[0] = 0; av_count[0] = 1;
                     if (av->adios_varid == NULL) {
             			av_shape[0] = 1; av_start[0] = 0; av_count[0] = 1;
 						av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
-						if (av->adios_varid==NULL) { 
-                        	av->adios_varid = adios2_define_variable(file->ioH, av->name, av->adios_type,
-										1,av_shape,av_start,av_count,adios2_constant_dims_false);
-						}
+						if (av->adios_varid==NULL)  
+                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
+																	1,av_shape,av_start,av_count,
+																	adios2_constant_dims_false);
                     }
-					av_start[0] = 0;
-					av_count[0] = 1;
 					adios2_set_selection(av->adios_varid,1,av_start,av_count);
-					adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
+					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
                 }
             }
             else if (av->ndims == 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED)
@@ -1308,18 +1311,19 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				if (file->adios_iomaster == MPI_ROOT)
                 {
 					size_t av_shape[1],av_start[1],av_count[1];
+                    av_shape[0] = 1; av_start[0] = 0; av_count[0] = 1;
+					if (!start) av_start[0] = (size_t)start[0]; 
+					if (!count) av_count[0] = (size_t)count[0]; 
                     if (av->adios_varid == NULL)
                     {
-                        av_shape[0] = 1; av_start[0] = 0; av_count[0] = 1;
 						av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
 						if (av->adios_varid==NULL)
-                        	av->adios_varid = adios2_define_variable(file->ioH, av->name, av->adios_type,
-                                	1,av_shape,av_start,av_count,adios2_constant_dims_false);
+                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
+																	1,av_shape,av_start,av_count,
+																	adios2_constant_dims_false);
                     }
-					av_start[0] = (size_t)start[0];
-					av_count[0] = (size_t)count[0];
 					adios2_set_selection(av->adios_varid,1,av_start,av_count);
-					adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
+					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
 
                     char* dimnames[6];
                     for (int i = 0; i < av->ndims; i++)
@@ -1350,14 +1354,14 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 for (int d=d_start; d < av->ndims; d++)
 					av_start[d-d_start] = (size_t)start[d];
 
-				// TAHSIN
-				// PIOc_put_var may be called multiple times with different start,count values for a variable
-				// ADIOS should output data for each of those calls not just when the variable is not defined
+				/*
+					PIOc_put_var may be called multiple times with different start,count values for a variable.
+					ADIOS should output data for each of those calls, not just when the variable is not defined.
+				*/
 				av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
 				if (av->adios_varid==NULL) {
-                	av->adios_varid = adios2_define_variable(file->ioH, av->name, 
-											av->adios_type, av->ndims-d_start, 
-											av_shape,av_start,av_count,
+                	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
+											av->ndims-d_start,av_shape,av_start,av_count,
 											adios2_constant_dims_false);
 				} else {
 					adios2_set_selection(av->adios_varid,av->ndims-d_start,av_start,av_count);
@@ -1389,8 +1393,6 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             }
     }
 #endif
-
-
 
     /* If this is an IO task, then call the netCDF function. */
     if (ios->ioproc)

@@ -623,6 +623,8 @@ int PIOc_InitDecomp(int iosysid, int pio_type, int ndims, const int *gdimlen, in
                 return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
     }
 
+
+#if 0
 	/* 
 		ADIOS uses ioid values to save decomposition information. The imax variable 
 		in pio_add_to_iodesc_list has to be the same across all ADIOS I/O nodes. If
@@ -638,6 +640,7 @@ int PIOc_InitDecomp(int iosysid, int pio_type, int ndims, const int *gdimlen, in
 		pio_set_imax(global_imax); 
 	}
 #endif 
+#endif /* if 0 */
 
     /* Add this IO description to the list. */
     MPI_Comm comm = MPI_COMM_NULL;
@@ -821,8 +824,8 @@ int PIOc_InitDecomp_bc(int iosysid, int pio_type, int ndims, const int *gdimlen,
 static int adios_init_ref_cnt = 0;
 #endif
 #ifdef _ADIOS2
-static adios2_adios *adiosH;
-adios2_adios *adios2_get_adios()
+static adios2_adios *adiosH = NULL;
+adios2_adios *get_adios2_adios()
 {
 	return adiosH;
 }
@@ -906,9 +909,7 @@ int PIOc_Init_Intracomm(MPI_Comm comp_comm, int num_iotasks, int stride, int bas
 #ifdef _ADIOS
     /* Initialize ADIOS once */
     if (!adios_init_ref_cnt)
-    {
         adios_init_noxml(comp_comm);
-    }
     adios_init_ref_cnt++;
 #endif
 #ifdef _ADIOS2
@@ -1232,9 +1233,7 @@ int PIOc_finalize(int iosysid)
 #ifdef _ADIOS
     --adios_init_ref_cnt;
     if (!adios_init_ref_cnt)
-    {
         adios_finalize(ios->comp_rank);
-    }
 #endif
 #ifdef _ADIOS2
     --adios_init_ref_cnt;

@@ -24,6 +24,7 @@
 #ifdef _PNETCDF
 #include <pnetcdf.h>
 #endif
+
 #ifdef _ADIOS
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -39,7 +40,7 @@
 #include <unistd.h>
 #include <adios2_c.h>
 #define _ADIOS_ALL_PROCS 1  /* ADIOS: assume all procs are also IO tasks */
-adios2_adios *adios2_get_adios();
+adios2_adios *get_adios2_adios();
 #endif
 
 #ifndef MPI_OFFSET

@@ -658,9 +658,6 @@ int PIOc_inq_dim(int ncid, int dimid, char *name, PIO_Offset *lenp)
             }
             else
             {
-                /*printf("WARNING: ncid %d: PIOc_inq_dim() invalid id=%d, only have 0..%d. " 
-                       "Dimensions defined: ",
-                       ncid, dimid, file->num_dim_vars);*/
                 for (int i=0; i < file->num_dim_vars; i++)
                 {
                     printf("%s", file->dim_names[i]);
@@ -820,15 +817,12 @@ int PIOc_inq_dimid(int ncid, const char *name, int *idp)
             {
                 if (!strcmp(name, file->dim_names[i]))
                 {
-                    /*printf("WARNING: ncid %d: PIOc_inq_dimid(%s) found id=%d\n", ncid, name, i);*/
                     *idp = i;
                     ierr = PIO_NOERR;
                     break;
                 }
             }
             if (ierr == PIO_EBADDIM) {
-                /*printf("WARNING: ncid %d: PIOc_inq_dimid(%s) did not find this dimension. "
-                        "Available dimensions: ", ncid, name);*/
                 for (int i=0; i < file->num_dim_vars; i++)
                 {
                     printf("%s", file->dim_names[i]);
@@ -2216,9 +2210,9 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
 			shape[0] = 1; start[0] = 0; count[0] = 1;
 			adios2_variable *variableH = adios2_inquire_variable(file->ioH,dimname);			
 			if (variableH==NULL) {
-            	variableH = adios2_define_variable(file->ioH, dimname, 
-								adios2_type_unsigned_long_int,1,
-								shape,start,count,adios2_constant_dims_false);
+            	variableH = adios2_define_variable(file->ioH, dimname,adios2_type_unsigned_long_int,
+												1,shape,start,count,
+												adios2_constant_dims_false);
 			} else {
 				adios2_set_selection(variableH,1,start,count);
 			}
@@ -2410,7 +2404,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 
 			/* TAHSIN -- some codes moved from pio_darray.c */
 			{
-    			adios_var_desc_t * av = &(file->adios_vars[*varidp]);
+    			adios_var_desc_t *av = &(file->adios_vars[*varidp]);
         		if (file->adios_iomaster == MPI_ROOT)
         		{
 					char att_name[64];

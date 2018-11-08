@@ -1954,7 +1954,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			if (0==stat(file->filename,&sf) || 0==stat(filefolder,&sd))
 				ierr = PIO_EEXIST;
 			free(filefolder);
-		}
+		} 
                 else
                 {
                     /* Delete directory filename.bp.dir if it exists */
@@ -2035,16 +2035,34 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				ierr = PIO_EEXIST; 
 			free(filefolder);
 		}
+                else
+                {
+                    /* Delete directory filename.bp.dir if it exists */
+                    if (ios->union_rank == 0)
+                    {
+                        char bpdirname[PIO_MAX_NAME + 1];
+                        assert(len + 7 <= PIO_MAX_NAME);
+                        sprintf(bpdirname, "%s.bp.dir", filename);
+                        struct stat sd;
+                        if (0 == stat(bpdirname, &sd))
+                            remove_directory(bpdirname);
+                    }
+
+                    /* Make sure that no task is trying to operate on the
+                     * directory while it is being deleted */
+                    if ((mpierr = MPI_Barrier(ios->union_comm)))
+                        return check_mpi(file, mpierr, __FILE__, __LINE__);
+                }
 
 		if (PIO_NOERR==ierr) {
-    		file->ioH = adios2_declare_io(adios2_get_adios(), "E3SM_ADIOS");
+    		file->ioH = adios2_declare_io(get_adios2_adios(), "E3SM_ADIOS");
 			adios2_set_engine(file->ioH,"BPFile");
 			int num_adios_iotasks; // set MPI Aggregate params
            	if (ios->num_comptasks != ios->num_iotasks) {
 				num_adios_iotasks = ios->num_iotasks;
 			} else {
 				num_adios_iotasks = ios->num_comptasks/16;
-				if (num_adios_iotasks==0) num_adios_iotasks = 2;
+				if (num_adios_iotasks==0) num_adios_iotasks = ios->num_comptasks;
 			}
 			sprintf(file->params,"%d",num_adios_iotasks);
 			printf("num of iotasks: %d\n",num_adios_iotasks);
@@ -2069,8 +2087,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
 			size_t shape[1],start[1],count[1];
     		shape[0] = 1; start[0] = 0; count[0] = 1;
-			adios2_variable *variableH = adios2_define_variable(file->ioH, "/__pio__/info/nproc", 
-								adios2_type_int, 1, shape, start, count, adios2_constant_dims_true);
+			adios2_variable *variableH = adios2_define_variable(file->ioH, "/__pio__/info/nproc",adios2_type_int,
+																1, NULL, NULL, count, 
+																adios2_constant_dims_true);
     		adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
 		}
 	}
@@ -2979,7 +2998,7 @@ nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype)
     return t;
 }
 
-#  ifndef strdup
+#ifndef strdup
 char *strdup(const char *str)
 {
     int n = strlen(str) + 1;
@@ -3048,6 +3067,6 @@ char *strdup(const char *str)
     }
     return dup;
 }
-#  endif
+#endif
 
 #endif
