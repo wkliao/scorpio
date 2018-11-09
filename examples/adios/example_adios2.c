@@ -502,7 +502,7 @@ int check_file(int ntasks, char *filename) {
 	    if ((ret = PIOc_closefile(ncid)))
 		ERR(ret);
 	}
-	
+
 	/* Free the PIO decomposition. */
 	if (verbose)
 	    printf("rank: %d Freeing PIO decomposition...\n", my_rank);
@@ -515,6 +515,7 @@ int check_file(int ntasks, char *filename) {
 	if ((ret = PIOc_finalize(iosysid)))
 	    ERR(ret);
 
+#if 0
 	/* Check the output file. */
 	if (!my_rank)
 	    for (int fmt = 0; fmt < num_flavors; fmt++)
@@ -524,6 +525,7 @@ int check_file(int ntasks, char *filename) {
 	            (ret = check_file(ntasks, filename)))
 	            ERR(ret);
 	    }
+#endif 
 
 	/* Finalize the MPI library. */
 	MPI_Finalize();
