@@ -86,7 +86,7 @@ add_dependencies(tests example_scalar_char_var)
 ###-------------------------------------------------------------------------###
 
 if (PIO_ENABLE_FORTRAN)
-  if (WITH_ADIOS)
+  if (WITH_ADIOS2)
 
     # Adding PIO definitions - defined in the root directory
     ADD_DEFINITIONS(${PIO_DEFINITIONS})
@@ -101,6 +101,6 @@ if (PIO_ENABLE_FORTRAN)
     SET(SRC examplePioADIOS.f90)
     ADD_EXECUTABLE(examplePioADIOS_f90 ${SRC})
     TARGET_LINK_LIBRARIES(examplePioADIOS_f90 piof pioc)
-  endif(WITH_ADIOS)
+  endif(WITH_ADIOS2)
 
 endif(PIO_ENABLE_FORTRAN)

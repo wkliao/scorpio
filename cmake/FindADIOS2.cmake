@@ -90,13 +90,13 @@ cmake_minimum_required(VERSION 2.8.5)
 
 
 ###############################################################################
-# ADIOS
+# ADIOS2
 ###############################################################################
 # get flags for adios_config, -l is the default
 #-f for fortran, -r for readonly, -s for sequential (nompi)
 set(OPTLIST "--libs --cxxflags")
-if(ADIOS_FIND_COMPONENTS)
-    foreach(COMP ${ADIOS_FIND_COMPONENTS})
+if(ADIOS2_FIND_COMPONENTS)
+    foreach(COMP ${ADIOS2_FIND_COMPONENTS})
         string(TOLOWER ${COMP} comp)
         if(comp STREQUAL "fortran")
             set(OPTLIST "${OPTLIST}")
@@ -105,96 +105,96 @@ if(ADIOS_FIND_COMPONENTS)
         elseif(comp STREQUAL "sequential")
             set(OPTLIST "${OPTLIST}s")
         else()
-            message("ADIOS component ${COMP} is not supported. Please use fortran, readonly, or sequential")
+            message("ADIOS2 component ${COMP} is not supported. Please use fortran, readonly, or sequential")
         endif()
     endforeach()
 endif()
 
-# we start by assuming we found ADIOS and falsify it if some
-# dependencies are missing (or if we did not find ADIOS at all)
-set(ADIOS_FOUND TRUE)
+# we start by assuming we found ADIOS2 and falsify it if some
+# dependencies are missing (or if we did not find ADIOS2 at all)
+set(ADIOS2_FOUND TRUE)
 
 
 # find `adios_config` program #################################################
 #   check the ADIOS_PATH hint and the normal PATH
-find_file(ADIOS_CONFIG
+find_file(ADIOS2_CONFIG
     NAME adios2-config
-    PATHS $ENV{ADIOS_PATH}/bin $ENV{ADIOS_DIR}/bin $ENV{INSTALL_PREFIX}/bin $ENV{PATH})
+    PATHS $ENV{ADIOS2_PATH}/bin $ENV{ADIOS2_DIR}/bin $ENV{INSTALL_PREFIX}/bin $ENV{PATH})
 
-if(ADIOS_CONFIG)
-    message(STATUS "Found 'adios2-config': ${ADIOS_CONFIG}")
-else(ADIOS_CONFIG)
-    set(ADIOS_FOUND FALSE)
-    message(STATUS "Can NOT find 'adios2-config' - set ADIOS_PATH, ADIOS_DIR or INSTALL_PREFIX, or check your PATH")
-endif(ADIOS_CONFIG)
+if(ADIOS2_CONFIG)
+    message(STATUS "Found 'adios2-config': ${ADIOS2_CONFIG}")
+else(ADIOS2_CONFIG)
+    set(ADIOS2_FOUND FALSE)
+    message(STATUS "Can NOT find 'adios2-config' - set ADIOS2_PATH, ADIOS2_DIR or INSTALL_PREFIX, or check your PATH")
+endif(ADIOS2_CONFIG)
 
 # check `adios_config` program ################################################
-if(ADIOS_FOUND)
-    execute_process(COMMAND ${ADIOS_CONFIG} --libs 
-                    OUTPUT_VARIABLE ADIOS_LINKFLAGS
-                    RESULT_VARIABLE ADIOS_CONFIG_RETURN
+if(ADIOS2_FOUND)
+    execute_process(COMMAND ${ADIOS2_CONFIG} --libs 
+                    OUTPUT_VARIABLE ADIOS2_LINKFLAGS
+                    RESULT_VARIABLE ADIOS2_CONFIG_RETURN
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT ADIOS_CONFIG_RETURN EQUAL 0)
-        set(ADIOS_FOUND FALSE)
+    if(NOT ADIOS2_CONFIG_RETURN EQUAL 0)
+        set(ADIOS2_FOUND FALSE)
         message(STATUS "Can NOT execute 'adios2-config' - check file permissions")
     endif()
 
-    # find ADIOS_ROOT_DIR
-    execute_process(COMMAND ${ADIOS_CONFIG} --prefix
-                    OUTPUT_VARIABLE ADIOS_ROOT_DIR
+    # find ADIOS2_ROOT_DIR
+    execute_process(COMMAND ${ADIOS2_CONFIG} --prefix
+                    OUTPUT_VARIABLE ADIOS2_ROOT_DIR
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT IS_DIRECTORY "${ADIOS_ROOT_DIR}")
-        set(ADIOS_FOUND FALSE)
-        message(STATUS "The directory provided by 'adios2-config --prefix' does not exist: ${ADIOS_ROOT_DIR}")
+    if(NOT IS_DIRECTORY "${ADIOS2_ROOT_DIR}")
+        set(ADIOS2_FOUND FALSE)
+        message(STATUS "The directory provided by 'adios2-config --prefix' does not exist: ${ADIOS2_ROOT_DIR}")
     endif()
-endif(ADIOS_FOUND)
+endif(ADIOS2_FOUND)
 
 # option: use only static libs ################################################
-if(ADIOS_USE_STATIC_LIBS)
+if(ADIOS2_USE_STATIC_LIBS)
     # carfully: we have to restore the original path in the end
     set(_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 endif()
 
 
-# we found something in ADIOS_ROOT_DIR and adios_config works #################
-if(ADIOS_FOUND)
-    # ADIOS headers
-    list(APPEND ADIOS_INCLUDE_DIRS ${ADIOS_ROOT_DIR}/include)
+# we found something in ADIOS2_ROOT_DIR and adios_config works #################
+if(ADIOS2_FOUND)
+    # ADIOS2 headers
+    list(APPEND ADIOS2_INCLUDE_DIRS ${ADIOS2_ROOT_DIR}/include)
 
-    # check for compiled in dependencies, recomve ";" in ADIOS_LINKFLAGS (from cmake build)
-    string(REGEX REPLACE ";" " " ADIOS_LINKFLAGS "${ADIOS_LINKFLAGS}")
-    message(STATUS "ADIOS linker flags (unparsed): ${ADIOS_LINKFLAGS}")
+    # check for compiled in dependencies, recomve ";" in ADIOS2_LINKFLAGS (from cmake build)
+    string(REGEX REPLACE ";" " " ADIOS2_LINKFLAGS "${ADIOS2_LINKFLAGS}")
+    message(STATUS "ADIOS2 linker flags (unparsed): ${ADIOS2_LINKFLAGS}")
 
     # find all library paths -L
     #   note: this can cause trouble if some libs are specified twice from
     #         different sources (quite unlikely)
     #         http://www.cmake.org/pipermail/cmake/2008-November/025128.html
-    set(ADIOS_LIBRARY_DIRS "")
-    string(REGEX MATCHALL " -L([A-Za-z_0-9/\\.-]+)" _ADIOS_LIBDIRS " ${ADIOS_LINKFLAGS}")
-    foreach(_LIBDIR ${_ADIOS_LIBDIRS})
+    set(ADIOS2_LIBRARY_DIRS "")
+    string(REGEX MATCHALL " -L([A-Za-z_0-9/\\.-]+)" _ADIOS2_LIBDIRS " ${ADIOS2_LINKFLAGS}")
+    foreach(_LIBDIR ${_ADIOS2_LIBDIRS})
         string(REPLACE " -L" "" _LIBDIR ${_LIBDIR})
-        list(APPEND ADIOS_LIBRARY_DIRS ${_LIBDIR})
+        list(APPEND ADIOS2_LIBRARY_DIRS ${_LIBDIR})
     endforeach()
     # we could append ${CMAKE_PREFIX_PATH} now but that is not really necessary
 
-    message(STATUS "ADIOS DIRS to look for libs: ${ADIOS_LIBRARY_DIRS}")
+    message(STATUS "ADIOS2 DIRS to look for libs: ${ADIOS2_LIBRARY_DIRS}")
 
     # parse all -lname libraries and find an absolute path for them
-    string(REGEX MATCHALL " -l([A-Za-z_0-9\\.-]+)" _ADIOS_LIBS " ${ADIOS_LINKFLAGS}")
-    foreach(_LIB ${_ADIOS_LIBS})
+    string(REGEX MATCHALL " -l([A-Za-z_0-9\\.-]+)" _ADIOS2_LIBS " ${ADIOS2_LINKFLAGS}")
+    foreach(_LIB ${_ADIOS2_LIBS})
         string(REPLACE " -l" "" _LIB ${_LIB})
 
         # find static lib: absolute path in -L then default
-        find_library(_LIB_DIR NAMES ${_LIB} PATHS ${ADIOS_LIBRARY_DIRS} CMAKE_FIND_ROOT_PATH_BOTH)
+        find_library(_LIB_DIR NAMES ${_LIB} PATHS ${ADIOS2_LIBRARY_DIRS} CMAKE_FIND_ROOT_PATH_BOTH)
 
         # found?
         if(_LIB_DIR)
             message(STATUS "Found ${_LIB} in ${_LIB_DIR}")
-            list(APPEND ADIOS_LIBRARIES "${_LIB_DIR}")
+            list(APPEND ADIOS2_LIBRARIES "${_LIB_DIR}")
         else(_LIB_DIR)
-            set(ADIOS_FOUND FALSE)
-            message(STATUS "ADIOS: Could NOT find library '${_LIB}'")
+            set(ADIOS2_FOUND FALSE)
+            message(STATUS "ADIOS2: Could NOT find library '${_LIB}'")
         endif(_LIB_DIR)
 
         # clean cached var
@@ -203,30 +203,30 @@ if(ADIOS_FOUND)
     endforeach()
 
     #add libraries which are already using cmake format
-    string(REGEX MATCHALL "/([A-Za-z_0-9/\\.-]+)\\.([a|so]+)" _ADIOS_LIBS_SUB "${ADIOS_LINKFLAGS}")
-    foreach(foo ${_ADIOS_LIBS_SUB})
+    string(REGEX MATCHALL "/([A-Za-z_0-9/\\.-]+)\\.([a|so]+)" _ADIOS2_LIBS_SUB "${ADIOS2_LINKFLAGS}")
+    foreach(foo ${_ADIOS2_LIBS_SUB})
     if (EXISTS ${foo})
         message("Appending: ${foo}")
-        list(APPEND ADIOS_LIBRARIES "${foo}")
+        list(APPEND ADIOS2_LIBRARIES "${foo}")
     endif()
     endforeach(foo)
 
     # add the version string
-    execute_process(COMMAND ${ADIOS_CONFIG} --version 
-                    OUTPUT_VARIABLE ADIOS_VERSION
+    execute_process(COMMAND ${ADIOS2_CONFIG} --version 
+                    OUTPUT_VARIABLE ADIOS2_VERSION
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
     
-endif(ADIOS_FOUND)
+endif(ADIOS2_FOUND)
 
 # unset checked variables if not found
-if(NOT ADIOS_FOUND)
-    unset(ADIOS_INCLUDE_DIRS)
-    unset(ADIOS_LIBRARIES)
-endif(NOT ADIOS_FOUND)
+if(NOT ADIOS2_FOUND)
+    unset(ADIOS2_INCLUDE_DIRS)
+    unset(ADIOS2_LIBRARIES)
+endif(NOT ADIOS2_FOUND)
 
 
 # restore CMAKE_FIND_LIBRARY_SUFFIXES if manipulated by this module ###########
-if(ADIOS_USE_STATIC_LIBS)
+if(ADIOS2_USE_STATIC_LIBS)
     set(CMAKE_FIND_LIBRARY_SUFFIXES ${_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
 endif()
 
@@ -237,7 +237,7 @@ endif()
 
 # handles the REQUIRED, QUIET and version-related arguments for find_package
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ADIOS
-    REQUIRED_VARS ADIOS_LIBRARIES ADIOS_INCLUDE_DIRS
-    VERSION_VAR ADIOS_VERSION
+find_package_handle_standard_args(ADIOS2
+    REQUIRED_VARS ADIOS2_LIBRARIES ADIOS2_INCLUDE_DIRS
+    VERSION_VAR ADIOS2_VERSION
 )

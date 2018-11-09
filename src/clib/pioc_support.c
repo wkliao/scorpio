@@ -3012,6 +3012,30 @@ char *strdup(const char *str)
 #  endif
 #endif 
 
+#ifdef _ADIOS1
+nc_type PIOc_get_nctype_from_adios1_type(enum ADIOS_DATATYPES atype)
+{
+    nc_type t;
+    switch (atype)
+    {
+    case adios_byte:                t = NC_BYTE; break;
+    case adios_short:               t = NC_SHORT; break;
+    case adios_integer:             t = NC_INT; break;
+    case adios_real:                t = NC_FLOAT; break;
+    case adios_double:              t = NC_DOUBLE; break;
+    case adios_unsigned_byte:       t = NC_UBYTE; break;
+    case adios_unsigned_short:      t = NC_USHORT; break;
+    case adios_unsigned_integer:    t = NC_UINT; break;
+    case adios_long:                t = NC_INT64; break;
+    case adios_unsigned_long:       t = NC_UINT64; break;
+    case adios_string:              t = NC_CHAR; break;
+    default:                        t = NC_BYTE;
+    }
+    return t;
+}
+
+#endif 
+
 #ifdef _ADIOS2
 adios2_type PIOc_get_adios_type(nc_type xtype)
 {

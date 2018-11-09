@@ -112,7 +112,7 @@ extern "C" {
     int recv_async_msg(iosystem_desc_t *ios, int msg, ...);
 
     void pio_get_env(void);
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS) || defined(_ADIOS2) || defined(_ADIOS1)
     int  pio_get_imax();
     int  pio_set_imax(int imax_val);
 #endif 

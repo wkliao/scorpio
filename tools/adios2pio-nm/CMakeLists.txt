@@ -28,7 +28,7 @@ include_directories(
   "${PROJECT_BINARY_DIR}")  # to find foo/config.h
 
 target_include_directories(adios2pio-nm-lib PUBLIC 
-	${CMAKE_SOURCE_DIR}/src/clib ${ADIOS_INCLUDE_DIRS} 
+	${CMAKE_SOURCE_DIR}/src/clib ${ADIOS1_INCLUDE_DIRS} 
 	${NETCDF_C_INCLUDE_DIRS} 
 	${PnetCDF_C_INCLUDE_DIRS} 
 	${PIO_C_EXTRA_INCLUDE_DIRS})
@@ -114,19 +114,19 @@ else ()
     PUBLIC _NOADIOS)
 endif ()
 
-if (WITH_ADIOS2)
-  find_package (ADIOS "1.13.1")
+if (WITH_ADIOS1)
+  find_package (ADIOS1 "1.13.1")
 endif ()
-if (ADIOS_FOUND)
+if (ADIOS1_FOUND)
   target_include_directories (adios2pio-nm-lib
-    PUBLIC ${ADIOS_INCLUDE_DIRS})
+    PUBLIC ${ADIOS1_INCLUDE_DIRS})
   target_compile_definitions (adios2pio-nm-lib
-    PUBLIC _ADIOS)
+    PUBLIC _ADIOS1)
   target_link_libraries (adios2pio-nm-lib
-    PUBLIC ${ADIOS_LIBRARIES})
+    PUBLIC ${ADIOS1_LIBRARIES})
 else ()
   target_compile_definitions (adios2pio-nm-lib
-    PUBLIC _NOADIOS)
+    PUBLIC _NOADIOS1)
 endif ()
 
 
