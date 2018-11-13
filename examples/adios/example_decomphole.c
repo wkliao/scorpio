@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
     dim_len = 8;
 
     /* niotasks = 4 also fails. If niotasks is 1 or 2, no error */
-    niotasks = 4;
+    niotasks = 3;
   }
 
   PIOc_Init_Intracomm(MPI_COMM_WORLD, niotasks, ioproc_stride, ioproc_start, PIO_REARR_SUBSET, &iosysid);

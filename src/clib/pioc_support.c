@@ -2065,7 +2065,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				if (num_adios_iotasks==0) num_adios_iotasks = ios->num_comptasks;
 			}
 			sprintf(file->params,"%d",num_adios_iotasks);
-			printf("num of iotasks: %d\n",num_adios_iotasks);
 			adios2_set_parameter(file->ioH,"substreams",file->params);
 			adios2_set_parameter(file->ioH,"CollectiveMetadata","OFF");
 			file->engineH = adios2_open(file->ioH,file->filename,adios2_mode_write);
@@ -2085,12 +2084,13 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			/* Track attributes */
 			file->num_attrs = 0;
 
-			size_t shape[1],start[1],count[1];
-    		shape[0] = 1; start[0] = 0; count[0] = 1;
-			adios2_variable *variableH = adios2_define_variable(file->ioH, "/__pio__/info/nproc",adios2_type_int,
-																1, NULL, NULL, count, 
+			if (MPI_ROOT==file->adios_iomaster) {
+				adios2_variable *variableH = adios2_define_variable(file->ioH,
+																"/__pio__/info/nproc",adios2_type_int,
+																1, NULL, NULL, NULL, 
 																adios2_constant_dims_true);
-    		adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
+    			adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
+			}
 		}
 	}
 #endif

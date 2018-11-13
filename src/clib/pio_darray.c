@@ -846,50 +846,36 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
    		type = adios2_type_long_int;
 
 	if (iodesc->maplen>1) {
-		size_t shape[1],start[1],count[1];
-    	shape[0] = (size_t)iodesc->maplen;
-    	start[0] = (size_t)0;
-    	count[0] = (size_t)iodesc->maplen;
+		size_t count = (size_t)iodesc->maplen;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, count, 
+															1, NULL, NULL, &count, 
 															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, iodesc->map, adios2_mode_sync);
 	} else if (iodesc->maplen==0) { // Handle the case where maplen is 0
-		printf("No elements in decomp array.\n"); fflush(stdout);
 		long   mapbuf[2];
-		size_t shape[1],start[1],count[1];
-		shape[0] = 2; 
-		start[0] = 0; 
-		count[0] = 2;
+		size_t count = 2;
 		mapbuf[0] = 0; 
 		mapbuf[1] = 0;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, count, 
+															1, NULL, NULL, &count, 
 															adios2_constant_dims_true);
        	adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 	} else { // Handle the case where maplen is 1
-		int maplen = iodesc->maplen+1; 
-		char *mapbuf = NULL;
+		int maplen   = iodesc->maplen+1; 
+		void *mapbuf = NULL;
 		if (type==adios2_type_int) {
-			int *temp_mapbuf;
-			temp_mapbuf    = (int*)malloc(sizeof(int)*maplen);	
-			temp_mapbuf[0] = iodesc->map[0];
-			temp_mapbuf[1] = 0;
-			mapbuf = (char*)temp_mapbuf;
+			mapbuf = (int*)malloc(sizeof(int)*maplen);	
+			((int*)mapbuf)[0] = iodesc->map[0];
+			((int*)mapbuf)[1] = 0;
 		} else {
-			long *temp_mapbuf;
-			temp_mapbuf    = (long*)malloc(sizeof(long)*maplen);	
-			temp_mapbuf[0] = iodesc->map[0];
-			temp_mapbuf[1] = 0;
-			mapbuf = (char*)temp_mapbuf;
+			mapbuf = (long*)malloc(sizeof(long)*maplen);	
+			((long*)mapbuf)[0] = iodesc->map[0];
+			((long*)mapbuf)[1] = 0;
 		}
 
-		size_t shape[1],start[1],count[1];
-    	shape[0] = (size_t)maplen;
-    	start[0] = (size_t)0;
-    	count[0] = (size_t)maplen;
+		size_t count = (size_t)maplen;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, count, 
+															1, NULL, NULL, &count, 
 															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 		free(mapbuf);
@@ -1011,7 +997,6 @@ static int PIOc_write_darray_adios(
 	// Handle the case where there is zero or one array element 
 	void *temp_buf = NULL;
 	if (arraylen==0) {
-		printf("Arraylen is zero.\n");
 		arraylen = 2;
 		temp_buf = (int64_t*)malloc(sizeof(int64_t)*arraylen);
 		memset(temp_buf,0,sizeof(int64_t)*arraylen);
@@ -1026,26 +1011,24 @@ static int PIOc_write_darray_adios(
     {
         /* First we need to define the variable now that we know it's decomposition */
         adios2_type atype = av->adios_type;
-		size_t shape[1],start[1],count[1];
-		shape[0] = (size_t)arraylen; start[0] = 0; count[0] = (size_t)arraylen;
+		size_t count = (size_t)arraylen;
         av->adios_varid = adios2_define_variable(file->ioH,av->name,atype,
-												1,NULL,NULL,count,
+												1,NULL,NULL,&count,
 												adios2_constant_dims_true);
 
 		/* different decompositions at different frames */
 		char name_varid[256];
-		shape[0] = 1; start[0] = 0; count[0] = 1;
 		sprintf(name_varid,"decomp_id/%s",av->name);
 		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
-												1, NULL, NULL,count,
+												1,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"frame_id/%s",av->name);
 		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
-												1,NULL,NULL,count,
+												1,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"fillval_id/%s",av->name);
 		av->fillval_varid = adios2_define_variable(file->ioH,name_varid,atype,
-												1,NULL,NULL,count,
+												1,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		
         if (file->adios_iomaster == MPI_ROOT)
