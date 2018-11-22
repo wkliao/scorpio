@@ -29,9 +29,9 @@ option (PIO_MICRO_TIMING     "Enable internal micro timers"                 OFF)
 option (PIO_SAVE_DECOMPS     "Dump the decomposition information"           OFF)
 option (WITH_PNETCDF         "Require the use of PnetCDF"                   ON)
 option (WITH_NETCDF          "Require the use of NetCDF"                    ON)
-option (WITH_ADIOS           "Require the use of ADIOS"                     OFF)
-option (WITH_ADIOS1          "Require the use of ADIOS1"                    ON)
-option (WITH_ADIOS2          "Require the use of ADIOS2"                    ON)
+option (WITH_ADIOS           "Require the use of ADIOS 1.x"                 OFF)
+option (WITH_ADIOS1          "Use ADIOS 1.x for converter when WITH_ADIOS2" OFF)
+option (WITH_ADIOS2          "Require the use of ADIOS 2.x"                 ON)
 
 # Set a variable that appears in the config.h.in file.
 if(PIO_USE_MALLOC)
@@ -219,7 +219,9 @@ add_custom_target (check COMMAND ${CMAKE_CTEST_COMMAND})
 add_dependencies (check tests)
 
 # Tools
-add_subdirectory(tools)
+if (WITH_ADIOS1)
+   add_subdirectory(tools)
+endif()
 
 # Tests
 if (PIO_ENABLE_TESTS)

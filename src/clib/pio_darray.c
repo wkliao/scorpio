@@ -1041,7 +1041,7 @@ static int PIOc_write_darray_adios(
 			adios2_define_attribute(file->ioH,att_name,adios2_type_string,"darray");
         }
     }
-	
+
 	/* PIOc_setframe with different decompositions */
 	if (needs_to_write_decomp(file, ioid))
     {
@@ -1166,6 +1166,13 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
     ios = file->iosystem;
 
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_write_darray_adios"); /* TAHSIN: start */
+#endif
+#endif
+
     LOG((1, "PIOc_write_darray ncid=%d varid=%d wb_pend=%llu file_wb_pend=%llu",
           ncid, varid,
           (unsigned long long int) file->varlist[varid].wb_pend,
@@ -1237,6 +1244,9 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         ierr = PIOc_write_darray_adios(file, varid, ioid, iodesc, arraylen, array, fillvalue);
+#ifdef TIMING /* TAHSIN: timing */
+        GPTLstop("PIO:PIOc_write_darray_adios"); /* TAHSIN: stop */
+#endif
         return ierr;
     }
 #endif

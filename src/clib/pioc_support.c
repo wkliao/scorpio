@@ -1869,6 +1869,13 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 #ifdef TIMING
     GPTLstart("PIO:PIOc_createfile_int");
 #endif
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (*iotype==PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_createfile_int_adios"); /* TAHSIN: start */
+#endif
+#endif 
+
     /* Get the IO system info from the iosysid. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
@@ -2055,7 +2062,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                 }
 
 		if (PIO_NOERR==ierr) {
-    		file->ioH = adios2_declare_io(get_adios2_adios(), "E3SM_ADIOS");
+    		file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)file->filename);
 			adios2_set_engine(file->ioH,"BPFile");
 			int num_adios_iotasks; // set MPI Aggregate params
            	if (ios->num_comptasks != ios->num_iotasks) {
@@ -2156,6 +2163,14 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     ierr = check_netcdf(ios, NULL, ierr, __FILE__, __LINE__);
     /* If there was an error, free the memory we allocated and handle error. */
     if(ierr != PIO_NOERR){
+    {
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+        if (file->iotype==PIO_IOTYPE_ADIOS)
+            GPTLstop("PIO:PIOc_createfile_int_adios"); /* TAHSIN: stop */
+#endif
+#endif
+
         free(file);
 #ifdef TIMING
         GPTLstop("PIO:PIOc_createfile_int");
@@ -2190,6 +2205,13 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 #ifdef TIMING
     GPTLstop("PIO:PIOc_createfile_int");
 #endif
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_createfile_int_adios"); /* TAHSIN: stop */
+#endif
+#endif 
+
     return ierr;
 }
 

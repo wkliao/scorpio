@@ -133,8 +133,15 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     GPTLstart("PIO:PIOc_createfile");
 #endif
 
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (*iotype==PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_createfile_adios"); /* TAHSIN: start */
+#endif
+#endif
+
     /* Get the IO system info from the id. */
-    if (!(ios = pio_get_iosystem_from_id(iosysid)))
+    if (!(ios = pio_get_iosystem_from_id(iosysid))) 
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
 
     /* Create the file. */
@@ -142,6 +149,12 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     {
 #ifdef TIMING
         GPTLstop("PIO:PIOc_createfile");
+#endif
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (*iotype==PIO_IOTYPE_ADIOS) 
+        GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
+#endif
 #endif
         return pio_err(ios, NULL, ret, __FILE__, __LINE__);
     }
@@ -160,6 +173,14 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #ifdef TIMING
     GPTLstop("PIO:PIOc_createfile");
 #endif
+
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (*iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
+#endif
+#endif
+
     return ret;
 }
 
@@ -236,6 +257,13 @@ int PIOc_closefile(int ncid)
     if ((ierr = pio_get_file(ncid, &file)))
         return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
     ios = file->iosystem;
+
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_closefile_adios"); /* TAHSIN: start */
+#endif
+#endif
 
     /* Sync changes before closing on all tasks if async is not in
      * use, but only on non-IO tasks if async is in use. */
@@ -407,12 +435,20 @@ int PIOc_closefile(int ncid)
         return ierr;
     }
 
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
+#endif
+#endif
+
     /* Delete file from our list of open files. */
     pio_delete_file_from_list(ncid);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_closefile");
 #endif
+
     return ierr;
 }
 

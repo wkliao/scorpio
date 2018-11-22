@@ -47,6 +47,13 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
         return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
     ios = file->iosystem;
 
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_put_att_tc_adios");  /* TAHSIN: start */
+#endif
+#endif
+
     /* User must provide some valid parameters. */
     if (!name || !op || strlen(name) > PIO_MAX_NAME || len < 0)
         return pio_err(ios, file, PIO_EINVAL, __FILE__, __LINE__);
@@ -201,7 +208,6 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			
 			char att_name[256];
 			sprintf(att_name,"%s/%s",path,name);
-			printf("OP: %s %d %d\n",op,adios_type,atttype);
 			if (NC_CHAR==atttype)
             	adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
 			else
@@ -315,6 +321,14 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 #ifdef TIMING
     GPTLstop("PIO:PIOc_put_att_tc");
 #endif
+
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_put_att_tc_adios"); /* TAHSIN: stop */
+#endif
+#endif
+
     return PIO_NOERR;
 }
 
@@ -1289,13 +1303,11 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                  * getting parallel IO here. */
 				if (file->adios_iomaster == MPI_ROOT)
                 {
-                    if (av->adios_varid == NULL) {
-						av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
-						if (av->adios_varid==NULL)  
-                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
-																	1,NULL,NULL,NULL,
-																	adios2_constant_dims_false);
-                    }
+					av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
+					if (av->adios_varid==NULL)  
+                       	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
+																1,NULL,NULL,NULL,
+																adios2_constant_dims_false);
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
                 }
             }
@@ -1308,14 +1320,11 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 {
 					size_t av_count = 1;
 					if (!count) av_count = (size_t)count[0]; 
-                    if (av->adios_varid == NULL)
-                    {
-						av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
-						if (av->adios_varid==NULL)
-                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
-																	1,NULL,NULL,&av_count,
-																	adios2_constant_dims_false);
-                    }
+					av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
+					if (av->adios_varid==NULL)
+                       	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
+																1,NULL,NULL,&av_count,
+																adios2_constant_dims_false);
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
 
                     char* dimnames[6];
@@ -1323,7 +1332,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                         dimnames[i] = file->dim_names[av->gdimids[i]];
 					char att_name[128];
 					sprintf(att_name,"%s/__pio__/dims",av->name);
-					adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
+					if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
+						adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
                 }
             }
             else
@@ -1343,7 +1353,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 for (int d=d_start; d < av->ndims; d++)
 					av_count[d-d_start] = (size_t)count[d];
                 for (int d=d_start; d < av->ndims; d++)
-					av_shape[d-d_start] = (size_t)file->dim_values[d];
+					av_shape[d-d_start] = (size_t)file->dim_values[av->gdimids[d]];
                 for (int d=d_start; d < av->ndims; d++)
 					av_start[d-d_start] = (size_t)start[d];
 

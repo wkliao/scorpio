@@ -2391,7 +2391,10 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             file->adios_vars[file->num_vars].adios_type = PIOc_get_adios_type(xtype);
             file->adios_vars[file->num_vars].nattrs = 0;
             file->adios_vars[file->num_vars].ndims = ndims;
-            file->adios_vars[file->num_vars].adios_varid = 0;
+            file->adios_vars[file->num_vars].adios_varid   = 0;
+            file->adios_vars[file->num_vars].decomp_varid  = 0;
+            file->adios_vars[file->num_vars].frame_varid   = 0;
+            file->adios_vars[file->num_vars].fillval_varid = 0;
             file->adios_vars[file->num_vars].gdimids = (int*) malloc(ndims*sizeof(int));
             memcpy(file->adios_vars[file->num_vars].gdimids, dimidsp, ndims*sizeof(int));
             *varidp = file->num_vars;
@@ -2415,9 +2418,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             			for (int i = 0; i < av->ndims; i++) 
                				dimnames[i] = file->dim_names[av->gdimids[i]];
 						sprintf(att_name,"%s/__pio__/dims",av->name);
-						if (adios2_inquire_attribute(file->ioH,att_name)==NULL) {
+						if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
 							adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
-						}
 					}
          		}
     		}
