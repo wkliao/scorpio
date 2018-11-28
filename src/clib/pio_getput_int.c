@@ -1175,7 +1175,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                     adios_write_byid(file->adios_fh, av->adios_varid, buf);
                 }
             }
-            else if (av->ndims == 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED)
+            else if (av->ndims == 1 && (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED || file->dim_values[av->gdimids[0]]>0))
             {
                 /* This is a scalar variable over time */
                 /*printf("ADIOS writing scalar '%s' over time varid = %d\n", av->name, varid);*/
@@ -1311,7 +1311,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
                 }
             }
-            else if (av->ndims == 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED)
+            else if (av->ndims == 1 && (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED || file->dim_values[av->gdimids[0]]>0))
             {
                 /* This is a scalar variable over time */
                 /* Only the IO master does the IO, so we are not really
