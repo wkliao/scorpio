@@ -1987,22 +1987,16 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
            	if (do_aggregate)
            	{
                	sprintf(file->transport,"%s","MPI_AGGREGATE");
-               	/* sprintf(file->params,"num_aggregators=%d,striping=0,have_metadata_file=0", ios->num_iotasks); */
                	sprintf(file->params,"num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
 									ios->num_iotasks);
            	}
            	else
            	{
-              		sprintf(file->transport,"%s","MPI_AGGREGATE");
-               	/* sprintf(file->params,"num_aggregators=%d,striping=0,have_metadata_file=0", ios->num_comptasks/16); */
+              	sprintf(file->transport,"%s","MPI_AGGREGATE");
                	sprintf(file->params,"num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
 									ios->num_comptasks/16);
-               	/*sprintf(file->transport,"%s","POSIX");
-               	file->params[0] = '\0';*/
            	}
-           	/*adios_set_time_aggregation(file->adios_group,100000000,NULL);*/
            	adios_select_method(file->adios_group,file->transport,file->params,"");
-           	/*adios_set_max_buffer_size(32);*/
            	ierr = adios_open(&file->adios_fh,file->filename,file->filename,"w", ios->union_comm);
            	memset(file->dim_names, 0, sizeof(file->dim_names));
            	file->num_dim_vars = 0;
@@ -3019,43 +3013,6 @@ nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype)
     }
     return t;
 }
-
-#ifndef strdup
-char *strdup(const char *str)
-{
-    int n = strlen(str) + 1;
-    char *dup = (char*)malloc(n);
-    if(dup)
-    {
-        strcpy(dup, str);
-    }
-    return dup;
-}
-#  endif
-#endif 
-
-#ifdef _ADIOS1
-nc_type PIOc_get_nctype_from_adios1_type(enum ADIOS_DATATYPES atype)
-{
-    nc_type t;
-    switch (atype)
-    {
-    case adios_byte:                t = NC_BYTE; break;
-    case adios_short:               t = NC_SHORT; break;
-    case adios_integer:             t = NC_INT; break;
-    case adios_real:                t = NC_FLOAT; break;
-    case adios_double:              t = NC_DOUBLE; break;
-    case adios_unsigned_byte:       t = NC_UBYTE; break;
-    case adios_unsigned_short:      t = NC_USHORT; break;
-    case adios_unsigned_integer:    t = NC_UINT; break;
-    case adios_long:                t = NC_INT64; break;
-    case adios_unsigned_long:       t = NC_UINT64; break;
-    case adios_string:              t = NC_CHAR; break;
-    default:                        t = NC_BYTE;
-    }
-    return t;
-}
-
 #endif 
 
 #ifdef _ADIOS2
@@ -3101,8 +3058,10 @@ nc_type PIOc_get_nctype_from_adios_type(adios2_type atype)
     }
     return t;
 }
+#endif 
 
-#  ifndef strdup
+#if defined(_ADIOS) || defined(_ADIOS2)
+#ifndef strdup
 char *strdup(const char *str)
 {
     int n = strlen(str) + 1;
@@ -3114,5 +3073,28 @@ char *strdup(const char *str)
     return dup;
 }
 #endif
-
 #endif
+
+#ifdef _ADIOS1  /* To compile and run adiosbp2nc conversion program */
+nc_type PIOc_get_nctype_from_adios1_type(enum ADIOS_DATATYPES atype)
+{
+    nc_type t;
+    switch (atype)
+    {
+    case adios_byte:                t = NC_BYTE; break;
+    case adios_short:               t = NC_SHORT; break;
+    case adios_integer:             t = NC_INT; break;
+    case adios_real:                t = NC_FLOAT; break;
+    case adios_double:              t = NC_DOUBLE; break;
+    case adios_unsigned_byte:       t = NC_UBYTE; break;
+    case adios_unsigned_short:      t = NC_USHORT; break;
+    case adios_unsigned_integer:    t = NC_UINT; break;
+    case adios_long:                t = NC_INT64; break;
+    case adios_unsigned_long:       t = NC_UINT64; break;
+    case adios_string:              t = NC_CHAR; break;
+    default:                        t = NC_BYTE;
+    }
+    return t;
+}
+#endif 
+

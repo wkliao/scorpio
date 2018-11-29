@@ -121,13 +121,6 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 #ifdef _ADIOS
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-			/*
-			if (ios->io_rank==0) {
-				printf("ADIOS: PROCESSING GLOBAL VARIABLE: %s varid: %d ios->ioproc: %d rank: %d %d\n",
-					name,varid,ios->ioproc,ios->io_rank,ios->iomaster); fflush(stdout);
-			}
-			*/
-
             LOG((2,"ADIOS define attribute %s, varid %d, type %d\n", name, varid, atttype));
             enum ADIOS_DATATYPES adios_type = PIOc_get_adios_type(atttype);
             char path[256];
@@ -157,13 +150,6 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			file->adios_attrs[num_attrs].att_ncid = ncid;
 			file->adios_attrs[num_attrs].adios_type = adios_type;
 			file->num_attrs++;
-
-			/*
-			if (ios->io_rank==0) {
-				printf("ADIOS: ATTRIBUTE %d: %s %d\n",num_attrs,name,len);
-				fflush(stdout);
-			}
-			*/
 
             //Workaround for adios 1.12.0, where adios_define_attribute_byvalue
             //  throws an error on a string attribute of ""
@@ -1168,27 +1154,19 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				if (file->adios_iomaster == MPI_ROOT)
                 {
                     if (av->adios_varid == 0)
-                    {
-                        av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type,
-                                "","","");
-                    }
-                    adios_write_byid(file->adios_fh, av->adios_varid, buf);
+                        av->adios_varid = adios_define_var(file->adios_group,av->name,"",av->adios_type,"","","");
+                    adios_write_byid(file->adios_fh,av->adios_varid,buf);
                 }
             }
             else if (av->ndims == 1 && (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED || file->dim_values[av->gdimids[0]]>0))
             {
                 /* This is a scalar variable over time */
-                /*printf("ADIOS writing scalar '%s' over time varid = %d\n", av->name, varid);*/
-
                 /* Only the IO master does the IO, so we are not really
                  * getting parallel IO here. */
 				        if (file->adios_iomaster == MPI_ROOT)
                 {
                     if (av->adios_varid == 0)
-                    {
-                        av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type,
-                            "","","");
-                    }
+                        av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type, "","","");
                     adios_write_byid(file->adios_fh, av->adios_varid, buf);
                     char* dimnames[6];
                     for (int i = 0; i < av->ndims; i++)
@@ -1239,27 +1217,19 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                         strcat(offs,",");
                 }
 
-                // TAHSIN
-                // PIOc_put_var may be called multiple times with different start,count values for a variable
-                // ADIOS should output data for each of those calls not just when the variable is not defined
-                // if (av->adios_varid == 0)
-                // {
-                    /*printf("ADIOS variable %s on io rank %d define gdims=\"%s\", ldims=\"%s\", offsets=\"%s\"\n",
-                            av->name, ios->io_rank, gdims, ldims, offs);*/
-                    av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type, ldims,gdims,offs);
-                // } // TAHSIN
+                /* PIOc_put_var may be called multiple times with different start,count values for a variable */
+                /* ADIOS should output data for each of those calls not just when the variable is not defined */
+				av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type, ldims,gdims,offs);
 
                 adios_write_byid(file->adios_fh, av->adios_varid, buf);
                 char* dimnames[6];
                 /* record the NC dimensions in an attribute, including the unlimited dimension */
                 for (int i = 0; i < av->ndims; i++)
-                {
                     dimnames[i] = file->dim_names[av->gdimids[i]];
-                }
                 adios_define_attribute_byvalue(file->adios_group,"__pio__/dims",av->name,adios_string_array,av->ndims,dimnames);
             }
 
-			      if (file->adios_iomaster == MPI_ROOT)
+			if (file->adios_iomaster == MPI_ROOT)
             {
                 adios_define_attribute_byvalue(file->adios_group,"__pio__/ndims",av->name,adios_integer,1,&av->ndims);
                 adios_define_attribute_byvalue(file->adios_group,"__pio__/nctype",av->name,adios_integer,1,&av->nc_type);

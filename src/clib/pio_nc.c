@@ -1412,7 +1412,6 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-            /* LOG((2,"ADIOS missing %s:%s\n", __FILE__, __func__)); */
 			/* Track attributes */
             ierr = PIO_ENOTATT;
 			for (int i=0;i<file->num_attrs;i++) {
@@ -2207,11 +2206,10 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             char dimname[128];
             snprintf(dimname, sizeof(dimname), "/__pio__/dim/%s", name);
 			adios2_variable *variableH = adios2_inquire_variable(file->ioH,dimname);
-			if (variableH==NULL) {
+			if (variableH==NULL) 
             	variableH = adios2_define_variable(file->ioH,dimname,adios2_type_unsigned_long_int,
 												1,NULL,NULL,NULL,
 												adios2_constant_dims_false);
-			} 
             file->dim_names[file->num_dim_vars]  = strdup(name);
             file->dim_values[file->num_dim_vars] = len;
             *idp = file->num_dim_vars;
@@ -2364,7 +2362,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             file->num_vars++;
             ierr = 0;
 
-            /* TAHSIN -- some codes moved from pio_darray.c */
+            /* some codes moved from pio_darray.c */
             {
                 adios_var_desc_t * av = &(file->adios_vars[*varidp]);
                 if (file->adios_iomaster == MPI_ROOT)
@@ -2379,7 +2377,6 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     }
                 }
             }
-            /* TAHSIN */
     }
 #endif
 #ifdef _ADIOS2
@@ -2401,7 +2398,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             file->num_vars++;
             ierr = 0;
 
-			/* TAHSIN -- some codes moved from pio_darray.c */
+			/* some codes moved from pio_darray.c */
 			{
     			adios_var_desc_t *av = &(file->adios_vars[*varidp]);
         		if (file->adios_iomaster == MPI_ROOT)
@@ -2423,7 +2420,6 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 					}
          		}
     		}
-			/* TAHSIN */
     }
 #endif
  
