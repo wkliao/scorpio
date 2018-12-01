@@ -619,7 +619,7 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
     {
         /* Scalar variable */
         TimerStart(write);
-        int ret = put_var_nm(ncid, var.nc_varid, var.nctype, vi->type, vi->value);
+        ret = put_var_nm(ncid, var.nc_varid, var.nctype, vi->type, vi->value);
         if (ret != PIO_NOERR)
                 cout << "ERROR in PIOc_put_var(), code = " << ret
                      << " at " << __func__ << ":" << __LINE__ << endl;
@@ -657,7 +657,10 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
 						start[d] = (PIO_Offset) vb->blockinfo[ii].start[d];
        					count[d] = (PIO_Offset) vb->blockinfo[ii].count[d];
 					}
- 					ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, buf);
+					if (vi->ndim==1 && start[0]==0 && count[0]==1) 
+						ret = put_var_nm(ncid, var.nc_varid, var.nctype, vb->type, buf);
+					else 
+ 						ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, buf);
        				if (ret != PIO_NOERR) {
        					cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
        						 << " at " << __func__ << ":" << __LINE__ << endl;
@@ -673,7 +676,10 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
 						start[d] = (PIO_Offset) 0;
        					count[d] = (PIO_Offset) 0;
 					}
- 					ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, &temp_buf);
+					if (vi->ndim==1)  
+						ret = put_var_nm(ncid, var.nc_varid, var.nctype, vb->type, &temp_buf);
+					else 
+ 						ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, &temp_buf);
        				if (ret != PIO_NOERR) {
        					cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
        						 << " at " << __func__ << ":" << __LINE__ << endl;
