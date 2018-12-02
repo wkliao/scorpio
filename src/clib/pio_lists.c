@@ -297,6 +297,7 @@ int pio_num_iosystem(int *niosysid)
     return PIO_NOERR;
 }
 
+#if 0 /* TAHSIN */
 /** 
  * Add an iodesc to a global list.
  * This function guarantees that iodescs (id of the
@@ -376,6 +377,45 @@ int pio_add_to_iodesc_list(io_desc_t *iodesc, MPI_Comm comm)
     return iodesc->ioid;
 }
 #endif
+
+#endif /* TAHSIN */
+
+static int imax=511; // ADIOS needs a unique ID for the entire run
+#if defined(_ADIOS) || defined(_ADIOS2)
+int pio_get_imax() { return imax; }
+int pio_set_imax(int imax_val) { imax = imax_val; }
+#endif 
+int pio_add_to_iodesc_list(io_desc_t *iodesc, MPI_Comm comm)
+{
+    io_desc_t *ciodesc;
+
+    iodesc->next = NULL;
+    if (pio_iodesc_list == NULL)
+    {
+        // this may happen multiple times in a run if someone deletes unused decompositions
+        // before creating new ones
+        pio_iodesc_list = iodesc;
+    }
+    else
+    {
+#if defined(_ADIOS) || defined(_ADIOS2)  // ADIOS needs a unique ID. The IDs should not be reused
+		for (ciodesc = pio_iodesc_list; ciodesc->next;
+             ciodesc = ciodesc->next)
+            ;
+        ciodesc->next = iodesc;
+#else
+        for (ciodesc = pio_iodesc_list; ciodesc->next;
+             ciodesc = ciodesc->next, imax = ciodesc->ioid + 1)
+            ;
+        ciodesc->next = iodesc;
+#endif 
+    }
+    ++imax;
+    iodesc->ioid = imax;
+    current_iodesc = iodesc;
+
+    return iodesc->ioid;
+}
 
 /** 
  * Get an iodesc.
