@@ -484,16 +484,11 @@ VariableMap ProcessVariableDefinitions(ADIOS_FILE **infile, int ncid, DimensionM
 	                for (int d=0; d < *ndims; d++)
 	                {
 	                    dimids[d] = dimension_map[dimnames[d]].dimid;
-						/*
 	                    if (dimension_map[dimnames[d]].dimvalue == PIO_UNLIMITED) 
 	                    {
 							timed = true;
 	                    }
-						*/
 	                }
-					if (*ndims> 1 && (dimension_map[dimnames[0]].dimvalue==PIO_UNLIMITED || dimension_map[dimnames[0]].dimvalue>0))
-						timed = true;
-
 	            }
 	            TimerStop(read);
 
