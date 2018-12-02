@@ -61,13 +61,6 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
     LOG((1, "PIOc_put_att_tc ncid = %d varid = %d name = %s atttype = %d len = %d memtype = %d",
          ncid, varid, name, atttype, len, memtype));
 
-	/*
-	if (ios->io_rank==0) {
-		printf("PUT_ATT VARIABLE: %s varid: %d ios->ioproc: %d io_rank: %d master: %d iotype: %d file: %d adios_group: %ld adios_file: %ld filename: %s\n",
-		name,varid,ios->ioproc,ios->io_rank,ios->iomaster,file->iotype,file->fh,file->adios_group,file->adios_fh,file->filename); fflush(stdout);
-	}
-	*/
-
     /* Run these on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. */
     if (!ios->async || !ios->ioproc)
@@ -194,7 +187,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			
 			char att_name[256];
 			sprintf(att_name,"%s/%s",path,name);
-			if (NC_CHAR==atttype)
+			if (NC_CHAR==atttype || adios2_type_string==adios_type)
             	adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
 			else
             	adios2_define_attribute(file->ioH, att_name, adios_type, op);
@@ -1158,7 +1151,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                     adios_write_byid(file->adios_fh,av->adios_varid,buf);
                 }
             }
-            else if (av->ndims == 1 && (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED || file->dim_values[av->gdimids[0]]>0))
+            else if (av->ndims == 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) 
             {
                 /* This is a scalar variable over time */
                 /* Only the IO master does the IO, so we are not really
@@ -1276,24 +1269,30 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
 					if (av->adios_varid==NULL)  
                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
-																1,NULL,NULL,NULL,
+																0,NULL,NULL,NULL,
 																adios2_constant_dims_false);
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
                 }
             }
-            else if (av->ndims == 1 && (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED || file->dim_values[av->gdimids[0]]>0))
+            else if (av->ndims == 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) 
             {
-                /* This is a scalar variable over time */
-                /* Only the IO master does the IO, so we are not really
-                 * getting parallel IO here. */
+                /* 
+					This is a scalar variable over time. Only the IO master does the IO, 
+					so we are not really getting parallel IO here. 
+				*/
 				if (file->adios_iomaster == MPI_ROOT)
                 {
-					size_t av_count = 1;
-					if (!count) av_count = (size_t)count[0]; 
+					size_t av_shape[1], av_start[1], av_count[1];
+					av_start[0] = (size_t)0;
+					if (!start) av_start[0] = (size_t)start[0];
+					av_count[0] = (size_t)1;
+					if (!count) av_count[0] = (size_t)count[0]; 
+					av_shape[0] = av_count[0];
+
 					av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
 					if (av->adios_varid==NULL)
                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
-																1,NULL,NULL,&av_count,
+																1,av_shape,av_start,av_count,
 																adios2_constant_dims_false);
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
 

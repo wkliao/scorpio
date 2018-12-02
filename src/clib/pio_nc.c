@@ -2208,7 +2208,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
 			adios2_variable *variableH = adios2_inquire_variable(file->ioH,dimname);
 			if (variableH==NULL) 
             	variableH = adios2_define_variable(file->ioH,dimname,adios2_type_unsigned_long_int,
-												1,NULL,NULL,NULL,
+												0,NULL,NULL,NULL,
 												adios2_constant_dims_false);
             file->dim_names[file->num_dim_vars]  = strdup(name);
             file->dim_values[file->num_dim_vars] = len;

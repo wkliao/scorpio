@@ -2056,7 +2056,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                 }
 
 		if (PIO_NOERR==ierr) {
-    		file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)file->filename);
+    		file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)(file->filename));
 			adios2_set_engine(file->ioH,"BPFile");
 			int num_adios_iotasks; // set MPI Aggregate params
            	if (ios->num_comptasks != ios->num_iotasks) {
@@ -2077,18 +2077,18 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
            	file->fillmode = NC_NOFILL;
            	file->n_written_ioids = 0;
 
+			/* Track attributes */
+			file->num_attrs = 0;
+
 			if (ios->union_rank==0) 
 				file->adios_iomaster = MPI_ROOT;
 			else
 				file->adios_iomaster = MPI_PROC_NULL;
 
-			/* Track attributes */
-			file->num_attrs = 0;
-
 			if (MPI_ROOT==file->adios_iomaster) {
 				adios2_variable *variableH = adios2_define_variable(file->ioH,
 																"/__pio__/info/nproc",adios2_type_int,
-																1, NULL, NULL, NULL, 
+																0, NULL, NULL, NULL, 
 																adios2_constant_dims_true);
     			adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
 			}

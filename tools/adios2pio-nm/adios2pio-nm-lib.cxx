@@ -111,7 +111,7 @@ using DimensionMap = std::map<std::string,Dimension>;
 
 struct Variable {
     int nc_varid;
-    PIO_Offset is_timed;
+    bool is_timed;
     nc_type nctype;
 };
 
@@ -475,7 +475,7 @@ VariableMap ProcessVariableDefinitions(ADIOS_FILE **infile, int ncid, DimensionM
 
 	            char **dimnames = NULL;
 	            int dimids[MAX_NC_DIMS];
-	            PIO_Offset timed = 0;
+	            bool timed = false;
 	            if (*ndims)
 	            {
 	                attname = string(infile[0]->var_namelist[i]) + "/__pio__/dims";
@@ -484,11 +484,16 @@ VariableMap ProcessVariableDefinitions(ADIOS_FILE **infile, int ncid, DimensionM
 	                for (int d=0; d < *ndims; d++)
 	                {
 	                    dimids[d] = dimension_map[dimnames[d]].dimid;
-	                    if (dimension_map[dimnames[d]].dimvalue == PIO_UNLIMITED || dimension_map[dimnames[d]].dimvalue>0)
+						/*
+	                    if (dimension_map[dimnames[d]].dimvalue == PIO_UNLIMITED) 
 	                    {
-							timed = dimension_map[dimnames[d]].dimvalue;
+							timed = true;
 	                    }
+						*/
 	                }
+					if (*ndims> 1 && (dimension_map[dimnames[0]].dimvalue==PIO_UNLIMITED || dimension_map[dimnames[0]].dimvalue>0))
+						timed = true;
+
 	            }
 	            TimerStop(read);
 
@@ -657,9 +662,9 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
 						start[d] = (PIO_Offset) vb->blockinfo[ii].start[d];
        					count[d] = (PIO_Offset) vb->blockinfo[ii].count[d];
 					}
-					if (vi->ndim==1 && start[0]==0 && count[0]==1) 
+					/* if (vi->ndim==1 && start[0]==0 && count[0]==1) 
 						ret = put_var_nm(ncid, var.nc_varid, var.nctype, vb->type, buf);
-					else 
+					else  */
  						ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, buf);
        				if (ret != PIO_NOERR) {
        					cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
@@ -676,9 +681,9 @@ int ConvertVariablePutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int adio
 						start[d] = (PIO_Offset) 0;
        					count[d] = (PIO_Offset) 0;
 					}
-					if (vi->ndim==1)  
+					/* if (vi->ndim==1)  
 						ret = put_var_nm(ncid, var.nc_varid, var.nctype, vb->type, &temp_buf);
-					else 
+					else */
  						ret = put_vara_nm(ncid, var.nc_varid, var.nctype, vb->type, start, count, &temp_buf);
        				if (ret != PIO_NOERR) {
        					cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
@@ -743,7 +748,7 @@ int ConvertVariableTimedPutVar(ADIOS_FILE **infile, std::vector<int> wfiles, int
 		}
 		MPI_Allreduce(&l_nblocks,&g_nblocks,1,MPI_INT,MPI_SUM,comm); 
 		
-        if (var.is_timed==PIO_UNLIMITED || var.is_timed>0)
+        if (var.is_timed)
         {
             nsteps = g_nblocks / nblocks_per_step;
         }
@@ -901,7 +906,7 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
 	}
 	MPI_Allreduce(&l_nblocks,&g_nblocks,1,MPI_INT,MPI_SUM,comm); 
 
-    if (var.is_timed==PIO_UNLIMITED || var.is_timed>0)
+    if (var.is_timed)
     {
         nsteps = g_nblocks / nblocks_per_step;
         if (g_nblocks != nsteps * nblocks_per_step)
@@ -1044,7 +1049,9 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
         if (wfiles[0] < nblocks_per_step)
         {
 			/* different decompositions at different frames */	
-            if (var.is_timed==PIO_UNLIMITED || var.is_timed>0)
+            if (var.is_timed)
+                PIOc_setframe(ncid, var.nc_varid, frame_id);
+			if (!var.is_timed && frame_id>=0) 
                 PIOc_setframe(ncid, var.nc_varid, frame_id);
 			if (fillval_exist) {
             	ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
@@ -1248,7 +1255,7 @@ void ConvertBPFile(string infilepath, string outfilename, int pio_iotype, int io
 
 					std::string op(ncop);
 					if (op == "put_var") {
-						if (var.is_timed==PIO_UNLIMITED || var.is_timed>0) {
+						if (var.is_timed) {
 							if (debug_out) printf("ConvertVariableTimedPutVar: %d\n",mpirank); fflush(stdout);
 							ConvertVariableTimedPutVar(infile, wfiles, i, ncid, var, n_bp_writers, comm, mpirank, nproc);
 						} else {

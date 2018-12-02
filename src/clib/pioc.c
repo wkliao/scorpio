@@ -887,6 +887,7 @@ int PIOc_Init_Intracomm(MPI_Comm comp_comm, int num_iotasks, int stride, int bas
         return pio_err(NULL, NULL, PIO_EINTERNAL, __FILE__, __LINE__);
     }
 #endif
+
 #ifdef _ADIOS
     /* Initialize ADIOS once */
     if (!adios_init_ref_cnt)
@@ -1211,6 +1212,7 @@ int PIOc_finalize(int iosysid)
         LOG((1, "Finalizing micro timers failed"));
     }
 #endif
+
 #ifdef _ADIOS
     --adios_init_ref_cnt;
     if (!adios_init_ref_cnt)

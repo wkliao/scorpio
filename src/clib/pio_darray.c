@@ -830,19 +830,24 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
    	if (sizeof(PIO_Offset) == 8)
    		type = adios2_type_long_int;
 
+	size_t av_shape[1], av_start[1], av_count[1];
 	if (iodesc->maplen>1) {
-		size_t count = (size_t)iodesc->maplen;
+		av_shape[0]  = (size_t)iodesc->maplen;
+		av_start[0]  = (size_t)0;
+		av_count[0]  = (size_t)iodesc->maplen;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, &count, 
+															1, av_shape, av_start, av_count, 
 															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, iodesc->map, adios2_mode_sync);
 	} else if (iodesc->maplen==0) { // Handle the case where maplen is 0
-		long   mapbuf[2];
-		size_t count = 2;
+		long mapbuf[2];
 		mapbuf[0] = 0; 
 		mapbuf[1] = 0;
+		av_shape[0] = (size_t)2;
+		av_start[0] = (size_t)0;
+		av_count[0] = (size_t)2;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, &count, 
+															1, av_shape, av_start, av_count, 
 															adios2_constant_dims_true);
        	adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 	} else { // Handle the case where maplen is 1
@@ -858,9 +863,11 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 			((long*)mapbuf)[1] = 0;
 		}
 
-		size_t count = (size_t)maplen;
+		av_shape[0] = (size_t)maplen;
+		av_start[0] = (size_t)0;
+		av_count[0] = (size_t)maplen;
 		adios2_variable *variableH = adios2_define_variable(file->ioH, name, type,
-															1, NULL, NULL, &count, 
+															1, av_shape, av_start, av_count, 
 															adios2_constant_dims_true);
    		adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
 		free(mapbuf);
@@ -869,7 +876,7 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	/* ADIOS: assume all procs are also IO tasks */
     if (file->adios_iomaster == MPI_ROOT)
    	{
-		char att_name[64];
+		char att_name[128];
 		sprintf(att_name,"%s/piotype",name);
 		adios2_define_attribute(file->ioH,att_name,adios2_type_int,&iodesc->piotype);
 		sprintf(att_name,"%s/ndims",name);
@@ -905,24 +912,27 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid, io_de
     {
         /* First we need to define the variable now that we know it's decomposition */
         adios2_type atype = av->adios_type;
-		size_t count = (size_t)arraylen;
+		size_t av_shape[1], av_start[1], av_count[1];
+		av_shape[0] = (size_t)arraylen;
+		av_start[0] = (size_t)0;
+		av_count[0] = (size_t)arraylen;
         av->adios_varid = adios2_define_variable(file->ioH,av->name,atype,
-												1,NULL,NULL,&count,
+												1,av_shape,av_start,av_count,
 												adios2_constant_dims_true);
 
 		/* different decompositions at different frames */
 		char name_varid[256];
 		sprintf(name_varid,"decomp_id/%s",av->name);
 		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
-												1,NULL,NULL,NULL,
+												0,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"frame_id/%s",av->name);
 		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
-												1,NULL,NULL,NULL,
+												0,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"fillval_id/%s",av->name);
 		av->fillval_varid = adios2_define_variable(file->ioH,name_varid,atype,
-												1,NULL,NULL,NULL,
+												0,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		
         if (file->adios_iomaster == MPI_ROOT)
@@ -936,7 +946,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid, io_de
         }
     }
 
-	/* PIOc_setframe with different decompositions */
+	/* Check if we need to write the decomposition. Write it */
 	if (needs_to_write_decomp(file, ioid))
     {
         PIOc_write_decomp_adios(file,ioid);
@@ -962,6 +972,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid, io_de
 
 	adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
 
+	/* NOTE: PIOc_setframe with different decompositions          */
 	/* different decompositions at different frames and fillvalue */
 	if (fillvalue!=NULL) { 
 		adios2_put(file->engineH, av->fillval_varid, fillvalue, adios2_mode_sync);
