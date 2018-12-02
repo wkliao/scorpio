@@ -906,9 +906,19 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
 	}
 	MPI_Allreduce(&l_nblocks,&g_nblocks,1,MPI_INT,MPI_SUM,comm); 
 
+	nsteps = g_nblocks / nblocks_per_step;
+	if (g_nblocks != nsteps * nblocks_per_step) 
+	{
+		if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
+				<< "'. Number of blocks = " << g_nblocks 
+				<< " does not equal the number of steps * number of writers = "
+				<< nsteps << " * " << nblocks_per_step << " = " << nsteps*nblocks_per_step
+				<< endl;
+	}
+
+#if 0 /* Fix for NUM_FRAMES. It is assumed applications will set frame id. */
     if (var.is_timed)
     {
-        nsteps = g_nblocks / nblocks_per_step;
         if (g_nblocks != nsteps * nblocks_per_step)
         {
             if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
@@ -918,13 +928,10 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
                  << endl;
         }
     }
-    else
+    else 
     {
-        /* Apps may still write a non-timed variable every step, basically overwriting the variable.
-         * But we have too many blocks in the adios file in such case and we need to deal with them
-         */
-        nsteps = g_nblocks / nblocks_per_step;
-        int maxSteps = GlobalMaxSteps_nm();
+		int maxSteps = GlobalMaxSteps_nm();
+        /* Apps may still write a non-timed variable every step. We need to deal with them */
         if (g_nblocks != nsteps * nblocks_per_step)
         {
             if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
@@ -950,6 +957,7 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
         }
         ts = nsteps-1;
     }
+#endif 
 
 	/* different decompositions at different frames */
 	char decomp_varname[128];
@@ -1008,6 +1016,10 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
                 		ret = adios_schedule_read(infile[i], wbsel, 
 										frame_varname, 0, 1, &frame_id);
                 		adios_perform_reads(infile[i], 1);
+
+						/* Fix for NUM_FRAMES */
+						if (!var.is_timed && frame_id>=0)
+							var.is_timed = true;
 						
 						if (decomp_id>0) {
                 			ret = adios_schedule_read(infile[i], wbsel, 
@@ -1050,8 +1062,6 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
         {
 			/* different decompositions at different frames */	
             if (var.is_timed)
-                PIOc_setframe(ncid, var.nc_varid, frame_id);
-			if (!var.is_timed && frame_id>=0) 
                 PIOc_setframe(ncid, var.nc_varid, frame_id);
 			if (fillval_exist) {
             	ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
