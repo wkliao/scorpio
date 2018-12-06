@@ -41,6 +41,7 @@
 #include <adios2_c.h>
 #define _ADIOS_ALL_PROCS 1  /* ADIOS: assume all procs are also IO tasks */
 adios2_adios *get_adios2_adios();
+unsigned long get_adios2_io_cnt();
 #endif
 
 #ifndef MPI_OFFSET

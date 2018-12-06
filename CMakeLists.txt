@@ -127,7 +127,7 @@ option (PIO_ENABLE_TESTS  "Enable the testing builds"                           
 option (PIO_ENABLE_LARGE_TESTS  "Enable large (file, processes) tests"         OFF)
 option (PIO_VALGRIND_CHECK  "Enable memory leak check using valgrind"           OFF)
 include(CMakeDependentOption)
-cmake_dependent_option (PIO_TEST_CLOSE_OPEN_FOR_SYNC  "PIO fortran tests will close+open for sync" ON "WITH_ADIOS" OFF)
+cmake_dependent_option (PIO_TEST_CLOSE_OPEN_FOR_SYNC  "PIO fortran tests will close+open for sync" ON "WITH_ADIOS2" OFF)
 
 #==============================================================================
 #  BACKWARDS COMPATIBILITY

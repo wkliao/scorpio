@@ -822,10 +822,15 @@ int PIOc_InitDecomp_bc(int iosysid, int pio_type, int ndims, const int *gdimlen,
 static int adios_init_ref_cnt = 0;
 #endif
 #ifdef _ADIOS2
+static unsigned long adios2_io_cnt = 0;
 static adios2_adios *adiosH = NULL;
 adios2_adios *get_adios2_adios()
 {
 	return adiosH;
+}
+unsigned long get_adios2_io_cnt()
+{
+	return adios2_io_cnt++;
 }
 #endif 
 
