@@ -2052,7 +2052,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                     /* Make sure that no task is trying to operate on the
                      * directory while it is being deleted */
                     if ((mpierr = MPI_Barrier(ios->union_comm)))
-                        return check_mpi(file, mpierr, __FILE__, __LINE__);
+                        return check_mpi(ios, file, mpierr, __FILE__, __LINE__);
                 }
 
 		if (PIO_NOERR==ierr) {
@@ -2159,7 +2159,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     ierr = check_netcdf(ios, NULL, ierr, __FILE__, __LINE__);
     /* If there was an error, free the memory we allocated and handle error. */
     if(ierr != PIO_NOERR){
-    {
 #if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
         if (file->iotype==PIO_IOTYPE_ADIOS)
@@ -2930,6 +2929,7 @@ int calc_var_rec_sz(int ncid, int varid)
     }
     return ierr;
 }
+
 
 /* Get a description of the variable 
  * @param ncid PIO id for the file

@@ -3,6 +3,12 @@
 #include <chrono>
 #include <algorithm>
 #include <cassert>
+
+/* some compilers include mpicxx.h when __cplusplus is defined */
+#if defined(_ADIOS) || defined (_ADIOS2)
+#include <mpi.h>
+#endif 
+
 #include "pio_sdecomps_regex.hpp"
 extern "C"{
 #include <pio_tests.h>
