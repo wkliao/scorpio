@@ -50,31 +50,6 @@ nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype)
 }
 #endif 
 
-#if 0
-#ifdef _ADIOS1  /* To compile and run adiosbp2nc conversion program */
-nc_type PIOc_get_nctype_from_adios1_type(enum ADIOS_DATATYPES atype)
-{
-    nc_type t;
-    switch (atype)
-    {
-    case adios_byte:                t = NC_BYTE; break;
-    case adios_short:               t = NC_SHORT; break;
-    case adios_integer:             t = NC_INT; break;
-    case adios_real:                t = NC_FLOAT; break;
-    case adios_double:              t = NC_DOUBLE; break;
-    case adios_unsigned_byte:       t = NC_UBYTE; break;
-    case adios_unsigned_short:      t = NC_USHORT; break;
-    case adios_unsigned_integer:    t = NC_UINT; break;
-    case adios_long:                t = NC_INT64; break;
-    case adios_unsigned_long:       t = NC_UINT64; break;
-    case adios_string:              t = NC_CHAR; break;
-    default:                        t = NC_BYTE;
-    }
-    return t;
-}
-#endif 
-#endif
-
 /** The ID for the parallel I/O system. It is set by
  * PIOc_Init_Intracomm(). It references an internal structure
  * containing the general IO subsystem data and MPI
@@ -244,22 +219,24 @@ void ProcessGlobalAttributes(ADIOS_FILE **infile, int ncid, DimensionMap& dimens
 	std::map<std::string,char> processed_attrs;
 	std::map<std::string,int>  var_att_map;
 	
-	int total_cnt = infile[0]->nattrs, i = 0;
+	int total_cnt = infile[0]->nattrs, i = -1;
 	while (total_cnt>0) {
-        string a = infile[0]->attr_namelist[i];
 		i = (i+1)%infile[0]->nattrs;
+        string a = infile[0]->attr_namelist[i];
+		char *attr_namelist = infile[0]->attr_namelist[i];
+
 		std::string token = a.substr(0, a.find(delimiter));
 		if (token=="") {  /* Not a variable with attributes */
 			processed_attrs[a] = 1; total_cnt--;
 		} else if (processed_attrs.find(a)==processed_attrs.end()) {
         	if (a.find("pio_global/") != string::npos) {
-            	if (debug_out) cout << " GLOBAL Attribute: " << infile[0]->attr_namelist[i] << std::endl;
+            	if (debug_out) cout << " GLOBAL Attribute: " << attr_namelist << std::endl;
             	int asize;
             	char *adata = NULL;
             	ADIOS_DATATYPES atype;
-            	adios_get_attr(infile[0], infile[0]->attr_namelist[i], &atype, &asize, (void**)&adata);
+            	adios_get_attr(infile[0], attr_namelist, &atype, &asize, (void**)&adata);
             	nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
-            	char *attname = infile[0]->attr_namelist[i]+strlen("pio_global/");
+            	char *attname = attr_namelist+strlen("pio_global/");
             	if (debug_out) cout << "        define PIO attribute: " << attname << ""
                		     			<< "  type=" << piotype << std::endl;
             	int len = 1;
@@ -269,7 +246,7 @@ void ProcessGlobalAttributes(ADIOS_FILE **infile, int ncid, DimensionMap& dimens
             	if (adata) free(adata);
 				processed_attrs[a] = 1; total_cnt--;
 			} else {
-				if (debug_out) cout << "    Attribute: " << infile[0]->attr_namelist[i] << std::endl;
+				if (debug_out) cout << "    Attribute: " << attr_namelist << std::endl;
 				if (vars_map.find(token)==vars_map.end()) { 
 					if (var_att_map.find(token)==var_att_map.end()) {
 						// first encounter 
@@ -939,49 +916,6 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
 				<< nsteps << " * " << nblocks_per_step << " = " << nsteps*nblocks_per_step
 				<< endl;
 	}
-
-#if 0 /* Fix for NUM_FRAMES. It is assumed applications will set frame id. */
-    if (var.is_timed)
-    {
-        if (g_nblocks != nsteps * nblocks_per_step)
-        {
-            if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
-                 << "'. Number of blocks = " << g_nblocks 
-                 << " does not equal the number of steps * number of writers = "
-                 << nsteps << " * " << nblocks_per_step << " = " << nsteps*nblocks_per_step
-                 << endl;
-        }
-    }
-    else 
-    {
-		int maxSteps = GlobalMaxSteps_nm();
-        /* Apps may still write a non-timed variable every step. We need to deal with them */
-        if (g_nblocks != nsteps * nblocks_per_step)
-        {
-            if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
-                 << "' which has no unlimited dimension. Number of blocks = " << g_nblocks 
-                 << " does not equal the number of steps * number of writers = "
-                 << nsteps << " * " << nblocks_per_step << " = " << nsteps*nblocks_per_step
-                 << endl;
-        }
-        else if (maxSteps != 1 && nsteps > maxSteps)
-        {
-            if (debug_out) cout << "rank " << mpirank << ":ERROR in processing darray '" << varname 
-                 << "'. A variable without unlimited dimension was written multiple times."
-                 << " The " << nsteps << " steps however does not equal to the number of steps "
-                 << "of other variables that indeed have unlimited dimensions (" << maxSteps << ")."
-                 << endl;
-        }
-        else if (nsteps > 1)
-        {
-            if (debug_out) cout << "rank " << mpirank << ":WARNING in processing darray '" << varname 
-                 << "'. A variable without unlimited dimension was written " << nsteps << " times. "
-                 << "We will write only the last occurence."
-                 << endl;
-        }
-        ts = nsteps-1;
-    }
-#endif 
 
 	/* different decompositions at different frames */
 	char decomp_varname[128];

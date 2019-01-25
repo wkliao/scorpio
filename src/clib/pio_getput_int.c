@@ -1292,7 +1292,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					av->adios_varid = adios2_inquire_variable(file->ioH,av->name);
 					if (av->adios_varid==NULL)
                        	av->adios_varid = adios2_define_variable(file->ioH,av->name,av->adios_type,
-																1,av_shape,av_start,av_count,
+																0,NULL,NULL,NULL,
 																adios2_constant_dims_false);
 					adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync);
 
