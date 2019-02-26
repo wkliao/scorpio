@@ -826,9 +826,9 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
     char name[32];
     sprintf(name, "/__pio__/decomp/%d", ioid);
 
-   	adios2_type type = adios2_type_int; 
+   	adios2_type type = adios2_type_int32_t; 
    	if (sizeof(PIO_Offset) == 8)
-   		type = adios2_type_long_int;
+   		type = adios2_type_int64_t;
 
 	size_t av_shape[1], av_start[1], av_count[1];
 	if (iodesc->maplen>1) {
@@ -853,7 +853,7 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	} else { // Handle the case where maplen is 1
 		int maplen   = iodesc->maplen+1; 
 		void *mapbuf = NULL;
-		if (type==adios2_type_int) {
+		if (type==adios2_type_int32_t) {
 			mapbuf = (int*)malloc(sizeof(int)*maplen);	
 			((int*)mapbuf)[0] = iodesc->map[0];
 			((int*)mapbuf)[1] = 0;
@@ -878,11 +878,11 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
    	{
 		char att_name[128];
 		sprintf(att_name,"%s/piotype",name);
-		adios2_define_attribute(file->ioH,att_name,adios2_type_int,&iodesc->piotype);
+		adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&iodesc->piotype);
 		sprintf(att_name,"%s/ndims",name);
-		adios2_define_attribute(file->ioH,att_name,adios2_type_int,&iodesc->ndims);
+		adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&iodesc->ndims);
 		sprintf(att_name,"%s/dimlen",name);
-		adios2_define_attribute_array(file->ioH,att_name,adios2_type_int,iodesc->dimlen,iodesc->ndims);
+		adios2_define_attribute_array(file->ioH,att_name,adios2_type_int32_t,iodesc->dimlen,iodesc->ndims);
    	}
 }
 
@@ -923,11 +923,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid, io_de
 		/* different decompositions at different frames */
 		char name_varid[256];
 		sprintf(name_varid,"decomp_id/%s",av->name);
-		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
+		av->decomp_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int32_t,
 												0,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"frame_id/%s",av->name);
-		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int,
+		av->frame_varid = adios2_define_variable(file->ioH,name_varid,adios2_type_int32_t,
 												0,NULL,NULL,NULL,
                                                 adios2_constant_dims_true);
 		sprintf(name_varid,"fillval_id/%s",av->name);

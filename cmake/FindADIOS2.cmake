@@ -130,7 +130,7 @@ endif(ADIOS2_CONFIG)
 
 # check `adios_config` program ################################################
 if(ADIOS2_FOUND)
-    execute_process(COMMAND ${ADIOS2_CONFIG} --libs 
+    execute_process(COMMAND ${ADIOS2_CONFIG} --cxx-libs 
                     OUTPUT_VARIABLE ADIOS2_LINKFLAGS
                     RESULT_VARIABLE ADIOS2_CONFIG_RETURN
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -140,9 +140,10 @@ if(ADIOS2_FOUND)
     endif()
 
     # find ADIOS2_ROOT_DIR
-    execute_process(COMMAND ${ADIOS2_CONFIG} --prefix
-                    OUTPUT_VARIABLE ADIOS2_ROOT_DIR
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    # execute_process(COMMAND ${ADIOS2_CONFIG} --prefix
+    #                OUTPUT_VARIABLE ADIOS2_ROOT_DIR
+    #               OUTPUT_STRIP_TRAILING_WHITESPACE)
+	set(ADIOS2_ROOT_DIR /home/tkurc/codar/adios2/adios2-install)
     if(NOT IS_DIRECTORY "${ADIOS2_ROOT_DIR}")
         set(ADIOS2_FOUND FALSE)
         message(STATUS "The directory provided by 'adios2-config --prefix' does not exist: ${ADIOS2_ROOT_DIR}")
@@ -212,9 +213,10 @@ if(ADIOS2_FOUND)
     endforeach(foo)
 
     # add the version string
-    execute_process(COMMAND ${ADIOS2_CONFIG} --version 
-                    OUTPUT_VARIABLE ADIOS2_VERSION
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    # execute_process(COMMAND ${ADIOS2_CONFIG} --version 
+    #                 OUTPUT_VARIABLE ADIOS2_VERSION
+    #                 OUTPUT_STRIP_TRAILING_WHITESPACE)
+	set(ADIOS2_VERSION 2.2.0)
     
 endif(ADIOS2_FOUND)
 

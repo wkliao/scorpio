@@ -2089,7 +2089,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
 			if (MPI_ROOT==file->adios_iomaster) {
 				adios2_variable *variableH = adios2_define_variable(file->ioH,
-																"/__pio__/info/nproc",adios2_type_int,
+																"/__pio__/info/nproc",adios2_type_int32_t,
 																0, NULL, NULL, NULL, 
 																adios2_constant_dims_true);
     			adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
@@ -3023,19 +3023,19 @@ adios2_type PIOc_get_adios_type(nc_type xtype)
     adios2_type t;
     switch (xtype)
     {
-    case NC_BYTE:   t = adios2_type_char; break;
-    case NC_CHAR:   t = adios2_type_char; break;
-    case NC_SHORT:  t = adios2_type_short; break;
-    case NC_INT:    t = adios2_type_int; break;
+    case NC_BYTE:   t = adios2_type_int8_t; break;
+    case NC_CHAR:   t = adios2_type_int8_t; break;
+    case NC_SHORT:  t = adios2_type_int16_t; break;
+    case NC_INT:    t = adios2_type_int32_t; break;
     case NC_FLOAT:  t = adios2_type_float; break;
     case NC_DOUBLE: t = adios2_type_double; break;
-    case NC_UBYTE:  t = adios2_type_unsigned_char; break;
-    case NC_USHORT: t = adios2_type_unsigned_short; break;
-    case NC_UINT:   t = adios2_type_unsigned_int; break;
-    case NC_INT64:  t = adios2_type_long_int; break;
-    case NC_UINT64: t = adios2_type_unsigned_long_int; break;
+    case NC_UBYTE:  t = adios2_type_uint8_t; break;
+    case NC_USHORT: t = adios2_type_uint16_t; break;
+    case NC_UINT:   t = adios2_type_uint32_t; break;
+    case NC_INT64:  t = adios2_type_int64_t; break;
+    case NC_UINT64: t = adios2_type_uint64_t; break;
     case NC_STRING: t = adios2_type_string; break;
-    default: t = adios2_type_char;
+    default: t = adios2_type_int8_t;
     }
     return t;
 }
@@ -3045,16 +3045,16 @@ nc_type PIOc_get_nctype_from_adios_type(adios2_type atype)
     nc_type t;
     switch (atype)
     {
-    case adios2_type_char:                t = NC_CHAR; break;
-    case adios2_type_short:               t = NC_SHORT; break;
-    case adios2_type_int:                 t = NC_INT; break;
+    case adios2_type_int8_t:                t = NC_CHAR; break;
+    case adios2_type_int16_t:               t = NC_SHORT; break;
+    case adios2_type_int32_t:                 t = NC_INT; break;
     case adios2_type_float:               t = NC_FLOAT; break;
     case adios2_type_double:              t = NC_DOUBLE; break;
-    case adios2_type_unsigned_char:       t = NC_UBYTE; break;
-    case adios2_type_unsigned_short:      t = NC_USHORT; break;
-    case adios2_type_unsigned_int:        t = NC_UINT; break;
-    case adios2_type_long_int:            t = NC_INT64; break;
-    case adios2_type_unsigned_long_int:   t = NC_UINT64; break;
+    case adios2_type_uint8_t:       t = NC_UBYTE; break;
+    case adios2_type_uint16_t:      t = NC_USHORT; break;
+    case adios2_type_uint32_t:        t = NC_UINT; break;
+    case adios2_type_int64_t:            t = NC_INT64; break;
+    case adios2_type_uint64_t:   t = NC_UINT64; break;
 	case adios2_type_string:			  t = NC_STRING; break;
     default:                        	  t = NC_BYTE;
     }

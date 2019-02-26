@@ -345,7 +345,7 @@ int PIOc_closefile(int ncid)
 		if (file->engineH != NULL)
         {
         	LOG((2,"ADIOS close file %s\n", file->filename));
-			adios2_define_attribute(file->ioH,"/__pio__/fillmode",adios2_type_int,&file->fillmode);
+			adios2_define_attribute(file->ioH,"/__pio__/fillmode",adios2_type_int32_t,&file->fillmode);
             adios2_close(file->engineH);
             file->engineH = NULL;
         }

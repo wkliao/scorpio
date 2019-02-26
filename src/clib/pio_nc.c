@@ -26,8 +26,8 @@ int adios2_type_size(adios2_type type, const void *var)
 {
     switch (type)
     {
-        case adios2_type_char:
-        case adios2_type_unsigned_char:
+        case adios2_type_int8_t:
+        case adios2_type_uint8_t:
             return 1;
 
         case adios2_type_string:
@@ -36,16 +36,16 @@ int adios2_type_size(adios2_type type, const void *var)
             else
                 return strlen ((const char *) var) + 1;
 
-        case adios2_type_short:
-        case adios2_type_unsigned_short:
+        case adios2_type_int16_t:
+        case adios2_type_uint16_t:
             return 2;
 
-        case adios2_type_int:
-        case adios2_type_unsigned_int:
+        case adios2_type_int32_t:
+        case adios2_type_uint32_t:
             return 4;
 
-        case adios2_type_long_int:
-        case adios2_type_unsigned_long_int:
+        case adios2_type_int64_t:
+        case adios2_type_uint64_t:
             return 8;
 
         case adios2_type_float:
@@ -2207,7 +2207,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             snprintf(dimname, sizeof(dimname), "/__pio__/dim/%s", name);
 			adios2_variable *variableH = adios2_inquire_variable(file->ioH,dimname);
 			if (variableH==NULL) 
-            	variableH = adios2_define_variable(file->ioH,dimname,adios2_type_unsigned_long_int,
+            	variableH = adios2_define_variable(file->ioH,dimname,adios2_type_uint64_t,
 												0,NULL,NULL,NULL,
 												adios2_constant_dims_false);
             file->dim_names[file->num_dim_vars]  = strdup(name);
@@ -2406,10 +2406,10 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 					char att_name[64];
 					sprintf(att_name,"%s/__pio__/ndims",av->name);
 					if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
-						adios2_define_attribute(file->ioH,att_name,adios2_type_int,&av->ndims);
+						adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->ndims);
 					sprintf(att_name,"%s/__pio__/nctype",av->name);
 					if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
-						adios2_define_attribute(file->ioH,att_name,adios2_type_int,&av->nc_type);
+						adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->nc_type);
 					if (av->ndims!=0) { /* If zero dimensions, do not write out __pio__/dims */
             			char* dimnames[6];
             			for (int i = 0; i < av->ndims; i++) 

@@ -1355,10 +1355,10 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				char att_name[128];
                 sprintf(att_name,"%s/__pio__/ndims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
-                	adios2_define_attribute(file->ioH,att_name,adios2_type_int,&av->ndims);
+                	adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->ndims);
                 sprintf(att_name,"%s/__pio__/nctype",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
-                	adios2_define_attribute(file->ioH,att_name,adios2_type_int,&av->nc_type);
+                	adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->nc_type);
                 sprintf(att_name,"%s/__pio__/ncop",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
                 	adios2_define_attribute(file->ioH,att_name,adios2_type_string,"put_var");

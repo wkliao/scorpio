@@ -101,37 +101,20 @@ else ()
 endif ()
 
 #===== ADIOS-C =====
-if (WITH_ADIOS)
-  find_package (ADIOS "1.10.0")
+if (WITH_ADIOS2)
+  find_package (ADIOS2 "2.2.0")
 endif ()
-if (ADIOS_FOUND)
+if (ADIOS2_FOUND)
   target_include_directories (adios2pio-nm-lib
-    PUBLIC ${ADIOS_INCLUDE_DIRS})
+    PUBLIC ${ADIOS2_INCLUDE_DIRS})
   target_compile_definitions (adios2pio-nm-lib
-    PUBLIC _ADIOS)
+    PUBLIC _ADIOS2)
   target_link_libraries (adios2pio-nm-lib
-    PUBLIC ${ADIOS_LIBRARIES})
+    PUBLIC ${ADIOS2_LIBRARIES})
 else ()
   target_compile_definitions (adios2pio-nm-lib
     PUBLIC _NOADIOS)
 endif ()
-
-if (WITH_ADIOS1)
-  find_package (ADIOS1 "1.13.1")
-endif ()
-if (ADIOS1_FOUND)
-  target_include_directories (adios2pio-nm-lib
-    PUBLIC ${ADIOS1_INCLUDE_DIRS})
-  target_compile_definitions (adios2pio-nm-lib
-    PUBLIC _ADIOS1)
-  target_link_libraries (adios2pio-nm-lib
-    PUBLIC ${ADIOS1_LIBRARIES})
-else ()
-  target_compile_definitions (adios2pio-nm-lib
-    PUBLIC _NOADIOS1)
-endif ()
-
-
 
 #===== Add EXTRAs =====
 target_include_directories (adios2pio-nm-lib
