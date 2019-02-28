@@ -306,19 +306,33 @@ void ProcessGlobalAttributes(adios2::IO *bpIO, adios2::Engine *bpReader, int nci
 		} else if (processed_attrs.find(a)==processed_attrs.end()) {
         	if (a.find("pio_global/") != string::npos) {
             	if (debug_out) cout << " GLOBAL Attribute: " << attr_namelist << std::endl;
+			
+				std::string atype = bpIO[0].AttributeType(attr_namelist);
+				printf("TYPE: %s %s %s\n",atype.c_str(),attr_namelist,a.c_str());
             	size_t asize;
-            	char *adata = NULL;
-            	std::string atype;
-            	adios_get_attr_a2(&bpIO[0], &bpReader[0], attr_namelist, &atype, &asize, (void**)&adata);
-            	nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
-            	char *attname = attr_namelist+strlen("pio_global/");
-            	if (debug_out) cout << "        define PIO attribute: " << attname << ""
-               		     			<< "  type=" << piotype << std::endl;
-            	int len = 1;
-            	if (atype == adios2::GetType<std::string>())
-                	len = strlen(adata);
-            	PIOc_put_att(ncid, PIO_GLOBAL, attname, piotype, len, adata);
-            	if (adata) free(adata);
+				int len;
+				if (atype == adios2::GetType<std::string>()) {
+            		char **adata = NULL;
+            		adios_get_attr_a2(&bpIO[0], &bpReader[0], attr_namelist, &atype, &asize, (void**)&adata);
+            		nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
+            		char *attname = attr_namelist+strlen("pio_global/");
+					printf("DATA: [%s] %s\n",*adata,attr_namelist);
+            		if (debug_out) cout << "        define PIO attribute: " << attname << ""
+               			     			<< "  type=" << piotype << std::endl;
+            		len = strlen(*adata);
+            		PIOc_put_att(ncid, PIO_GLOBAL, attname, piotype, len, *adata);
+            		if (adata) free(adata);
+				} else {
+            		char *adata = NULL;
+            		adios_get_attr_a2(&bpIO[0], &bpReader[0], attr_namelist, &atype, &asize, (void**)&adata);
+            		nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
+            		char *attname = attr_namelist+strlen("pio_global/");
+            		if (debug_out) cout << "        define PIO attribute: " << attname << ""
+               			     			<< "  type=" << piotype << std::endl;
+            		len = 1;
+            		PIOc_put_att(ncid, PIO_GLOBAL, attname, piotype, len, adata);
+            		if (adata) free(adata);
+				}
 				processed_attrs[a] = 1; total_cnt--;
 			} else {
 				if (debug_out) cout << "    Attribute: " << attr_namelist << std::endl;
@@ -844,9 +858,12 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
     TimerStart(read);
     int ret = 0;
 
+	*v_base = bpIO[0].InquireVariable<T>(varname.c_str()); 
+
 	adios2::Dims v_dims = v_base->Shape(0); 
     if (v_dims.size()== 0)
     {
+		printf("Scalar variable: %s\n",varname.c_str());
         /* Scalar variable over time */
         /* Written by only one process, so steps = number of blocks in file */
 		const auto v_blocks = bpReader[0].BlocksInfo(*v_base,0);
@@ -873,6 +890,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
     }
     else
     {
+		printf("Array variable: %s\n",varname.c_str());
         /* calculate how many records/steps we have for this variable */
         int nsteps = 1;
 
@@ -880,6 +898,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
 		int l_nblocks = 0;
 		int g_nblocks = 0;
 		for (int i=1;i<=wfiles.size();i++) {
+			*v_base = bpIO[i].InquireVariable<T>(varname.c_str());
 			const auto v_blocks = bpReader[i].BlocksInfo(*v_base,0);
 			l_nblocks += v_blocks.size();
 		}
@@ -900,6 +919,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
 
         /* Is this a local array written by each process, or a truly distributed global array */
         TimerStart(read);
+		*v_base = bpIO[0].InquireVariable<T>(varname.c_str());
 		const auto v_blocks = bpReader[0].BlocksInfo(*v_base,0);
         TimerStart(read);
         bool local_array = true;
@@ -919,6 +939,8 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
             local_array = true;
         }
 
+		printf("I am here..\n");
+
         if (local_array)
         {
             /* Just read the arrays written by rank 0 (on every process here) and
@@ -933,6 +955,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
                 {
                     nelems *= v_dims[d]; 
                 }
+				printf("Converting: %d \n",ts);
                 std::vector<char> d(nelems * elemsize);
 				v_base->SetBlockSelection(ts);
 				adios2::Dims vd_start(v_dims.size());
@@ -1046,7 +1069,7 @@ int ConvertVariableTimedPutVar(adios2::IO *bpIO, adios2::Engine *bpReader, std::
 #define declare_template_instantiation(T)              \
     else if (v_type == adios2::GetType<T>())   \
     {                                                  \
-        adios2::Variable<T> v_base = bpIO[0].InquireVariable<T>(varname.c_str());       \
+        adios2::Variable<T> v_base;       \
 		std::vector<T> v_value; \
 		return adios2_ConvertVariableTimedPutVar(&v_base, v_value, bpIO, bpReader, wfiles, \
                                 varname, ncid, var, nblocks_per_step, \
