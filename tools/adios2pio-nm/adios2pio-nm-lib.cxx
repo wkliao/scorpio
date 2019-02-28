@@ -187,7 +187,7 @@ void ProcessGlobalFillmode(ADIOS_FILE **infile, int ncid)
 void ProcessVarAttributes(ADIOS_FILE **infile, int adios_varid, std::string varname, int ncid, int nc_varid)
 {
     ADIOS_VARINFO *vi = adios_inq_var(infile[0], infile[0]->var_namelist[adios_varid]);
-    printf("Processing attributes for varname: %s\n",varname.c_str());
+    printf("Processing attributes for varname: %s %d\n",varname.c_str(),vi->nattrs);
     for (int i=0; i < vi->nattrs; i++)
     {
 		if (debug_out)
@@ -368,6 +368,8 @@ Decomposition ProcessOneDecomposition(ADIOS_FILE **infile, int ncid, const char 
    	attname = string(varname) + "/dimlen";
    	adios_get_attr(infile[0], attname.c_str(), &atype, &asize, (void**)&decomp_dims);
    	TimerStop(read);
+
+	printf("DECOMP DIMS: %d\n",*decomp_dims);
 
    	TimerStart(write);
    	int ioid;
@@ -960,9 +962,11 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
             if (vb) {
                 adios_inq_var_blockinfo(infile[i], vb);
                 l_nwriters = vb->nblocks[0]/nsteps;
+				printf("LWRITERS: %d\n",l_nwriters);
                 for (int j=0;j<l_nwriters;j++) {
 					int blockid = j*nsteps+ts;
                     if (blockid<vb->nblocks[0]) {
+						printf("Block id: %d\n",blockid);
                 		ADIOS_SELECTION *wbsel = adios_selection_writeblock(blockid);
                 		int ret = adios_schedule_read(infile[i], wbsel, 
 										varname, 0, 1,
@@ -996,6 +1000,11 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid, int ncid, Variab
             }   
         }	
         TimerStop(read);
+
+		int *tmp_val = (int*)d.data();
+		printf("D size: %d nelems: %d\n",d.size(),nelems);
+		for (int iii=0;iii<nelems;iii++) 
+			printf("TS: %d %d Value: %d %d\n",ts,nsteps,iii,tmp_val[iii]);
 
         TimerStart(write);
 		Decomposition decomp;

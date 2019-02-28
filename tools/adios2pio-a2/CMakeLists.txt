@@ -102,15 +102,14 @@ endif ()
 
 #===== ADIOS-C =====
 if (WITH_ADIOS2)
-  find_package (ADIOS2 "2.2.0")
+  find_package (ADIOS2)
 endif ()
 if (ADIOS2_FOUND)
-  target_include_directories (adios2pio-nm-lib
-    PUBLIC ${ADIOS2_INCLUDE_DIRS})
+  # target_include_directories (adios2pio-nm-lib)
   target_compile_definitions (adios2pio-nm-lib
     PUBLIC _ADIOS2)
   target_link_libraries (adios2pio-nm-lib
-    PUBLIC ${ADIOS2_LIBRARIES})
+    PUBLIC adios2::adios2)
 else ()
   target_compile_definitions (adios2pio-nm-lib
     PUBLIC _NOADIOS)

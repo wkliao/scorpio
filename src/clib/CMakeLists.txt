@@ -162,16 +162,16 @@ else ()
   target_compile_definitions (pioc
     PUBLIC _NOADIOS)
 endif ()
+
 if (WITH_ADIOS2)
-  find_package (ADIOS2 "2.2.0")
+  find_package (ADIOS2)
 endif ()
 if (ADIOS2_FOUND)
-  target_include_directories (pioc
-    PUBLIC ${ADIOS2_INCLUDE_DIRS})
+  # target_include_directories (pioc)
   target_compile_definitions (pioc
     PUBLIC _ADIOS2)
   target_link_libraries (pioc
-    PUBLIC ${ADIOS2_LIBRARIES} adios2pio-nm-lib)
+    PUBLIC adios2::adios2 adios2pio-nm-lib)
 else ()
   target_compile_definitions (pioc
     PUBLIC _NOADIOS)

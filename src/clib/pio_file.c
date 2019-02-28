@@ -333,7 +333,7 @@ int PIOc_closefile(int ncid)
             outfilename[len - 3] = '\0';
 			printf("CONVERTING: %s\n",file->filename); fflush(stdout);
             C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", ios->union_comm);
-			printf("DONE CONVERTING: %s\n",file->filename); fflush(stdout);
+			printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
 #endif 
 
             free(file->filename);
@@ -386,7 +386,7 @@ int PIOc_closefile(int ncid)
         outfilename[len - 3] = '\0';
 		printf("CONVERTING: %s\n",file->filename); fflush(stdout);
         C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", 1, ios->union_comm);
-		printf("DONE CONVERTING: %s\n",file->filename); fflush(stdout);
+		printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
 #endif 
 
         free(file->filename);
