@@ -21,7 +21,7 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
-SET(SRC adios2pio-nm.cxx)
+SET(SRC argparser.cxx adios2pio-nm.cxx)
 add_library(adios2pio-nm-lib adios2pio-nm-lib.cxx)
 include_directories(
   "${PROJECT_SOURCE_DIR}"   # to find foo/foo.h
@@ -39,14 +39,17 @@ target_compile_definitions (adios2pio-nm-lib
 target_compile_definitions (adios2pio-nm-lib
   PUBLIC ${CMAKE_C_COMPILER_DIRECTIVE})
 
-ADD_EXECUTABLE(adios2pio-nm ${SRC})
-TARGET_LINK_LIBRARIES(adios2pio-nm adios2pio-nm-lib pioc)
+ADD_EXECUTABLE(adios2pio-nm.exe ${SRC})
+TARGET_LINK_LIBRARIES(adios2pio-nm.exe adios2pio-nm-lib pioc)
 
 # Library
 install (TARGETS adios2pio-nm-lib DESTINATION lib)
 
 # Include/Header File
 install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/adios2pio-nm-lib.h DESTINATION include)
+
+# Binary utilities
+install (TARGETS adios2pio-nm.exe DESTINATION bin)
 
 #===== NetCDF-C =====
 if (WITH_NETCDF)
@@ -151,6 +154,3 @@ endif ()
 if (NOT PnetCDF_C_FOUND AND NOT NetCDF_C_FOUND)
   message (FATAL_ERROR "Must have PnetCDF and/or NetCDF C libraries")
 endif ()
-
-
-

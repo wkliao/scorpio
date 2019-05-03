@@ -141,7 +141,7 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #endif
 
     /* Get the IO system info from the id. */
-    if (!(ios = pio_get_iosystem_from_id(iosysid))) 
+    if (!(ios = pio_get_iosystem_from_id(iosysid)))
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
 
     /* Create the file. */
@@ -384,9 +384,9 @@ int PIOc_closefile(int ncid)
         assert(len > 6 && len <= PIO_MAX_NAME);
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
-		printf("CONVERTING: %s\n",file->filename); fflush(stdout);
-        C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", 1, ios->union_comm);
-		printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
+        LOG((1, "CONVERTING: %s", file->filename));
+        C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 1, ios->union_comm);
+        LOG((1, "DONE CONVERTING: %s", file->filename));
 #endif 
 
         free(file->filename);
@@ -570,9 +570,9 @@ int PIOc_sync(int ncid)
             while (wmb)
             {
                 /* If there are any data arrays waiting in the
-                 * multibuffer, flush it. */
+                 * multibuffer, flush it to IO tasks. */
                 if (wmb->num_arrays > 0)
-                    flush_buffer(ncid, wmb, true);
+                    flush_buffer(ncid, wmb, false);
                 twmb = wmb;
                 wmb = wmb->next;
                 if (twmb == &file->buffer)

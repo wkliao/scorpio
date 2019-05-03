@@ -163,6 +163,11 @@ else ()
     PUBLIC _NOADIOS)
 endif ()
 
+if (ADIOS_BP2NC_TEST)
+  target_compile_definitions (pioc
+    PUBLIC _ADIOS_BP2NC_TEST)
+endif ()
+
 if (WITH_ADIOS2)
   find_package (ADIOS2)
 endif ()

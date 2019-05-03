@@ -8,9 +8,11 @@
 #include <algorithm>
 #include <stack>
 
-/* some compilers include mpicxx.h when __cplusplus is defined */
 #if defined(_ADIOS) || defined(_ADIOS2)
-#include <mpi.h> 
+/* mpi.h has to be included to compile this code. Some mpi.h header files   */
+/* include mpicxx.h when __cplusplus is defined. It causes "error: template */
+/* with C linkage" errors.                                                  */
+#include <mpi.h>
 #endif
 
 extern "C"{

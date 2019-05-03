@@ -30,8 +30,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <adios.h>
-#include <adios_read.h> // we only need adios_type_size() at the moment
-#define _ADIOS_ALL_PROCS 1  /* ADIOS: assume all procs are also IO tasks */
+#include <adios_read.h> /* We only need adios_type_size() at the moment */
+#define _ADIOS_ALL_PROCS 1 /* ADIOS: assume all procs are also IO tasks */
+#define ADIOS_PIO_MAX_DECOMPS 200 /* Maximum number of decomps */
 #endif
 
 #ifdef _ADIOS2
@@ -40,6 +41,7 @@
 #include <unistd.h>
 #include <adios2_c.h>
 #define _ADIOS_ALL_PROCS 1  /* ADIOS: assume all procs are also IO tasks */
+#define ADIOS_PIO_MAX_DECOMPS 200 /* Maximum number of decomps */
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
 #endif
@@ -55,6 +57,10 @@ unsigned long get_adios2_io_cnt();
  * size (in bytes) of the largest file supported by MPI. */
 #define PIO_OFFSET MPI_OFFSET
 #define PIO_Offset MPI_Offset
+
+/** The start ID and maximum number of IDs for IO decompositions. */
+#define PIO_IODESC_START_ID 512
+#define PIO_IODESC_MAX_IDS 4096
 
 /** The maximum number of variables allowed in a netCDF file. */
 #define PIO_MAX_VARS_UB 8192
@@ -285,7 +291,7 @@ unsigned long get_adios2_io_cnt();
 
 #if defined(_ADIOS) || defined(_ADIOS2)
 /** Define error codes for ADIOS. */
-#define PIO_EADIOSREAD  (-300)
+#define PIO_EADIOSREAD (-300)
 
 /** Define dynamic memory allocation */
 #define _USE_MALLOC_    1
@@ -876,13 +882,13 @@ typedef struct file_desc_t
     /** Handler for ADIOS group (of variables) */
     int64_t adios_group;
     /** ADIOS output transport method name, POSIX or MPI_AGGREGATE */
-    char transport[16];
+    char transport[PIO_MAX_NAME];
     /** Parameters for the transport method, required for MPI_AGGREGATE.
      * Created automatically from the application setup */
-    char params[128];
+    char params[PIO_MAX_NAME];
     /** Need to store the dim names for finding them and using them when defining variables */
-    char *dim_names[100];
-    PIO_Offset dim_values[100];
+    char *dim_names[PIO_MAX_DIMS];
+    PIO_Offset dim_values[PIO_MAX_DIMS];
     /** Number of dim vars defined */
     int num_dim_vars;
     /** Variable information, max PIO_MAX_VARS variables allowed */
@@ -903,7 +909,7 @@ typedef struct file_desc_t
     int fillmode;
     /** array for decompositions that has been written already (must write only once) */
     int n_written_ioids;
-    int written_ioids[100]; // written_ioids[N] = ioid if that decomp has been already written,
+    int written_ioids[ADIOS_PIO_MAX_DECOMPS]; /* written_ioids[N] = ioid if that decomp has been already written, */
 #endif
 #ifdef _ADIOS2
     /** Save the filename, now just for printing it at close */
@@ -916,13 +922,13 @@ typedef struct file_desc_t
 	adios2_io *ioH;
 
     /** ADIOS output transport method name, POSIX or MPI_AGGREGATE */
-    char transport[16];
+    char transport[PIO_MAX_NAME];
     /** Parameters for the transport method, required for MPI_AGGREGATE.
      * Created automatically from the application setup */
-    char params[128];
+    char params[PIO_MAX_NAME];
     /** Need to store the dim names for finding them and using them when defining variables */
-    char *dim_names[100];
-    PIO_Offset dim_values[100];
+    char *dim_names[PIO_MAX_DIMS];
+    PIO_Offset dim_values[PIO_MAX_DIMS];
     /** Number of dim vars defined */
     int num_dim_vars;
     /** Variable information, max PIO_MAX_VARS variables allowed */
@@ -943,7 +949,7 @@ typedef struct file_desc_t
     int fillmode;
     /** array for decompositions that has been written already (must write only once) */
     int n_written_ioids;
-    int written_ioids[100]; // written_ioids[N] = ioid if that decomp has been already written,
+    int written_ioids[ADIOS_PIO_MAX_DECOMPS]; /* written_ioids[N] = ioid if that decomp has been already written, */
 #endif /* _ADIOS2 */
 
     /* File name - cached */
@@ -980,8 +986,8 @@ typedef struct file_desc_t
     /* Bytes pending to be written out for this file */
     PIO_Offset wb_pend;
 
-    /** Data buffer for this file. */
-    void *iobuf;
+    /** Data buffer per IO decomposition for this file. */
+    void *iobuf[PIO_IODESC_MAX_IDS];
 
     /** Pointer to the next file_desc_t in the list of open files. */
     struct file_desc_t *next;

@@ -110,11 +110,11 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
              atttype_len, memtype_len));
     }
 
-	/* ADIOS: assume all procs are also IO tasks */
+    /* ADIOS: assume all procs are also IO tasks */
 #ifdef _ADIOS
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-            LOG((2,"ADIOS define attribute %s, varid %d, type %d\n", name, varid, atttype));
+        LOG((2, "ADIOS define attribute %s, varid %d, type %d", name, varid, atttype));
             enum ADIOS_DATATYPES adios_type = PIOc_get_adios_type(atttype);
             char path[256];
             if (varid != PIO_GLOBAL)
@@ -1215,7 +1215,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				av->adios_varid = adios_define_var(file->adios_group, av->name, "", av->adios_type, ldims,gdims,offs);
 
                 adios_write_byid(file->adios_fh, av->adios_varid, buf);
-                char* dimnames[6];
+                char* dimnames[PIO_MAX_DIMS];
                 /* record the NC dimensions in an attribute, including the unlimited dimension */
                 for (int i = 0; i < av->ndims; i++)
                     dimnames[i] = file->dim_names[av->gdimids[i]];
@@ -1341,10 +1341,10 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				adios2_put(file->engineH,av->adios_varid,buf,adios2_mode_sync); 
 
                 /* record the NC dimensions in an attribute, including the unlimited dimension */
-                char* dimnames[6];
+                char* dimnames[PIO_MAX_DIMS];
                 for (int i = 0; i < av->ndims; i++)
                     dimnames[i] = file->dim_names[av->gdimids[i]];
-				char att_name[128];
+				char att_name[PIO_MAX_NAMES];
                 sprintf(att_name,"%s/__pio__/dims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
                 	adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
@@ -1352,7 +1352,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 
 			if (file->adios_iomaster == MPI_ROOT)
             {
-				char att_name[128];
+				char att_name[PIO_MAX_NAMES];
                 sprintf(att_name,"%s/__pio__/ndims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
                 	adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->ndims);

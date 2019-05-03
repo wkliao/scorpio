@@ -48,56 +48,56 @@ extern bool fortran_order;
  */
 int remove_directory(const char *path)
 {
-   DIR *d = opendir(path);
-   size_t path_len = strlen(path);
-   int r = -1;
+    DIR *d = opendir(path);
+    size_t path_len = strlen(path);
+    int r = -1;
 
-   if (d)
-   {
-      struct dirent *p;
+    if (d)
+    {
+        struct dirent *p;
 
-      r = 0;
+        r = 0;
 
-      while (!r && (p = readdir(d)))
-      {
-          int r2 = -1;
-          char *buf;
-          size_t len;
+        while (!r && (p = readdir(d)))
+        {
+            int r2 = -1;
+            char *buf;
+            size_t len;
 
-          /* Skip the names "." and ".." as we don't want to recurse on them. */
-          if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
-             continue;
+            /* Skip the names "." and ".." as we don't want to recurse on them. */
+            if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
+                continue;
 
-          len = path_len + strlen(p->d_name) + 2;
-          buf = malloc(len);
+            len = path_len + strlen(p->d_name) + 2;
+            buf = malloc(len);
 
-          if (buf)
-          {
-             struct stat statbuf;
+            if (buf)
+            {
+                struct stat statbuf;
 
-             snprintf(buf, len, "%s/%s", path, p->d_name);
+                snprintf(buf, len, "%s/%s", path, p->d_name);
 
-             if (!stat(buf, &statbuf))
-             {
-                if (S_ISDIR(statbuf.st_mode))
-                   r2 = remove_directory(buf);
-                else
-                   r2 = unlink(buf);
-             }
+                if (!stat(buf, &statbuf))
+                {
+                    if (S_ISDIR(statbuf.st_mode))
+                        r2 = remove_directory(buf);
+                    else
+                        r2 = unlink(buf);
+                }
 
-             free(buf);
-          }
+                free(buf);
+            }
 
-          r = r2;
-      }
+            r = r2;
+        }
 
-      closedir(d);
-   }
+        closedir(d);
+    }
 
-   if (!r)
-      r = rmdir(path);
+    if (!r)
+        r = rmdir(path);
 
-   return r;
+    return r;
 }
 #endif
 
@@ -145,8 +145,8 @@ int PIOc_strerror(int pioerr, char *errmsg)
             break;
 #if defined(_ADIOS) || defined(_ADIOS2)
         case PIO_EADIOSREAD:
-             strcpy(errmsg, "ADIOS IO type does not support read operations");
-             break;
+            strcpy(errmsg, "ADIOS IO type does not support read operations");
+            break;
 #endif
         default:
             strcpy(errmsg, "Unknown Error: Unrecognized error code");
@@ -1886,7 +1886,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
     /* A valid iotype must be specified. */
     if (!iotype_is_valid(*iotype))
-        return pio_err(ios, NULL, PIO_EINVAL, __FILE__, __LINE__);
+        return pio_err(ios, NULL, PIO_EBADIOTYPE, __FILE__, __LINE__);
 
     LOG((1, "PIOc_createfile iosysid = %d iotype = %d filename = %s mode = %d",
          iosysid, *iotype, filename, mode));
@@ -1927,6 +1927,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
     LOG((2, "file->do_io = %d ios->async = %d", file->do_io, ios->async));
 
+    for (int i = 0; i < PIO_IODESC_MAX_IDS; i++)
+        file->iobuf[i] = NULL;
+
     /* If async is in use, and this is not an IO task, bcast the
      * parameters. */
     if (ios->async)
@@ -1942,47 +1945,53 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         }
     }
 
-	/* ADIOS: assume all procs are also IO tasks */
+    /* ADIOS: assume all procs are also IO tasks */
 #ifdef _ADIOS
-    if (file->iotype == PIO_IOTYPE_ADIOS) 
-	{
-		LOG((2, "Calling adios_open mode = %d", file->mode));
-        /* Create a new ADIOS variable group, names the same as the filename for
-         * lack of better solution here */
-		int len = strlen(filename);
-		file->filename = malloc(len+3+3);
-		sprintf(file->filename, "%s.bp", filename);
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+    {
+        LOG((2, "Calling adios_open mode = %d", file->mode));
+        /* 
+         * Create a new ADIOS variable group, names the same as the
+         * filename for lack of better solution here
+         */
+        int len = strlen(filename);
+        file->filename = malloc(len+3+3);
+        if (file->filename == NULL)
+            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+        sprintf(file->filename, "%s.bp", filename);
 
-		ierr = PIO_NOERR;
-		if (file->mode & PIO_NOCLOBBER) { /* check adios file/folder exists */
-			struct stat sf, sd;
-			char *filefolder = malloc(strlen(file->filename)+6);
-			sprintf(filefolder,"%s.dir",file->filename);
-			if (0==stat(file->filename,&sf) || 0==stat(filefolder,&sd))
-				ierr = PIO_EEXIST;
-			free(filefolder);
-		} 
-                else
-                {
-                    /* Delete directory filename.bp.dir if it exists */
-                    if (ios->union_rank == 0)
-                    {
-                        char bpdirname[PIO_MAX_NAME + 1];
-                        assert(len + 7 <= PIO_MAX_NAME);
-                        sprintf(bpdirname, "%s.bp.dir", filename);
-                        struct stat sd;
-                        if (0 == stat(bpdirname, &sd))
-                            remove_directory(bpdirname);
-                    }
+        ierr = PIO_NOERR;
+        if (file->mode & PIO_NOCLOBBER) /* Check adios file/folder exists */
+        {
+            struct stat sf, sd;
+            char *filefolder = malloc(strlen(file->filename)+6);
+            sprintf(filefolder, "%s.dir", file->filename);
+            if (0 == stat(file->filename, &sf) || 0 == stat(filefolder, &sd))
+                ierr = PIO_EEXIST;
+            free(filefolder);
+        }
+        else
+        {
+            /* Delete directory filename.bp.dir if it exists */
+            if (ios->union_rank == 0)
+            {
+                char bpdirname[PIO_MAX_NAME + 1];
+                assert(len + 7 <= PIO_MAX_NAME);
+                sprintf(bpdirname, "%s.bp.dir", filename);
+                struct stat sd;
+                if (0 == stat(bpdirname, &sd))
+                    remove_directory(bpdirname);
+            }
 
-                    /* Make sure that no task is trying to operate on the
-                     * directory while it is being deleted */
-                    if ((mpierr = MPI_Barrier(ios->union_comm)))
-                        return check_mpi(ios, file, mpierr, __FILE__, __LINE__);
-                }
+            /* Make sure that no task is trying to operate on the
+             * directory while it is being deleted */
+            if ((mpierr = MPI_Barrier(ios->union_comm)))
+                return check_mpi(ios, file, mpierr, __FILE__, __LINE__);
+        }
 
-		if (PIO_NOERR==ierr) {
-           	adios_declare_group(&file->adios_group, file->filename, NULL, adios_stat_default);
+        if (PIO_NOERR == ierr)
+        {
+            adios_declare_group(&file->adios_group, file->filename, NULL, adios_stat_default);
            	int do_aggregate = (ios->num_comptasks != ios->num_iotasks);
            	if (do_aggregate)
            	{
@@ -2148,6 +2157,75 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 #ifdef _PNETCDF
         case PIO_IOTYPE_PNETCDF:
             LOG((2, "Calling ncmpi_create mode = %d", file->mode));
+            if (ios->info == MPI_INFO_NULL)
+                MPI_Info_create(&ios->info);
+
+            /* Set some MPI-IO hints below */
+
+            /* ROMIO will not perform data sieving for writes. Data sieving is
+               designed for I/O patterns that read or write small, noncontiguous
+               file regions. It does not help if the aggregated writes are always
+               contiguous, covering the entire variables.
+             */
+            MPI_Info_set(ios->info, "romio_ds_write", "disable");
+
+            /* Enable ROMIO's collective buffering for writes. Collective
+               buffering, also called two-phase collective I/O, reorganizes
+               data across processes to match data layout in file.
+             */
+            MPI_Info_set(ios->info, "romio_cb_write", "enable"); 
+
+            /* Disable independent file operations. ROMIO will make an effort to
+               avoid performing any file operation on non-aggregator processes.
+             */
+            MPI_Info_set(ios->info, "romio_no_indep_rw", "true"); 
+
+            /* Set some PnetCDF I/O hints below */
+
+            /* Do not align the starting file offsets of individual fixed-size
+               variables. If applications use PnetCDF nonblocking APIs to
+               aggregate write requests to multiple variables, then the best
+               practice is to disable the variable alignment. This will prevent
+               creating gaps in file space between two consecutive fixed-size
+               variables and thus the writes to file system can be contiguous.
+             */
+            MPI_Info_set(ios->info, "nc_var_align_size", "1");
+
+            /* Enable in-place byte swap on Little Endian architectures. With
+               this option, PnetCDF performs byte swap on user I/O buffers
+               whenever possible. This results in the least amount of internal
+               memory usage. However, if an immutable user buffer is used,
+               segmentation fault may occur when byte swap is performed on
+               user buffer in place.
+             */
+            MPI_Info_set(ios->info, "nc_in_place_swap", "enable");
+
+            /* Set the size of a temporal buffer to be allocated by PnetCDF
+               internally to pack noncontiguous user write buffers supplied
+               to the nonblocking requests into a contiguous space. On some
+               systems, using noncontiguous user buffers in MPI collective
+               write functions performs significantly worse than using
+               contiguous buffers. This hint is supported by latest PnetCDF
+               (version 1.11.0 and later).
+               
+               [More information]
+               Noncontiguous write buffers are almost unavoidable:
+               1) Each IO decomposition has its own writer buffer for a file
+               2) PnetCDF might use noncontiguous helper buffers to perform
+                  data type conversion
+
+               Without this hint, we have seen hanging issues on Cori and
+               Titan for some E3SM cases run with SUBSET rearranger. This
+               hint is optional if BOX rearranger is used. 
+
+               The default buffer size is 16 MiB in PnetCDF and we tentatively
+               set it to 64 MiB. For E3SM production runs, if SUBSET rearranger
+               is used, we might need an even larger buffer size in PnetCDF. For
+               example, if 150 IO tasks are used to write a file of size 80 GiB,
+               we should try a buffer size larger than 546 MiB.
+             */
+            MPI_Info_set(ios->info, "nc_ibuf_size", "67108864");
+
             ierr = ncmpi_create(ios->io_comm, filename, file->mode, ios->info, &file->fh);
             if (!ierr)
                 ierr = ncmpi_buffer_attach(file->fh, pio_buffer_size_limit);
@@ -2307,8 +2385,10 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
     /* User must provide valid input for these parameters. */
     if (!ncidp || !iotype || !filename)
         return pio_err(ios, NULL, PIO_EINVAL, __FILE__, __LINE__);
-    if (*iotype < PIO_IOTYPE_PNETCDF || *iotype > PIO_IOTYPE_ADIOS)
-        return pio_err(ios, NULL, PIO_EINVAL, __FILE__, __LINE__);
+
+    /* A valid iotype must be specified. */
+    if (!iotype_is_valid(*iotype))
+        return pio_err(ios, NULL, PIO_EBADIOTYPE, __FILE__, __LINE__);
 
     LOG((2, "PIOc_openfile_retry iosysid = %d iotype = %d filename = %s mode = %d retry = %d",
          iosysid, *iotype, filename, mode, retry));
@@ -2324,17 +2404,17 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-#  ifdef _PNETCDF
+#ifdef _PNETCDF
         file->iotype = PIO_IOTYPE_PNETCDF;
-#  else
-#    ifdef _NETCDF4
-#      ifdef _MPISERIAL
+#else
+#ifdef _NETCDF4
+#ifdef _MPISERIAL
         file->iotype = PIO_IOTYPE_NETCDF4C;
-#      else
+#else
         file->iotype = PIO_IOTYPE_NETCDF4P;
-#      endif
-#    endif
-#  endif
+#endif
+#endif
+#endif
     }
 #endif
     file->iosystem = ios;
@@ -2355,6 +2435,9 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
     if (file->iotype == PIO_IOTYPE_NETCDF4P || file->iotype == PIO_IOTYPE_PNETCDF ||
         ios->io_rank == 0)
         file->do_io = 1;
+
+    for (int i = 0; i < PIO_IODESC_MAX_IDS; i++)
+        file->iobuf[i] = NULL;
 
     /* If async is in use, bcast the parameters from compute to I/O procs. */
     if(ios->async)
@@ -2428,7 +2511,8 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
 #endif
 
         default:
-            return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
+            free(file);
+            return pio_err(ios, NULL, PIO_EBADIOTYPE, __FILE__, __LINE__);
         }
 
         /* If the caller requested a retry, and we failed to open a
@@ -2972,6 +3056,138 @@ const char *get_var_desc_str(int ncid, int varid, const char *desc_prefix)
     return file->varlist[varid].vdesc;
 }
 
+
+/* A ROMIO patch from PnetCDF's E3SM-IO benchmark program
+ * https://github.com/Parallel-NetCDF/E3SM-IO/blob/master/romio_patch.c */
+#if defined(MPICH_NUMVERSION) && (MPICH_NUMVERSION < 30300000)
+/*
+ *
+ *   Copyright (C) 2014 UChicgo/Argonne, LLC.
+ *   See COPYRIGHT notice in top-level directory.
+ */
+
+/* utility function for creating large contiguous types: algorithim from BigMPI
+ * https://github.com/jeffhammond/BigMPI */
+
+static int type_create_contiguous_x(MPI_Count count, MPI_Datatype oldtype, MPI_Datatype * newtype)
+{
+    /* to make 'count' fit MPI-3 type processing routines (which take integer
+     * counts), we construct a type consisting of N INT_MAX chunks followed by
+     * a remainder.  e.g for a count of 4000000000 bytes you would end up with
+     * one 2147483647-byte chunk followed immediately by a 1852516353-byte
+     * chunk */
+    MPI_Datatype chunks, remainder;
+    MPI_Aint lb, extent, disps[2];
+    int blocklens[2];
+    MPI_Datatype types[2];
+
+    /* truly stupendously large counts will overflow an integer with this math,
+     * but that is a problem for a few decades from now.  Sorry, few decades
+     * from now! */
+    assert(count / INT_MAX == (int) (count / INT_MAX));
+    int c = (int) (count / INT_MAX);    /* OK to cast until 'count' is 256 bits */
+    int r = count % INT_MAX;
+
+    MPI_Type_vector(c, INT_MAX, INT_MAX, oldtype, &chunks);
+    MPI_Type_contiguous(r, oldtype, &remainder);
+
+    MPI_Type_get_extent(oldtype, &lb, &extent);
+
+    blocklens[0] = 1;
+    blocklens[1] = 1;
+    disps[0] = 0;
+    disps[1] = c * extent * INT_MAX;
+    types[0] = chunks;
+    types[1] = remainder;
+
+    MPI_Type_create_struct(2, blocklens, disps, types, newtype);
+
+    MPI_Type_free(&chunks);
+    MPI_Type_free(&remainder);
+
+    return MPI_SUCCESS;
+}
+
+/* like MPI_Type_create_hindexed, except array_of_lengths can be a larger datatype.
+ *
+ * Hindexed provides 'count' pairs of (displacement, length), but what if
+ * length is longer than an integer?  We will create 'count' types, using
+ * contig if length is small enough, or something more complex if not */
+
+int __wrap_ADIOI_Type_create_hindexed_x(int count,
+                                 const MPI_Count array_of_blocklengths[],
+                                 const MPI_Aint array_of_displacements[],
+                                 MPI_Datatype oldtype, MPI_Datatype * newtype)
+{
+    int i, ret;
+    MPI_Datatype *types;
+    int *blocklens;
+    int is_big = 0;
+
+    types = (MPI_Datatype*) malloc(count * sizeof(MPI_Datatype));
+    blocklens = (int*) malloc(count * sizeof(int));
+
+    /* squashing two loops into one.
+     * - Look in the array_of_blocklengths for any large values
+     * - convert MPI_Count items (if they are not too big) into int-sized items
+     * after this loop we will know if we can use MPI_type_hindexed or if we
+     * need a more complicated BigMPI-style struct-of-chunks.
+     *
+     * Why not use the struct-of-chunks in all cases?  HDF5 reported a bug,
+     * which I have not yet precicesly nailed down, but appears to have
+     * something to do with struct-of-chunks when the chunks are small */
+
+#ifdef USE_ORIGINAL_MPICH_3_2
+    for(i=0; i<count; i++) {
+        if (array_of_blocklengths[i] > INT_MAX) {
+            blocklens[i] = 1;
+            is_big=1;
+            type_create_contiguous_x(array_of_blocklengths[i], oldtype,  &(types[i]));
+        } else {
+            /* OK to cast: checked for "bigness" above */
+            blocklens[i] = (int)array_of_blocklengths[i];
+            MPI_Type_contiguous(blocklens[i], oldtype, &(types[i]));
+        }
+    }
+
+    if (is_big) {
+        ret = MPI_Type_create_struct(count, blocklens, array_of_displacements,
+                types, newtype);
+    } else {
+        ret = MPI_Type_create_hindexed(count, blocklens, array_of_displacements, oldtype, newtype);
+    }
+    for (i=0; i< count; i++)
+        MPI_Type_free(&(types[i]));
+#else
+    /* See https://github.com/pmodels/mpich/pull/3089 */
+    for (i = 0; i < count; i++) {
+        if (array_of_blocklengths[i] > INT_MAX) {
+            blocklens[i] = 1;
+            is_big = 1;
+            type_create_contiguous_x(array_of_blocklengths[i], oldtype, &(types[i]));
+        } else {
+            /* OK to cast: checked for "bigness" above */
+            blocklens[i] = (int) array_of_blocklengths[i];
+            types[i] = oldtype;
+        }
+    }
+
+    if (is_big) {
+        ret = MPI_Type_create_struct(count, blocklens, array_of_displacements, types, newtype);
+        for (i = 0; i < count; i++)
+            if (types[i] != oldtype)
+                MPI_Type_free(&(types[i]));
+    } else {
+        ret = MPI_Type_create_hindexed(count, blocklens, array_of_displacements, oldtype, newtype);
+    }
+#endif
+    free(types);
+    free(blocklens);
+
+    return ret;
+}
+#endif
+
 #ifdef _ADIOS
 enum ADIOS_DATATYPES PIOc_get_adios_type(nc_type xtype)
 {
@@ -3068,7 +3284,7 @@ char *strdup(const char *str)
 {
     int n = strlen(str) + 1;
     char *dup = (char*)malloc(n);
-    if(dup)
+    if (dup)
     {
         strcpy(dup, str);
     }

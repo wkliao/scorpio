@@ -192,7 +192,7 @@ int PIOc_inq(int ncid, int *ndimsp, int *nvarsp, int *ngattsp, int *unlimdimidp)
 
     if(ierr != PIO_NOERR){
         LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        return ierr;
     }
 
     /* Broadcast results to all tasks. Ignore NULL parameters. */
@@ -383,8 +383,8 @@ int PIOc_inq_unlimdims(int ncid, int *nunlimdimsp, int *unlimdimidsp)
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-         LOG((2,"ADIOS missing %s:%s\n", __FILE__, __func__));
-         ierr = 0;
+        LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
+        ierr = 0;
     }
 #endif
 
@@ -395,8 +395,8 @@ int PIOc_inq_unlimdims(int ncid, int *nunlimdimsp, int *unlimdimidsp)
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_unlimdims failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results to all tasks. Ignore NULL parameters. */
@@ -576,10 +576,10 @@ int PIOc_inq_format(int ncid, int *formatp)
 #if defined(_ADIOS) || defined(_ADIOS2)
         if (file->iotype == PIO_IOTYPE_ADIOS)
         {
-            LOG((2,"ADIOS missing %s:%s\n", __FILE__, __func__));
+            LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
             ierr = 0;
         }
-#endif 
+#endif
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_format(file->fh, formatp);
@@ -701,8 +701,8 @@ int PIOc_inq_dim(int ncid, int dimid, char *name, PIO_Offset *lenp)
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_dim failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results to all tasks. Ignore NULL parameters. */
@@ -855,8 +855,8 @@ int PIOc_inq_dimid(int ncid, const char *name, int *idp)
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_dimid failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results. */
@@ -1046,8 +1046,8 @@ int PIOc_inq_var(int ncid, int varid, char *name, int namelen, nc_type *xtypep, 
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_var failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast the results for non-null pointers. */
@@ -1304,8 +1304,8 @@ int PIOc_inq_varid(int ncid, const char *name, int *varidp)
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_varid failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results to all tasks. Ignore NULL parameters. */
@@ -1448,8 +1448,8 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_att failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results. */
@@ -1565,15 +1565,15 @@ int PIOc_inq_attname(int ncid, int varid, int attnum, char *name)
         LOG((2, "PIOc_inq_attname netcdf call returned %d", ierr));
     }
 
-    /* A failure to inquire is not fatal */
-    mpierr = MPI_Bcast(&ierr, 1, MPI_INT, ios->ioroot, ios->my_comm);
-    if(mpierr != MPI_SUCCESS){
+    /* Failure to inquire is fatal */
+    ierr = check_netcdf(NULL, file, ierr, __FILE__, __LINE__);
+    if(ierr != MPI_SUCCESS){
         return check_mpi(NULL, file, mpierr, __FILE__, __LINE__);
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_attname failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results to all tasks. Ignore NULL parameters. */
@@ -1669,8 +1669,8 @@ int PIOc_inq_attid(int ncid, int varid, const char *name, int *idp)
     }
 
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_inq failed, ierr = %d", ierr));
-        return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        LOG((1, "nc*_inq_attid failed, ierr = %d", ierr));
+        return ierr;
     }
 
     /* Broadcast results. */
@@ -2350,6 +2350,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
             LOG((2,"ADIOS pre-define variable %s (%d dimensions, type %d)\n", name, ndims, xtype));
+            assert(file->num_vars < PIO_MAX_VARS);
             file->adios_vars[file->num_vars].name = strdup(name);
             file->adios_vars[file->num_vars].nc_type = xtype;
             file->adios_vars[file->num_vars].adios_type = PIOc_get_adios_type(xtype);
@@ -2548,8 +2549,8 @@ int PIOc_def_var_fill(int ncid, int varid, int fill_mode, const void *fill_value
 {
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
-    nc_type xtype;         /* The adios_type of the variable (and fill value att). */
-    PIO_Offset type_size;  /* Size in bytes of this variable's adios_type. */
+    nc_type xtype;         /* The type of the variable (and fill value att). */
+    PIO_Offset type_size;  /* Size in bytes of this variable's type. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
     int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
 
@@ -2568,7 +2569,7 @@ int PIOc_def_var_fill(int ncid, int varid, int fill_mode, const void *fill_value
 
     /* Run this on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. Get the size of this vars
-     * adios_type. */
+     * type. */
     if (!ios->async || !ios->ioproc)
     {
         ierr = PIOc_inq_vartype(ncid, varid, &xtype);
@@ -2685,7 +2686,7 @@ int PIOc_inq_var_fill(int ncid, int varid, int *no_fill, void *fill_valuep)
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     nc_type xtype;         /* Type of variable and its _FillValue attribute. */
-    PIO_Offset type_size;  /* Size in bytes of this variable's adios_type. */
+    PIO_Offset type_size;  /* Size in bytes of this variable's type. */
     int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
 
@@ -2699,7 +2700,7 @@ int PIOc_inq_var_fill(int ncid, int varid, int *no_fill, void *fill_valuep)
 
     /* Run this on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. Get the size of this vars
-     * adios_type. */
+     * type. */
     if (!ios->async || !ios->ioproc)
     {
         ierr = PIOc_inq_vartype(ncid, varid, &xtype);
@@ -2855,7 +2856,7 @@ int PIOc_get_att(int ncid, int varid, const char *name, void *ip)
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    nc_type atttype;       /* The adios_type of the attribute. */
+    nc_type atttype;       /* The type of the attribute. */
 
     /* Find the info about this file. */
     if ((ierr = pio_get_file(ncid, &file)))

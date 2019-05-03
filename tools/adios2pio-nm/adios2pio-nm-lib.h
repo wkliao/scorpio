@@ -7,6 +7,7 @@
 using namespace std;
 
 int ConvertBPToNC(string infilepath, string outfilename, string piotype, int mem_opt, MPI_Comm comm_in);
+int MConvertBPToNC(const string &bppdir, const string &piotype, int mem_opt, MPI_Comm comm);
 void usage_nm(string prgname);
 void SetDebugOutput(int val);
 
