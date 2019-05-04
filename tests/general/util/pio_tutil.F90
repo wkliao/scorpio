@@ -149,6 +149,9 @@ CONTAINS
     IF (pio_tf_num_io_tasks_ <= 1 .AND. pio_tf_stride_ > 1) THEN
        pio_tf_stride_ = 1
     END IF
+    IF (pio_tf_stride_ * (pio_tf_num_io_tasks_ - 1) >= pio_tf_world_sz_) THEN
+       pio_tf_stride_ = pio_tf_world_sz_ / pio_tf_num_io_tasks_
+    END IF
     IF (pio_tf_num_io_tasks_ == 0) THEN
       pio_tf_num_io_tasks_ = pio_tf_world_sz_ / pio_tf_stride_
       IF (pio_tf_num_io_tasks_ < 1) pio_tf_num_io_tasks_ = 1
@@ -308,7 +311,7 @@ CONTAINS
       ! pnetcdf
       num_iotypes = num_iotypes + 1
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2)
+#ifdef _ADIOS
       ! adios
       num_iotypes = num_iotypes + 1
 #endif
@@ -324,7 +327,7 @@ CONTAINS
       iotype_descs(i) = "PNETCDF"
       i = i + 1
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2)
+#ifdef _ADIOS
       ! adios
       iotypes(i) = PIO_iotype_adios
       iotype_descs(i) = "ADIOS"
@@ -379,7 +382,7 @@ CONTAINS
       ! pnetcdf
       num_iotypes = num_iotypes + 1
 #endif
-#if !defined(_ADIOS) && !defined(_ADIOS2)
+#ifndef _ADIOS
       ! adios
       num_iotypes = num_iotypes + 1
 #endif
@@ -410,7 +413,7 @@ CONTAINS
       iotype_descs(i) = "PNETCDF"
       i = i + 1
 #endif
-#if !defined(_ADIOS) && !defined(_ADIOS2)
+#ifndef _ADIOS
       ! adios
       iotypes(i) = PIO_iotype_adios
       iotype_descs(i) = "ADIOS"
@@ -445,7 +448,7 @@ CONTAINS
       ! pnetcdf
       num_iotypes = num_iotypes + 1
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2)
+#ifdef _ADIOS
       ! adios
       num_iotypes = num_iotypes + 1
 #endif
@@ -461,7 +464,7 @@ CONTAINS
       iotype_descs(i) = "PNETCDF"
       i = i + 1
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2)
+#ifdef _ADIOS
       ! adios
       iotypes(i) = PIO_iotype_adios
       iotype_descs(i) = "ADIOS"
@@ -516,7 +519,7 @@ CONTAINS
       ! pnetcdf
       num_iotypes = num_iotypes + 1
 #endif
-#if !defined(_ADIOS) && !defined(_ADIOS2)
+#ifndef _ADIOS
       ! adios
       num_iotypes = num_iotypes + 1
 #endif
@@ -526,7 +529,7 @@ CONTAINS
     ALLOCATE(iotype_descs(num_iotypes))
 
     i = 1
-#if !defined(_ADIOS) && !defined(_ADIOS2)
+#ifndef _ADIOS
       ! adios
       iotypes(i) = PIO_iotype_adios
       iotype_descs(i) = "ADIOS"

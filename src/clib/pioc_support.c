@@ -1946,6 +1946,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     }
 
     /* ADIOS: assume all procs are also IO tasks */
+    printf("ADIOS: %d\n",file->iotype); fflush(stdout);
 #ifdef _ADIOS
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
@@ -1955,7 +1956,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
          * filename for lack of better solution here
          */
         int len = strlen(filename);
-        file->filename = malloc(len+3+3);
+        file->filename = malloc(len + 3 + 3);
         if (file->filename == NULL)
             return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
         sprintf(file->filename, "%s.bp", filename);
@@ -1964,7 +1965,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         if (file->mode & PIO_NOCLOBBER) /* Check adios file/folder exists */
         {
             struct stat sf, sd;
-            char *filefolder = malloc(strlen(file->filename)+6);
+            char *filefolder = malloc(strlen(file->filename) + 6);
             sprintf(filefolder, "%s.dir", file->filename);
             if (0 == stat(file->filename, &sf) || 0 == stat(filefolder, &sd))
                 ierr = PIO_EEXIST;
@@ -2028,12 +2029,16 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 	}
 #endif
 #ifdef _ADIOS2
+    printf("file->iotype= %d %d\n",file->iotype,PIO_IOTYPE_ADIOS);
+	fflush(stdout);
     if (file->iotype == PIO_IOTYPE_ADIOS) 
 	{
 		LOG((2, "Calling adios_open mode = %d", file->mode));
         /* Create a new ADIOS variable group */
 		int len = strlen(filename);
 		file->filename = malloc(len+3+3);
+        if (file->filename == NULL)
+            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
 		sprintf(file->filename, "%s.bp", filename);
 
 		ierr = PIO_NOERR;
@@ -2065,7 +2070,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                 }
 
 		if (PIO_NOERR==ierr) {
-			char declare_name[256];
+			char declare_name[PIO_MAX_NAME];
 			sprintf(declare_name,"%s%d",file->filename,get_adios2_io_cnt());
     		file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)(declare_name));
 			adios2_set_engine(file->ioH,"BPFile");
@@ -2106,6 +2111,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 		}
 	}
 #endif
+
+    printf("IERR: %d\n",ierr); fflush(stdout);
  
     /* If this task is in the IO component, do the IO. */
     if (ios->ioproc)
@@ -3014,7 +3021,6 @@ int calc_var_rec_sz(int ncid, int varid)
     return ierr;
 }
 
-
 /* Get a description of the variable 
  * @param ncid PIO id for the file
  * @param varid PIO id for the variable
@@ -3055,7 +3061,6 @@ const char *get_var_desc_str(int ncid, int varid, const char *desc_prefix)
 
     return file->varlist[varid].vdesc;
 }
-
 
 /* A ROMIO patch from PnetCDF's E3SM-IO benchmark program
  * https://github.com/Parallel-NetCDF/E3SM-IO/blob/master/romio_patch.c */

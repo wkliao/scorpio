@@ -308,6 +308,11 @@ int pio_num_iosystem(int *niosysid)
  * @returns the ioid of the newly added iodesc.
  */
 #define PIO_IODESC_START_ID 512
+static int imax=PIO_IODESC_START_ID; // ADIOS needs a unique ID for the entire run
+#if defined(_ADIOS) || defined(_ADIOS2)
+int pio_get_imax() { return imax; }
+int pio_set_imax(int imax_val) { imax = imax_val; }
+#endif 
 int pio_add_to_iodesc_list(io_desc_t *iodesc, MPI_Comm comm)
 {
     /* Using an arbitrary start id for iodesc ids helps
@@ -339,43 +344,6 @@ int pio_add_to_iodesc_list(io_desc_t *iodesc, MPI_Comm comm)
         }
         ciodesc->next = iodesc;
     }
-    current_iodesc = iodesc;
-
-    return iodesc->ioid;
-}
-
-static int imax=511; // ADIOS needs a unique ID for the entire run
-#if defined(_ADIOS) || defined(_ADIOS2)
-int pio_get_imax() { return imax; }
-int pio_set_imax(int imax_val) { imax = imax_val; }
-#endif 
-int pio_add_to_iodesc_list(io_desc_t *iodesc, MPI_Comm comm)
-{
-    io_desc_t *ciodesc;
-
-    iodesc->next = NULL;
-    if (pio_iodesc_list == NULL)
-    {
-        // this may happen multiple times in a run if someone deletes unused decompositions
-        // before creating new ones
-        pio_iodesc_list = iodesc;
-    }
-    else
-    {
-#if defined(_ADIOS) || defined(_ADIOS2)  // ADIOS needs a unique ID. The IDs should not be reused
-		for (ciodesc = pio_iodesc_list; ciodesc->next;
-             ciodesc = ciodesc->next)
-            ;
-        ciodesc->next = iodesc;
-#else
-        for (ciodesc = pio_iodesc_list; ciodesc->next;
-             ciodesc = ciodesc->next, imax = ciodesc->ioid + 1)
-            ;
-        ciodesc->next = iodesc;
-#endif 
-    }
-    ++imax;
-    iodesc->ioid = imax;
     current_iodesc = iodesc;
 
     return iodesc->ioid;

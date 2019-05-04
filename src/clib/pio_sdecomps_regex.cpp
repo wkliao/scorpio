@@ -14,6 +14,7 @@
 /* with C linkage" errors.                                                  */
 #include <mpi.h>
 #endif
+#include <mpi.h>
 
 extern "C"{
 #include "config.h"

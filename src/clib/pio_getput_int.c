@@ -1109,12 +1109,12 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
         LOG((2, "PIOc_put_vars_tc complete bcast from comproot ndims = %d", ndims));
     }
 
-	/* ADIOS: assume all procs are also IO tasks */
+    /* ADIOS: assume all procs are also IO tasks */
 #ifdef _ADIOS
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-            if (varid < 0 || varid >= file->num_vars)
-                return pio_err(file->iosystem, file, PIO_EBADID, __FILE__, __LINE__);
+        if (varid < 0 || varid >= file->num_vars)
+            return pio_err(file->iosystem, file, PIO_EBADID, __FILE__, __LINE__);
             /* First we need to define the variable now that we know it's decomposition */
             adios_var_desc_t * av = &(file->adios_vars[varid]);
 
@@ -1216,10 +1216,15 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 
                 adios_write_byid(file->adios_fh, av->adios_varid, buf);
                 char* dimnames[PIO_MAX_DIMS];
+                assert(av->ndims <= PIO_MAX_DIMS);
                 /* record the NC dimensions in an attribute, including the unlimited dimension */
-                for (int i = 0; i < av->ndims; i++)
+                for (int i = 0; i < av->ndims; i++) 
+                {
                     dimnames[i] = file->dim_names[av->gdimids[i]];
-                adios_define_attribute_byvalue(file->adios_group,"__pio__/dims",av->name,adios_string_array,av->ndims,dimnames);
+                }
+
+                adios_define_attribute_byvalue(file->adios_group, "__pio__/dims", av->name,
+                                               adios_string_array, av->ndims, dimnames);
             }
 
 			if (file->adios_iomaster == MPI_ROOT)
@@ -1344,7 +1349,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 char* dimnames[PIO_MAX_DIMS];
                 for (int i = 0; i < av->ndims; i++)
                     dimnames[i] = file->dim_names[av->gdimids[i]];
-				char att_name[PIO_MAX_NAMES];
+				char att_name[PIO_MAX_NAME];
                 sprintf(att_name,"%s/__pio__/dims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
                 	adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
@@ -1352,7 +1357,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 
 			if (file->adios_iomaster == MPI_ROOT)
             {
-				char att_name[PIO_MAX_NAMES];
+				char att_name[PIO_MAX_NAME];
                 sprintf(att_name,"%s/__pio__/ndims",av->name);
 				if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
                 	adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->ndims);
@@ -1391,25 +1396,25 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                     switch(xtype)
                     {
                     case NC_BYTE:
-                        ierr = ncmpi_put_vars_schar(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_schar(file->fh, varid, buf, request);
                         break;
                     case NC_CHAR:
-                        ierr = ncmpi_put_vars_text(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_text(file->fh, varid, buf, request);
                         break;
                     case NC_SHORT:
-                        ierr = ncmpi_put_vars_short(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_short(file->fh, varid, buf, request);
                         break;
                     case NC_INT:
-                        ierr = ncmpi_put_vars_int(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_int(file->fh, varid, buf, request);
                         break;
                     case PIO_LONG_INTERNAL:
-                        ierr = ncmpi_put_vars_long(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_long(file->fh, varid, buf, request);
                         break;
                     case NC_FLOAT:
-                        ierr = ncmpi_put_vars_float(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_float(file->fh, varid, buf, request);
                         break;
                     case NC_DOUBLE:
-                        ierr = ncmpi_put_vars_double(file->fh, varid, start, count, stride, buf);
+                        ierr = ncmpi_bput_var_double(file->fh, varid, buf, request);
                         break;
                     default:
                         return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);

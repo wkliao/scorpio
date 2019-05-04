@@ -938,16 +938,17 @@ typedef struct file_desc_t
     /** Number of global attributes defined. Needed to support PIOc_inq_nattrs() */
     int num_gattrs;
 
-	/* ADIOS: assume all procs are also IO tasks */
-	int adios_iomaster;
+    /* ADIOS: assume all procs are also IO tasks */
+    int adios_iomaster;
 
-	/* Track attributes */
-	/** attribute information. Allow PIO_MAX_VARS for now. */
-	struct adios_att_desc_t adios_attrs[PIO_MAX_VARS];
-	int    num_attrs;
+    /* Track attributes */
+    /** attribute information. Allow PIO_MAX_VARS for now. */
+    struct adios_att_desc_t adios_attrs[PIO_MAX_VARS];
+    int num_attrs;
 
     int fillmode;
-    /** array for decompositions that has been written already (must write only once) */
+
+    /** Array for decompositions that has been written already (must write only once) */
     int n_written_ioids;
     int written_ioids[ADIOS_PIO_MAX_DECOMPS]; /* written_ioids[N] = ioid if that decomp has been already written, */
 #endif /* _ADIOS2 */

@@ -4,10 +4,13 @@
 #include <algorithm>
 #include <cassert>
 
-/* some compilers include mpicxx.h when __cplusplus is defined */
-#if defined(_ADIOS) || defined (_ADIOS2)
+#ifdef _ADIOS
+/* mpi.h has to be included to compile this code. Some mpi.h header files   */
+/* include mpicxx.h when __cplusplus is defined. It causes "error: template */
+/* with C linkage" errors.                                                  */
 #include <mpi.h>
-#endif 
+#endif
+#include <mpi.h>
 
 #include "pio_sdecomps_regex.hpp"
 extern "C"{

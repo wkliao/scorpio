@@ -1125,7 +1125,7 @@ int test_deletefile(int iosysid, int num_flavors, int *flavor, int my_rank)
         printf("%d testing delete for file %s with format %d...\n",
                my_rank, filename, flavor[fmt]);
         int bad_iotype = TEST_VAL_42;
-        if (PIOc_createfile(iosysid, &ncid, &bad_iotype, filename, PIO_CLOBBER) != PIO_EINVAL)
+        if (PIOc_createfile(iosysid, &ncid, &bad_iotype, filename, PIO_CLOBBER) != PIO_EBADIOTYPE)
             return ERR_WRONG;
         if ((ret = PIOc_createfile(iosysid, &ncid, &(flavor[fmt]), filename, PIO_CLOBBER)))
             ERR(ret);
@@ -1575,6 +1575,12 @@ int test_scalar(int iosysid, int num_flavors, int *flavor, int my_rank, int asyn
         int test_val = TEST_VAL_42;
         if ((ret = PIOc_put_var_int(ncid, varid, &test_val)))
             ERR(ret);
+
+        /* Flush PnetCDF non-blocking write on the scalar value. */
+        if (flavor[fmt] == PIO_IOTYPE_PNETCDF) {
+            if ((ret = PIOc_sync(ncid)))
+                ERR(ret);
+        }
 
         /* Check the scalar var. */
         if ((ret = check_scalar_var(ncid, varid, flavor[fmt])))
