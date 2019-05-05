@@ -119,22 +119,28 @@ int PIOc_inq(int ncid, int *ndimsp, int *nvarsp, int *ngattsp, int *unlimdimidp)
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-            if (ndimsp) *ndimsp = file->num_dim_vars;
-            if (nvarsp) *nvarsp = file->num_vars;
-            if (ngattsp) *ngattsp = file->num_gattrs;
-            if (unlimdimidp)
+        if (ndimsp)
+            *ndimsp = file->num_dim_vars;
+
+        if (nvarsp)
+            *nvarsp = file->num_vars;
+
+        if (ngattsp)
+            *ngattsp = file->num_gattrs;
+
+        if (unlimdimidp)
+        {
+            *unlimdimidp = -1;
+            for (int i = 0; i < file->num_dim_vars; ++i)
             {
-                *unlimdimidp = -1;
-                for (int i=0; i < file->num_dim_vars; ++i)
-                {
-                    if (file->dim_values[i] == PIO_UNLIMITED)
-                        *unlimdimidp = i;
-                }
+                if (file->dim_values[i] == PIO_UNLIMITED)
+                    *unlimdimidp = i;
             }
-            ierr = 0;
+        }
+
+        ierr = 0;
      }
 #endif
- 
 
     /* If this is an IO task, then call the netCDF function. */
     if (ios->ioproc)
@@ -376,6 +382,7 @@ int PIOc_inq_unlimdims(int ncid, int *nunlimdimsp, int *unlimdimidsp)
             }
         }
 #endif /* _NETCDF4 */
+
         LOG((2, "PIOc_inq_unlimdims netcdf call returned %d", ierr));
     }
 
@@ -488,6 +495,7 @@ int PIOc_inq_type(int ncid, nc_type xtype, char *name, PIO_Offset *sizep)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = pioc_pnetcdf_inq_type(ncid, xtype, name, sizep);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_type(file->fh, xtype, name, (size_t *)sizep);
@@ -582,6 +590,7 @@ int PIOc_inq_format(int ncid, int *formatp)
             ierr = 0;
         }
 #endif
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_format(file->fh, formatp);
@@ -663,21 +672,25 @@ int PIOc_inq_dim(int ncid, int dimid, char *name, PIO_Offset *lenp)
             ierr = 0;
         }
         else
+        {
+            for (int i = 0; i < file->num_dim_vars; i++)
             {
-                for (int i=0; i < file->num_dim_vars; i++)
-                {
-                    printf("%s", file->dim_names[i]);
-                    if (i < file->num_dim_vars-1)
-                        printf(", ");
-                }
-                printf("\n");
-                if (name) name[0]='\0';
-                if (lenp) *lenp = 0;
-                ierr = PIO_EBADDIM;
+                printf("%s", file->dim_names[i]);
+                if (i < file->num_dim_vars - 1)
+                    printf(", ");
             }
+            printf("\n");
+
+            if (name)
+                name[0] = '\0';
+
+            if (lenp)
+                *lenp = 0;
+
+            ierr = PIO_EBADDIM;
+        }
     }
 #endif
- 
 
     /* If this is an IO task, then call the netCDF function. */
     if (ios->ioproc)
@@ -831,13 +844,13 @@ int PIOc_inq_dimid(int ncid, const char *name, int *idp)
 
         if (ierr == PIO_EBADDIM)
         {
-                for (int i=0; i < file->num_dim_vars; i++)
-                {
-                    printf("%s", file->dim_names[i]);
-                    if (i < file->num_dim_vars-1)
-                        printf(", ");
-                }
-                printf("\n");
+            for (int i = 0; i < file->num_dim_vars; i++)
+            {
+                printf("%s", file->dim_names[i]);
+                if (i < file->num_dim_vars - 1)
+                    printf(", ");
+            }
+            printf("\n");
         }
     }
 #endif
@@ -849,6 +862,7 @@ int PIOc_inq_dimid(int ncid, const char *name, int *idp)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_inq_dimid(file->fh, name, idp);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_dimid(file->fh, name, idp);
@@ -938,19 +952,28 @@ int PIOc_inq_var(int ncid, int varid, char *name, int namelen, nc_type *xtypep, 
     {
         if (varid < file->num_vars)
         {
-                if (name)    strcpy(name, file->adios_vars[varid].name);
-                if (xtypep)  *xtypep = file->adios_vars[varid].nc_type;
-                if (ndimsp)  *ndimsp = file->adios_vars[varid].ndims;
-                if (dimidsp)
-                    memcpy(dimidsp, file->adios_vars[varid].gdimids,
-                            file->adios_vars[varid].ndims * sizeof(int));
-                if (nattsp)  *nattsp = file->adios_vars[varid].nattrs;
-                ierr = 0;
-            }
-            else ierr = PIO_EBADID;
+            if (name)
+                strcpy(name, file->adios_vars[varid].name);
+
+            if (xtypep)
+                *xtypep = file->adios_vars[varid].nc_type;
+
+            if (ndimsp)
+                *ndimsp = file->adios_vars[varid].ndims;
+
+            if (dimidsp)
+                memcpy(dimidsp, file->adios_vars[varid].gdimids,
+                       file->adios_vars[varid].ndims * sizeof(int));
+
+            if (nattsp)
+                *nattsp = file->adios_vars[varid].nattrs;
+
+            ierr = 0;
+        }
+        else
+            ierr = PIO_EBADID;
     }
 #endif
-
 
     /* Call the netCDF layer. */
     if (ios->ioproc)
@@ -1272,24 +1295,22 @@ int PIOc_inq_varid(int ncid, const char *name, int *varidp)
         }
     }
 
-	/* ADIOS: assume all procs are also IO tasks */
+    /* ADIOS: assume all procs are also IO tasks */
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-            ierr = PIO_ENOTVAR;
-            int i;
-            for (i=0; i < file->num_vars; i++)
+        ierr = PIO_ENOTVAR;
+        for (int i = 0; i < file->num_vars; i++)
+        {
+            if (!strcmp(name, file->adios_vars[i].name))
             {
-                if (!strcmp(name, file->adios_vars[i].name))
-                {
-                    *varidp = i;
-                    ierr = 0;
-                    break;
-                }
+                *varidp = i;
+                ierr = 0;
+                break;
             }
+        }
     }
 #endif
-
 
     /* If this is an IO task, then call the netCDF function. */
     if (ios->ioproc)
@@ -1416,22 +1437,25 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
         } 
     }
 
-	/* ADIOS: assume all procs are also IO tasks */
+    /* ADIOS: assume all procs are also IO tasks */
 #if defined(_ADIOS) || defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-			/* Track attributes */
-            ierr = PIO_ENOTATT;
-			for (int i=0;i<file->num_attrs;i++) {
-				if (!strcmp(name,file->adios_attrs[i].att_name) && 
-					file->adios_attrs[i].att_varid==varid &&
-					file->adios_attrs[i].att_ncid==ncid) {
-					ierr    = PIO_NOERR;
-					*xtypep = (nc_type) (file->adios_attrs[i].att_type);
-					*lenp   = (PIO_Offset) (file->adios_attrs[i].att_len);
-					i = file->num_attrs+1;
-				}
-			}
+        /* LOG((2, "ADIOS missing %s:%s", __FILE__, __func__)); */
+        /* Track attributes */
+        ierr = PIO_ENOTATT;
+        for (int i = 0; i < file->num_attrs; i++)
+        {
+            if (!strcmp(name,file->adios_attrs[i].att_name) &&
+                file->adios_attrs[i].att_varid == varid &&
+                file->adios_attrs[i].att_ncid == ncid)
+            {
+                ierr = PIO_NOERR;
+                *xtypep = (nc_type) (file->adios_attrs[i].att_type);
+                *lenp = (PIO_Offset) (file->adios_attrs[i].att_len);
+                i = file->num_attrs + 1;
+            }
+        }
     }
 #endif
 
@@ -1442,6 +1466,7 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_inq_att(file->fh, varid, name, xtypep, lenp);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_att(file->fh, varid, name, xtypep, (size_t *)lenp);
@@ -1566,6 +1591,7 @@ int PIOc_inq_attname(int ncid, int varid, int attnum, char *name)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_inq_attname(file->fh, varid, attnum, name);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_attname(file->fh, varid, attnum, name);
@@ -1575,10 +1601,6 @@ int PIOc_inq_attname(int ncid, int varid, int attnum, char *name)
 
     /* Failure to inquire is fatal */
     ierr = check_netcdf(NULL, file, ierr, __FILE__, __LINE__);
-    if(ierr != MPI_SUCCESS){
-        return check_mpi(NULL, file, mpierr, __FILE__, __LINE__);
-    }
-
     if(ierr != PIO_NOERR){
         LOG((1, "nc*_inq_attname failed, ierr = %d", ierr));
         return ierr;
@@ -1663,6 +1685,7 @@ int PIOc_inq_attid(int ncid, int varid, const char *name, int *idp)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_inq_attid(file->fh, varid, name, idp);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_inq_attid(file->fh, varid, name, idp);
@@ -1751,6 +1774,7 @@ int PIOc_rename_dim(int ncid, int dimid, const char *name)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_rename_dim(file->fh, dimid, name);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_rename_dim(file->fh, dimid, name);
@@ -1830,6 +1854,7 @@ int PIOc_rename_var(int ncid, int varid, const char *name)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_rename_var(file->fh, varid, name);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_rename_var(file->fh, varid, name);
@@ -1915,6 +1940,7 @@ int PIOc_rename_att(int ncid, int varid, const char *name,
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_rename_att(file->fh, varid, name, newname);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_rename_att(file->fh, varid, name, newname);
@@ -1995,6 +2021,7 @@ int PIOc_del_att(int ncid, int varid, const char *name)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_del_att(file->fh, varid, name);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_del_att(file->fh, varid, name);
@@ -2077,6 +2104,7 @@ int PIOc_set_fill(int ncid, int fillmode, int *old_modep)
             ierr = ncmpi_set_fill(file->fh, fillmode, old_modep);
         }
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_set_fill(file->fh, fillmode, old_modep);
@@ -2201,7 +2229,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
 
         char dimname[PIO_MAX_NAME];
         snprintf(dimname, sizeof(dimname), "/__pio__/dim/%s", name);
-        adios_define_var(file->adios_group, dimname, "", adios_unsigned_long, "","","");
+        adios_define_var(file->adios_group, dimname, "", adios_unsigned_long, "", "", "");
 
         assert(file->num_dim_vars < PIO_MAX_DIMS);
         file->dim_names[file->num_dim_vars] = strdup(name);
@@ -2241,6 +2269,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_def_dim(file->fh, name, len, idp);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_def_dim(file->fh, name, (size_t)len, idp);
@@ -2365,34 +2394,41 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS pre-define variable %s (%d dimensions, type %d)", name, ndims, xtype));
-            assert(file->num_vars < PIO_MAX_VARS);
-            file->adios_vars[file->num_vars].name = strdup(name);
-            file->adios_vars[file->num_vars].nc_type = xtype;
-            file->adios_vars[file->num_vars].adios_type = PIOc_get_adios_type(xtype);
-            file->adios_vars[file->num_vars].nattrs = 0;
-            file->adios_vars[file->num_vars].ndims = ndims;
-            file->adios_vars[file->num_vars].adios_varid = 0;
-            file->adios_vars[file->num_vars].gdimids = (int*) malloc(ndims*sizeof(int));
-            memcpy(file->adios_vars[file->num_vars].gdimids, dimidsp, ndims*sizeof(int));
-            *varidp = file->num_vars;
-            file->num_vars++;
-            ierr = 0;
 
-            /* some codes moved from pio_darray.c */
+        assert(file->num_vars < PIO_MAX_VARS);
+        file->adios_vars[file->num_vars].name = strdup(name);
+        file->adios_vars[file->num_vars].nc_type = xtype;
+        file->adios_vars[file->num_vars].adios_type = PIOc_get_adios_type(xtype);
+        file->adios_vars[file->num_vars].nattrs = 0;
+        file->adios_vars[file->num_vars].ndims = ndims;
+        file->adios_vars[file->num_vars].adios_varid = 0;
+        file->adios_vars[file->num_vars].gdimids = (int*) malloc(ndims * sizeof(int));
+        memcpy(file->adios_vars[file->num_vars].gdimids, dimidsp, ndims * sizeof(int));
+        *varidp = file->num_vars;
+        file->num_vars++;
+
+        ierr = 0;
+
+        /* Some codes moved from pio_darray.c */
+        {
+            adios_var_desc_t *av = &(file->adios_vars[*varidp]);
+            if (file->adios_iomaster == MPI_ROOT)
             {
-                adios_var_desc_t * av = &(file->adios_vars[*varidp]);
-                if (file->adios_iomaster == MPI_ROOT)
+                adios_define_attribute_byvalue(file->adios_group, "__pio__/ndims", av->name,
+                                               adios_integer, 1, &av->ndims);
+                adios_define_attribute_byvalue(file->adios_group, "__pio__/nctype", av->name,
+                                               adios_integer, 1, &av->nc_type);
+                if (av->ndims != 0) /* If zero dimensions, do not write out __pio__/dims */
                 {
-                    adios_define_attribute_byvalue(file->adios_group,"__pio__/ndims",av->name,adios_integer,1,&av->ndims);
-                    adios_define_attribute_byvalue(file->adios_group,"__pio__/nctype",av->name,adios_integer,1,&av->nc_type);
-                    if (av->ndims != 0) { /* If zero dimensions, do not write out __pio__/dims */
-                        char* dimnames[6];
-                        for (int i = 0; i < av->ndims; i++)
-                            dimnames[i] = file->dim_names[av->gdimids[i]];
-                        adios_define_attribute_byvalue(file->adios_group,"__pio__/dims",av->name,adios_string_array,av->ndims,dimnames);
-                    }
+                    char* dimnames[PIO_MAX_DIMS];
+                    assert(av->ndims <= PIO_MAX_DIMS);
+                    for (int i = 0; i < av->ndims; i++)
+                        dimnames[i] = file->dim_names[av->gdimids[i]];
+                    adios_define_attribute_byvalue(file->adios_group, "__pio__/dims", av->name,
+                                                   adios_string_array, av->ndims, dimnames);
                 }
             }
+        }
     }
 #endif
 #ifdef _ADIOS2
@@ -2446,10 +2482,12 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
         if (file->iotype == PIO_IOTYPE_PNETCDF)
             ierr = ncmpi_def_var(file->fh, name, xtype, ndims, dimidsp, varidp);
 #endif /* _PNETCDF */
+
 #ifdef _NETCDF
         if (file->iotype != PIO_IOTYPE_PNETCDF && file->iotype != PIO_IOTYPE_ADIOS && file->do_io)
             ierr = nc_def_var(file->fh, name, xtype, ndims, dimidsp, varidp);
 #endif /* _NETCDF */
+
 #ifdef _NETCDF4
         /* For netCDF-4 serial files, turn on compression for this variable. */
         if (!ierr && file->iotype == PIO_IOTYPE_NETCDF4C && file->do_io)

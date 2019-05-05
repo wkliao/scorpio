@@ -1875,11 +1875,10 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         GPTLstart("PIO:PIOc_createfile_int_adios"); /* TAHSIN: start */
 #endif
 #endif 
-
     /* Get the IO system info from the iosysid. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
-    
+
     /* User must provide valid input for these parameters. */
     if (!ncidp || !iotype || !filename || strlen(filename) > PIO_MAX_NAME)
         return pio_err(ios, NULL, PIO_EINVAL, __FILE__, __LINE__);
@@ -1992,40 +1991,47 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         if (PIO_NOERR == ierr)
         {
             adios_declare_group(&file->adios_group, file->filename, NULL, adios_stat_default);
-           	int do_aggregate = (ios->num_comptasks != ios->num_iotasks);
-           	if (do_aggregate)
-           	{
-               	sprintf(file->transport,"%s","MPI_AGGREGATE");
-               	sprintf(file->params,"num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
-									ios->num_iotasks);
-           	}
-           	else
-           	{
-              	sprintf(file->transport,"%s","MPI_AGGREGATE");
-               	sprintf(file->params,"num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
-									ios->num_comptasks/16);
-           	}
-           	adios_select_method(file->adios_group,file->transport,file->params,"");
-           	ierr = adios_open(&file->adios_fh,file->filename,file->filename,"w", ios->union_comm);
-           	memset(file->dim_names, 0, sizeof(file->dim_names));
-           	file->num_dim_vars = 0;
-           	file->num_vars = 0;
-           	file->num_gattrs = 0;
-           	file->fillmode = NC_NOFILL;
-           	file->n_written_ioids = 0;
 
-			if (ios->union_rank==0) 
-				file->adios_iomaster = MPI_ROOT;
-			else
-				file->adios_iomaster = MPI_PROC_NULL;
+            int do_aggregate = (ios->num_comptasks != ios->num_iotasks);
+            if (do_aggregate)
+            {
+                sprintf(file->transport, "%s", "MPI_AGGREGATE");
+                sprintf(file->params, "num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
+                        ios->num_iotasks);
+            }
+            else
+            {
+                int num_adios_io_tasks = ios->num_comptasks / 16;
+                if (num_adios_io_tasks == 0)
+                    num_adios_io_tasks = ios->num_comptasks;
+                sprintf(file->transport, "%s", "MPI_AGGREGATE");
+                sprintf(file->params, "num_aggregators=%d,random_offset=1,striping_count=1,have_metadata_file=0",
+                        num_adios_io_tasks);
+            }
 
-			/* Track attributes */
-			file->num_attrs = 0;
+            adios_select_method(file->adios_group, file->transport, file->params, "");
+            ierr = adios_open(&file->adios_fh, file->filename, file->filename, "w", ios->union_comm);
 
-           	int64_t vid = adios_define_var(file->adios_group, "/__pio__/info/nproc", "", adios_integer, "","","");
-           	adios_write_byid(file->adios_fh, vid, &ios->num_uniontasks);
-		}
-	}
+            memset(file->dim_names, 0, sizeof(file->dim_names));
+
+            file->num_dim_vars = 0;
+            file->num_vars = 0;
+            file->num_gattrs = 0;
+            file->fillmode = NC_NOFILL;
+            file->n_written_ioids = 0;
+
+            if (ios->union_rank==0)
+                file->adios_iomaster = MPI_ROOT;
+            else
+                file->adios_iomaster = MPI_PROC_NULL;
+
+            /* Track attributes */
+            file->num_attrs = 0;
+
+            int64_t vid = adios_define_var(file->adios_group, "/__pio__/info/nproc", "", adios_integer, "", "", "");
+            adios_write_byid(file->adios_fh, vid, &ios->num_uniontasks);
+        }
+    }
 #endif
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS) 
@@ -3194,20 +3200,47 @@ enum ADIOS_DATATYPES PIOc_get_adios_type(nc_type xtype)
     enum ADIOS_DATATYPES t;
     switch (xtype)
     {
-    case NC_BYTE:   t = adios_byte; break;
-    case NC_CHAR:   t = adios_byte; break;
-    case NC_SHORT:  t = adios_short; break;
-    case NC_INT:    t = adios_integer; break;
-    case NC_FLOAT:  t = adios_real; break;
-    case NC_DOUBLE: t = adios_double; break;
-    case NC_UBYTE:  t = adios_unsigned_byte; break;
-    case NC_USHORT: t = adios_unsigned_short; break;
-    case NC_UINT:   t = adios_unsigned_integer; break;
-    case NC_INT64:  t = adios_long; break;
-    case NC_UINT64: t = adios_unsigned_long; break;
-    case NC_STRING: t = adios_string; break;
-    default: t = adios_byte;
+    case NC_BYTE:
+        t = adios_byte;
+        break;
+    case NC_CHAR:
+        t = adios_byte;
+        break;
+    case NC_SHORT:
+        t = adios_short;
+        break;
+    case NC_INT:
+        t = adios_integer;
+        break;
+    case NC_FLOAT:
+        t = adios_real;
+        break;
+    case NC_DOUBLE:
+        t = adios_double;
+        break;
+    case NC_UBYTE:
+        t = adios_unsigned_byte;
+        break;
+    case NC_USHORT:
+        t = adios_unsigned_short;
+        break;
+    case NC_UINT:
+        t = adios_unsigned_integer;
+        break;
+    case NC_INT64:
+        t = adios_long;
+        break;
+    case NC_UINT64:
+        t = adios_unsigned_long;
+        break;
+    case NC_STRING:
+        t = adios_string;
+        break;
+    default:
+        t = adios_byte;
+        break;
     }
+
     return t;
 }
 
@@ -3216,19 +3249,44 @@ nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype)
     nc_type t;
     switch (atype)
     {
-    case adios_byte:                t = NC_BYTE; break;
-    case adios_short:               t = NC_SHORT; break;
-    case adios_integer:             t = NC_INT; break;
-    case adios_real:                t = NC_FLOAT; break;
-    case adios_double:              t = NC_DOUBLE; break;
-    case adios_unsigned_byte:       t = NC_UBYTE; break;
-    case adios_unsigned_short:      t = NC_USHORT; break;
-    case adios_unsigned_integer:    t = NC_UINT; break;
-    case adios_long:                t = NC_INT64; break;
-    case adios_unsigned_long:       t = NC_UINT64; break;
-    case adios_string:              t = NC_CHAR; break;
-    default:                        t = NC_BYTE;
+    case adios_byte:
+        t = NC_BYTE;
+        break;
+    case adios_short:
+        t = NC_SHORT;
+        break;
+    case adios_integer:
+        t = NC_INT;
+        break;
+    case adios_real:
+        t = NC_FLOAT;
+        break;
+    case adios_double:
+        t = NC_DOUBLE;
+        break;
+    case adios_unsigned_byte:
+        t = NC_UBYTE;
+        break;
+    case adios_unsigned_short:
+        t = NC_USHORT;
+        break;
+    case adios_unsigned_integer:
+        t = NC_UINT;
+        break;
+    case adios_long:
+        t = NC_INT64;
+        break;
+    case adios_unsigned_long:
+        t = NC_UINT64;
+        break;
+    case adios_string:
+        t = NC_CHAR;
+        break;
+    default:
+        t = NC_BYTE;
+        break;
     }
+
     return t;
 }
 #endif 

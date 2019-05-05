@@ -298,49 +298,64 @@ int PIOc_closefile(int ncid)
             ierr = adios_close(file->adios_fh);
             file->adios_fh = -1;
         }
+
         if (file->adios_group != -1)
         {
-           adios_free_group(file->adios_group);
-           file->adios_group = -1;
+            adios_free_group(file->adios_group);
+            file->adios_group = -1;
         }
-        for (int i=0; i<file->num_dim_vars; i++)
+
+        for (int i = 0; i < file->num_dim_vars; i++)
         {
-            free (file->dim_names[i]);
+            free(file->dim_names[i]);
             file->dim_names[i] = NULL;
         }
+
         file->num_dim_vars = 0;
-        for (int i=0; i<file->num_vars; i++)
+
+        for (int i = 0; i < file->num_vars; i++)
         {
             free(file->adios_vars[i].name);
             file->adios_vars[i].name = NULL;
             free(file->adios_vars[i].gdimids);
             file->adios_vars[i].gdimids = NULL;
         }
+
         file->num_vars = 0;
 
-		/* Track attributes */
-		for (int i=0; i<file->num_attrs; i++) {
-			free(file->adios_attrs[i].att_name);
-			file->adios_attrs[i].att_name = NULL;
-		}
-		file->num_attrs = 0;
+        /* Track attributes */
+        for (int i = 0; i < file->num_attrs; i++)
+        {
+            free(file->adios_attrs[i].att_name);
+            file->adios_attrs[i].att_name = NULL;
+        }
 
-#define CONVERT_TEST
-#ifdef CONVERT_TEST /* TAHSIN -- comment out for large scale run */
-            /* Convert XXXX.nc.bp to XXXX.nc */
-            len = strlen(file->filename);
-            assert(len > 6 && len <= PIO_MAX_NAME);
-            strncpy(outfilename, file->filename, len - 3);
-            outfilename[len - 3] = '\0';
-			// printf("CONVERTING: %s\n",file->filename); fflush(stdout);
-            C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", ios->union_comm);
-			// printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
-#endif 
+        file->num_attrs = 0;
 
-            free(file->filename);
-            ierr = 0;
-	}
+#ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
+
+#error "I AM HERE."
+#ifdef _PNETCDF
+        char conv_iotype[] = "pnetcdf";
+#else
+        char conv_iotype[] = "netcdf";
 #endif
+
+        /* Convert XXXX.nc.bp to XXXX.nc */
+        len = strlen(file->filename);
+        assert(len > 6 && len <= PIO_MAX_NAME);
+        strncpy(outfilename, file->filename, len - 3);
+        outfilename[len - 3] = '\0';
+        LOG((1, "CONVERTING: %s", file->filename));
+        C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, ios->union_comm);
+        LOG((1, "DONE CONVERTING: %s", file->filename));
+#endif
+
+        free(file->filename);
+        ierr = 0;
+    }
+#endif
+
 #ifdef _ADIOS2
     if (file->iotype==PIO_IOTYPE_ADIOS) {
 		if (file->engineH != NULL)
@@ -381,15 +396,20 @@ int PIOc_closefile(int ncid)
 
         file->num_attrs = 0;
 
-#define CONVERT_TEST
-#ifdef CONVERT_TEST /* TAHSIN -- comment out for large scale run */
+#ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
+#ifdef _PNETCDF
+        char conv_iotype[] = "pnetcdf";
+#else
+        char conv_iotype[] = "netcdf";
+#endif
+
         /* Convert XXXX.nc.bp to XXXX.nc */
         len = strlen(file->filename);
         assert(len > 6 && len <= PIO_MAX_NAME);
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
         LOG((1, "CONVERTING: %s", file->filename));
-        C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", 1, ios->union_comm);
+        C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 1, ios->union_comm);
         LOG((1, "DONE CONVERTING: %s", file->filename));
 #endif
 
