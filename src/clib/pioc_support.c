@@ -1879,7 +1879,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     /* Get the IO system info from the iosysid. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
-
+    
     /* User must provide valid input for these parameters. */
     if (!ncidp || !iotype || !filename || strlen(filename) > PIO_MAX_NAME)
         return pio_err(ios, NULL, PIO_EINVAL, __FILE__, __LINE__);
@@ -1946,7 +1946,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     }
 
     /* ADIOS: assume all procs are also IO tasks */
-    printf("ADIOS: %d\n",file->iotype); fflush(stdout);
 #ifdef _ADIOS
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
@@ -2029,8 +2028,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 	}
 #endif
 #ifdef _ADIOS2
-    printf("file->iotype= %d %d\n",file->iotype,PIO_IOTYPE_ADIOS);
-	fflush(stdout);
     if (file->iotype == PIO_IOTYPE_ADIOS) 
 	{
 		LOG((2, "Calling adios_open mode = %d", file->mode));
@@ -2112,8 +2109,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 	}
 #endif
 
-    printf("IERR: %d\n",ierr); fflush(stdout);
- 
     /* If this task is in the IO component, do the IO. */
     if (ios->ioproc)
     {

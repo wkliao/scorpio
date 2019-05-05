@@ -133,8 +133,6 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     GPTLstart("PIO:PIOc_createfile");
 #endif
 
-    printf("Create FILE: %d\n",*iotype); fflush(stdout);
-
 #if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (*iotype==PIO_IOTYPE_ADIOS)
@@ -142,13 +140,9 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #endif
 #endif
 
-    printf("CALL get_iosystem_from_id\n"); fflush(stdout);
-
     /* Get the IO system info from the id. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
         return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
-
-    printf("CALL createfile_int\n"); fflush(stdout);
 
     /* Create the file. */
     if ((ret = PIOc_createfile_int(iosysid, ncidp, iotype, filename, mode)))
@@ -162,12 +156,8 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
         GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
 #endif
 #endif
-        printf("RETURN VALUE: %d\n",ret); fflush(stdout);
-
         return pio_err(ios, NULL, ret, __FILE__, __LINE__);
     }
-
-    printf("RETURN createfile_int\n"); fflush(stdout);
 
     /* Run this on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. (Because otherwise, in async
@@ -179,8 +169,6 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
         if ((ret = PIOc_set_fill(*ncidp, NC_NOFILL, NULL)))
             return ret;
     }
-
-    printf("RETURN setfill %d\n",ret); fflush(stdout);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_createfile");
@@ -344,9 +332,9 @@ int PIOc_closefile(int ncid)
             assert(len > 6 && len <= PIO_MAX_NAME);
             strncpy(outfilename, file->filename, len - 3);
             outfilename[len - 3] = '\0';
-			printf("CONVERTING: %s\n",file->filename); fflush(stdout);
+			// printf("CONVERTING: %s\n",file->filename); fflush(stdout);
             C_API_ConvertBPToNC(file->filename, outfilename, "pnetcdf", ios->union_comm);
-			printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
+			// printf("DONE CONVERTING: %s %s\n",file->filename,outfilename); fflush(stdout);
 #endif 
 
             free(file->filename);

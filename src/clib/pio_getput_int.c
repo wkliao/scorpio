@@ -116,7 +116,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
     {
         LOG((2, "ADIOS define attribute %s, varid %d, type %d", name, varid, atttype));
             enum ADIOS_DATATYPES adios_type = PIOc_get_adios_type(atttype);
-            char path[256];
+            char path[PIO_MAX_NAME];
             if (varid != PIO_GLOBAL)
             {
                 adios_var_desc_t * av = &(file->adios_vars[varid]);
@@ -158,7 +158,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
     {
             LOG((2,"ADIOS define attribute %s, varid %d, type %d\n", name, varid, atttype));
             adios2_type adios_type = PIOc_get_adios_type(atttype);
-            char path[256];
+            char path[PIO_MAX_NAME];
             if (varid != PIO_GLOBAL)
             {
                 adios_var_desc_t *av = &(file->adios_vars[varid]);
@@ -185,7 +185,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			file->adios_attrs[num_attrs].adios_type = adios_type;
 			file->num_attrs++;
 			
-			char att_name[256];
+			char att_name[PIO_MAX_NAME];
 			sprintf(att_name,"%s/%s",path,name);
 			if (NC_CHAR==atttype || adios2_type_string==adios_type)
             	adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
@@ -1377,6 +1377,15 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 #ifdef _PNETCDF
         if (file->iotype == PIO_IOTYPE_PNETCDF)
         {
+            LOG((2, "PIOc_put_vars_tc calling pnetcdf function"));
+            vdesc = &file->varlist[varid];
+            if (vdesc->nreqs % PIO_REQUEST_ALLOC_CHUNK == 0)
+                if (!(vdesc->request = realloc(vdesc->request,
+                                               sizeof(int) * (vdesc->nreqs + PIO_REQUEST_ALLOC_CHUNK))))
+                    return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__);
+            request = vdesc->request + vdesc->nreqs;
+            LOG((2, "PIOc_put_vars_tc request = %d", vdesc->request));
+
             /* Scalars have to be handled differently. */
             if (ndims == 0)
             {
@@ -1384,10 +1393,6 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 LOG((2, "pnetcdf writing scalar with ncmpi_put_vars_*() file->fh = %d varid = %d",
                      file->fh, varid));
                 pioassert(!start && !count && !stride, "expected NULLs", __FILE__, __LINE__);
-
-                /* Turn on independent access for pnetcdf file. */
-                if ((ierr = ncmpi_begin_indep_data(file->fh)))
-                    return pio_err(ios, file, ierr, __FILE__, __LINE__);
 
                 /* Only the IO master does the IO, so we are not really
                  * getting parallel IO here. */
@@ -1420,10 +1425,12 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                         return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
                     }
                 }
+                else
+                    *request = PIO_REQ_NULL;
 
-                /* Turn off independent access for pnetcdf file. */
-                if ((ierr = ncmpi_end_indep_data(file->fh)))
-                    return pio_err(ios, file, ierr, __FILE__, __LINE__);
+                vdesc->nreqs++;
+                flush_output_buffer(file, false, 0);
+                LOG((2, "PIOc_put_vars_tc flushed output buffer"));
             }
             else
             {
@@ -1440,15 +1447,6 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 }
                 else
                     fake_stride = (PIO_Offset *)stride;
-
-                LOG((2, "PIOc_put_vars_tc calling pnetcdf function"));
-                vdesc = &file->varlist[varid];
-                if (vdesc->nreqs % PIO_REQUEST_ALLOC_CHUNK == 0)
-                    if (!(vdesc->request = realloc(vdesc->request,
-                                                   sizeof(int) * (vdesc->nreqs + PIO_REQUEST_ALLOC_CHUNK))))
-                        return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__);
-                request = vdesc->request + vdesc->nreqs;
-                LOG((2, "PIOc_put_vars_tc request = %d", vdesc->request));
 
                 /* Only the IO master actually does the call. */
                 if (ios->iomaster == MPI_ROOT)
