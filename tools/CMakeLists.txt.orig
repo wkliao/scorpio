@@ -3,7 +3,8 @@
 ###-------------------------------------------------------------------------###
 
 if (WITH_ADIOS)
-  find_package (ADIOS "1.10.0")
+<<<<<<< HEAD
+   find_package (ADIOS "1.10.0")
    if (ADIOS_FOUND)
      ADD_SUBDIRECTORY(adios2pio-nm)
    endif (ADIOS_FOUND)
@@ -24,3 +25,10 @@ endif(WITH_ADIOS2)
 #   endif (ADIOS1_FOUND)
 #endif(WITH_ADIOS1)
 
+=======
+  find_package (ADIOS "1.10.0")
+  if (ADIOS_FOUND)
+    ADD_SUBDIRECTORY(adios2pio-nm)
+  endif (ADIOS_FOUND)
+endif(WITH_ADIOS)
+>>>>>>> master
