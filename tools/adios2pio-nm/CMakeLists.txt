@@ -28,10 +28,10 @@ include_directories(
   "${PROJECT_BINARY_DIR}")  # to find foo/config.h
 
 target_include_directories(adios2pio-nm-lib PUBLIC 
-	${CMAKE_SOURCE_DIR}/src/clib ${ADIOS1_INCLUDE_DIRS} 
-	${NETCDF_C_INCLUDE_DIRS} 
-	${PnetCDF_C_INCLUDE_DIRS} 
-	${PIO_C_EXTRA_INCLUDE_DIRS})
+  ${CMAKE_SOURCE_DIR}/src/clib ${ADIOS1_INCLUDE_DIRS} 
+  ${NETCDF_C_INCLUDE_DIRS} 
+  ${PnetCDF_C_INCLUDE_DIRS} 
+  ${PIO_C_EXTRA_INCLUDE_DIRS})
 
 # System and compiler CPP directives
 target_compile_definitions (adios2pio-nm-lib
@@ -133,8 +133,6 @@ else ()
   target_compile_definitions (adios2pio-nm-lib
     PUBLIC _NOADIOS1)
 endif ()
-
-
 
 #===== Add EXTRAs =====
 target_include_directories (adios2pio-nm-lib
