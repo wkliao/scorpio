@@ -16,4 +16,3 @@ SET(SRC examplePio.f90)
 ADD_EXECUTABLE(examplePio_f90 ${SRC})
 SET_PROPERTY(TARGET examplePio_f90 PROPERTY LINKER_LANGUAGE Fortran)
 TARGET_LINK_LIBRARIES(examplePio_f90 piof pioc)
-
