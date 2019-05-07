@@ -114,11 +114,11 @@ int main(int argc, char *argv[])
     SetDebugOutput(debug_lvl);
     if (idir.size() == 0)
     {
-        ret = ConvertBPToNC(infilepath, outfilename, piotype, mem_opt, comm_in);
+        ret = ConvertBPToNC(infilepath, outfilename, piotype, comm_in);
     }
     else
     {
-        ret = MConvertBPToNC(idir, piotype, mem_opt, comm_in);
+        ret = MConvertBPToNC(idir, piotype, comm_in);
     }
 
 #ifdef TIMING

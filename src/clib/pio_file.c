@@ -5,7 +5,13 @@
 #include <config.h>
 #include <pio.h>
 #include <pio_internal.h>
+
+#ifdef _ADIOS
 #include "../../tools/adios2pio-nm/adios2pio-nm-lib-c.h"
+#endif
+#ifdef _ADIOS2
+#include "../../tools/adios2pio-a2/adios2pio-nm-lib-c.h"
+#endif
 
 /**
  * Open an existing file using PIO library.
@@ -334,7 +340,6 @@ int PIOc_closefile(int ncid)
 
 #ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
 
-#error "I AM HERE."
 #ifdef _PNETCDF
         char conv_iotype[] = "pnetcdf";
 #else

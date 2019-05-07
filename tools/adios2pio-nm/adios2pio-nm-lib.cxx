@@ -22,52 +22,6 @@ using namespace std;
 /* Debug output */
 static int debug_out = 0;
 
-<<<<<<< HEAD
-/* static MPI_Comm comm = MPI_COMM_WORLD; */
-/*
-static int mpirank;
-static int nproc;
-*/
-
-#ifdef _ADIOS1
-nc_type PIOc_get_nctype_from_adios_type(enum ADIOS_DATATYPES atype)
-{
-    nc_type t;
-    switch (atype)
-    {
-    case adios_byte:                t = NC_BYTE; break;
-    case adios_short:               t = NC_SHORT; break;
-    case adios_integer:             t = NC_INT; break;
-    case adios_real:                t = NC_FLOAT; break;
-    case adios_double:              t = NC_DOUBLE; break;
-    case adios_unsigned_byte:       t = NC_UBYTE; break;
-    case adios_unsigned_short:      t = NC_USHORT; break;
-    case adios_unsigned_integer:    t = NC_UINT; break;
-    case adios_long:                t = NC_INT64; break;
-    case adios_unsigned_long:       t = NC_UINT64; break;
-    case adios_string:              t = NC_CHAR; break;
-    default:                        t = NC_BYTE;
-    }
-    return t;
-}
-#endif 
-
-/** The ID for the parallel I/O system. It is set by
- * PIOc_Init_Intracomm(). It references an internal structure
- * containing the general IO subsystem data and MPI
- * structure. It is passed to PIOc_finalize() to free
- * associated resources, after all I/O, but before
- * MPI_Finalize is called. */
-/* static int iosysid; */
-
-/** The ncid of the netCDF file created in this example. */
-/* static int ncid; */
-
-/* Number of processes that wrote the BP file (read from the file) */
-/* static int n_bp_writers; */
-
-=======
->>>>>>> master
 /* Timer functions to separate time for read (ADIOS) and write (PIO) */
 #ifdef ADIOS_TIMING
 static double time_read, time_write;
@@ -1079,11 +1033,7 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid,
                           const std::vector<int>& wfiles,
                           DecompositionMap& decomp_map,
                           int nblocks_per_step, int iosysid,
-<<<<<<< HEAD
-                          MPI_Comm comm, int mpirank, int nproc, int mem_opt)
-=======
                           MPI_Comm comm, int mpirank, int nproc)
->>>>>>> master
 {
     int ret = 0;
 
@@ -1249,24 +1199,6 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid,
 
         TimerStart(write);
 
-<<<<<<< HEAD
-        Decomposition decomp;
-        if (mem_opt) {
-            sprintf(decompname,"/__pio__/decomp/%d",decomp_id);
-            decomp = ProcessOneDecomposition(infile, ncid, decompname, wfiles, iosysid, mpirank, nproc);
-        } else {
-            sprintf(decompname,"%d",decomp_id);
-            decomp = decomp_map[decompname];
-        } 
-        if (decomp.piotype != var.nctype) {
-            /* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
-            if (mem_opt) {
-                PIOc_freedecomp(iosysid,decomp.ioid);
-                decomp = ProcessOneDecomposition(infile, ncid, decompname, wfiles, iosysid, mpirank, nproc, var.nctype);
-            } else {
-                decomp = GetNewDecomposition(decomp_map, decompname, infile, ncid, wfiles, var.nctype, iosysid, mpirank, nproc);
-            } 
-=======
         sprintf(decompname, "%d", decomp_id);
         Decomposition decomp = decomp_map[decompname];
         if (decomp.piotype != var.nctype)
@@ -1274,7 +1206,6 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid,
             /* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
             decomp = GetNewDecomposition(decomp_map, decompname, infile, ncid, wfiles,
                                          var.nctype, iosysid, mpirank, nproc);
->>>>>>> master
         }
 
         if (frame_id < 0)
@@ -1298,13 +1229,6 @@ int ConvertVariableDarray(ADIOS_FILE **infile, int adios_varid,
             }
         }
 
-<<<<<<< HEAD
-        if (mem_opt) {
-            PIOc_sync(ncid); 
-            PIOc_freedecomp(iosysid,decomp.ioid);
-        }
-=======
->>>>>>> master
         TimerStop(write);
     }
 
@@ -1334,11 +1258,7 @@ int GetNumOfFiles(const string &infilename)
     struct dirent * dp;
     while ((dp = readdir(dirp)) != NULL)
     {
-<<<<<<< HEAD
-        if (dp->d_type == DT_REG && strstr(dp->d_name,".bp.")!=NULL)
-=======
         if (dp->d_type == DT_REG)
->>>>>>> master
             file_count++;
     }
 
@@ -1375,11 +1295,7 @@ std::string ExtractPathname(const std::string &pathname)
 
 void ConvertBPFile(const string &infilepath, const string &outfilename,
                     int pio_iotype, int iosysid,
-<<<<<<< HEAD
-                    MPI_Comm comm, int mpirank, int nproc, int mem_opt)
-=======
                     MPI_Comm comm, int mpirank, int nproc)
->>>>>>> master
 {
     ADIOS_FILE **infile = NULL;
     int num_infiles = 0;
@@ -1388,12 +1304,6 @@ void ConvertBPFile(const string &infilepath, const string &outfilename,
 
     try
     {
-<<<<<<< HEAD
-
-        int save_imax = pio_get_imax();
-
-=======
->>>>>>> master
         /*
          * This assumes we are running the program in the same folder where
          * the BP folder exists.
@@ -1483,13 +1393,10 @@ void ConvertBPFile(const string &infilepath, const string &outfilename,
                 cout << "myrank " << mpirank << " file: " << filei << endl;
         }
 
-<<<<<<< HEAD
-=======
         /* First process decompositions */
         DecompositionMap decomp_map = ProcessDecompositions(infile, ncid, wfiles, iosysid,
                                                             comm, mpirank, nproc);
 
->>>>>>> master
         TimerStart(write);
 
         /* Create output file */
@@ -1502,12 +1409,6 @@ void ConvertBPFile(const string &infilepath, const string &outfilename,
             throw std::runtime_error("Could not create output file " + outfilename + "\n");
 
         TimerStop(write);
-<<<<<<< HEAD
-        /* First process decompositions */
-        DecompositionMap decomp_map;
-        if (!mem_opt) decomp_map = ProcessDecompositions(infile, ncid, wfiles,iosysid,comm, mpirank, nproc);
-=======
->>>>>>> master
 
         /* Process the global fillmode */
         ProcessGlobalFillmode(infile, ncid);
@@ -1587,7 +1488,7 @@ void ConvertBPFile(const string &infilepath, const string &outfilename,
                         }
 
                         ConvertVariableDarray(infile, i, ncid, var, wfiles, decomp_map,
-                                              n_bp_writers, iosysid, comm, mpirank, nproc, mem_opt);
+                                              n_bp_writers, iosysid, comm, mpirank, nproc);
                     }
                     else
                     {
@@ -1616,8 +1517,6 @@ void ConvertBPFile(const string &infilepath, const string &outfilename,
             }
         }
 
-        pio_set_imax(save_imax);
-    
         ret = PIOc_sync(ncid);
         ret = PIOc_closefile(ncid);
 
@@ -1676,7 +1575,7 @@ enum PIO_IOTYPE GetIOType_nm(const string &t)
 }
 
 int ConvertBPToNC(const string &infilepath, const string &outfilename,
-                  const string &piotype, int mem_opt, MPI_Comm comm_in)
+                  const string &piotype, MPI_Comm comm_in)
 {
     int ret = 0;
     int iosysid = 0;
@@ -1690,13 +1589,7 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
     MPI_Comm_rank(w_comm, &w_mpirank);
     MPI_Comm_size(w_comm, &w_nproc);
 
-    if (mem_opt) 
-        printf("INFO: Option selected to reduce memory usage. Execution time will likely increase.\n");
-    else
-        printf("INFO: Reduce memory usage option is set to 0.\n");
-    fflush(stdout);
-
-    /* 
+    /*
      * Check if the number of nodes is less than or equal to the number of BP files.
      * If not, create a new comm.
      *
@@ -1711,7 +1604,7 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
         if (w_mpirank < num_files) /* I/O nodes */
             io_proc = 1;
 
-        MPI_Comm_split(w_comm, io_proc, w_mpirank,&comm);
+        MPI_Comm_split(w_comm, io_proc, w_mpirank, &comm);
         MPI_Comm_rank(comm, &mpirank);
         MPI_Comm_size(comm, &nproc);
     }
@@ -1731,7 +1624,7 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
         {
             iosysid = InitPIO(comm, mpirank, nproc);
             enum PIO_IOTYPE pio_iotype = GetIOType_nm(piotype);
-            ConvertBPFile(infilepath, outfilename, pio_iotype, iosysid, comm, mpirank, nproc, mem_opt);
+            ConvertBPFile(infilepath, outfilename, pio_iotype, iosysid, comm, mpirank, nproc);
             PIOc_finalize(iosysid);
 
             TimerReport_nm(comm);
@@ -1804,7 +1697,7 @@ static int FindBPDirs(const string &bppdir,
  * The function looks for all directories in bppdir named "*.bp.dir"
  * and converts them, one at a time, to NetCDF files
  */
-int MConvertBPToNC(const string &bppdir, const string &piotype, int mem_opt,
+int MConvertBPToNC(const string &bppdir, const string &piotype,
                     MPI_Comm comm)
 {
     int ret = 0;
@@ -1824,7 +1717,7 @@ int MConvertBPToNC(const string &bppdir, const string &piotype, int mem_opt,
     {
         ret = ConvertBPToNC(bpdirs[i],
                 conv_fname_prefixes[i] + CONV_FNAME_SUFFIX,
-                piotype, mem_opt, comm);
+                piotype, comm);
         if (ret != 0)
         {
             fprintf(stderr, "Unable to convert BP file (%s) to NetCDF\n",
@@ -1841,10 +1734,10 @@ extern "C" {
 #endif
 
 int C_API_ConvertBPToNC(const char *infilepath, const char *outfilename,
-                        const char *piotype, int mem_opt, MPI_Comm comm_in)
+                        const char *piotype, MPI_Comm comm_in)
 {
     return ConvertBPToNC(string(infilepath), string(outfilename),
-                         string(piotype), mem_opt, comm_in);
+                         string(piotype), comm_in);
 }
 
 #ifdef __cplusplus
