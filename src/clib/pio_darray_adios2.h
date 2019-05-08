@@ -163,7 +163,7 @@ static void PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	/* ADIOS: assume all procs are also IO tasks */
     if (file->adios_iomaster == MPI_ROOT)
    	{
-		char att_name[128];
+		char att_name[PIO_MAX_NAME];
 		sprintf(att_name,"%s/piotype",name);
 		adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&iodesc->piotype);
 		sprintf(att_name,"%s/ndims",name);

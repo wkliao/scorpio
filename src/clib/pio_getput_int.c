@@ -1340,7 +1340,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 if (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED)
                     d_start = 1; // omit the unlimited time dimension from the adios variable definition
 
-				size_t av_shape[100], av_start[100], av_count[100];
+				size_t av_shape[PIO_MAX_DIMS], av_start[PIO_MAX_DIMS], av_count[PIO_MAX_DIMS];
                 for (int d=d_start; d < av->ndims; d++)
 					av_count[d-d_start] = (size_t)count[d];
                 for (int d=d_start; d < av->ndims; d++)

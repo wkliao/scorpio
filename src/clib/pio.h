@@ -920,7 +920,7 @@ typedef struct file_desc_t
 
     /* Track attributes */
     /** attribute information. Allow PIO_MAX_VARS for now. */
-    struct adios_att_desc_t adios_attrs[PIO_MAX_VARS];
+    struct adios_att_desc_t adios_attrs[PIO_MAX_ATTRS];
     int num_attrs;
 
     int fillmode;
@@ -962,7 +962,7 @@ typedef struct file_desc_t
 
     /* Track attributes */
     /** attribute information. Allow PIO_MAX_VARS for now. */
-    struct adios_att_desc_t adios_attrs[PIO_MAX_VARS];
+    struct adios_att_desc_t adios_attrs[PIO_MAX_ATTRS];
     int num_attrs;
 
     int fillmode;
