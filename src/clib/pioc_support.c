@@ -2772,7 +2772,14 @@ int PIOc_openfile_retry(int iosysid, int *ncidp, int *iotype, const char *filena
 
 #ifdef _PNETCDF
         case PIO_IOTYPE_PNETCDF:
-            ierr = ncmpi_open(ios->io_comm, filename, file->mode, ios->info, &file->fh);
+            if (strncmp(filename, "/home/climate1/acme/inputdata/", 30) == 0)
+            {
+                char ufs_filename[PIO_MAX_NAME + 1] = "ufs:";
+                strcat(ufs_filename, filename);
+                ierr = ncmpi_open(ios->io_comm, ufs_filename, file->mode, ios->info, &file->fh);
+            }
+            else
+                ierr = ncmpi_open(ios->io_comm, filename, file->mode, ios->info, &file->fh);
 
             // This should only be done with a file opened to append
             if (ierr == PIO_NOERR && (file->mode & PIO_WRITE))
