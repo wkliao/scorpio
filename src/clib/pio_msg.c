@@ -738,7 +738,8 @@ static int recv_async_msg_valist(iosystem_desc_t *ios, int msg, va_list args)
                     str = *strp;
                     if(!str)
                     {
-                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                                        "Error receiving/parsing asynchronous message (msg=%d) in iosystem (iosysid=%d). Out of memory allocating %lld bytes for receiving a string", msg, ios->iosysid, (long long int) (sz * sizeof(char )));
                     }
                 }
                 mpierr = MPI_Bcast((void *)str, sz, MPI_CHAR, ios->compmaster, ios->intercomm);
@@ -800,7 +801,8 @@ static int recv_async_msg_valist(iosystem_desc_t *ios, int msg, va_list args)
                     iargp = *iargpp;
                     if(!iargp)
                     {
-                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                                        "Error receiving/parsing asynchronous message (msg=%d) in iosystem (iosysid=%d). Out of memory allocating %lld bytes for receiving an int array", msg, ios->iosysid, (long long int) (sz * sizeof(int )));
                     }
                 }
                 mpierr = MPI_Bcast(iargp, sz, MPI_INT, ios->compmaster, ios->intercomm);
@@ -828,7 +830,8 @@ static int recv_async_msg_valist(iosystem_desc_t *ios, int msg, va_list args)
                     fargp = *fargpp;
                     if(!fargp)
                     {
-                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                                        "Error receiving/parsing asynchronous message (msg=%d) in iosystem (iosysid=%d). Out of memory allocating %lld bytes for receiving a float array", msg, ios->iosysid, (long long int) (sz * sizeof(float )));
                     }
                 }
                 mpierr = MPI_Bcast(fargp, sz, MPI_FLOAT, ios->compmaster, ios->intercomm);
@@ -856,7 +859,8 @@ static int recv_async_msg_valist(iosystem_desc_t *ios, int msg, va_list args)
                     oargp = *oargpp;
                     if(!oargp)
                     {
-                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                                        "Error receiving/parsing asynchronous message (msg=%d) in iosystem (iosysid=%d). Out of memory allocating %lld bytes for receiving an offset array", msg, ios->iosysid, (long long int) (sz * sizeof(PIO_Offset)));
                     }
                 }
                 mpierr = MPI_Bcast((void *)oargp, sz, MPI_OFFSET, ios->compmaster, ios->intercomm);
@@ -888,7 +892,8 @@ static int recv_async_msg_valist(iosystem_desc_t *ios, int msg, va_list args)
                     cargp = *cargpp;
                     if(!cargp)
                     {
-                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                                        "Error receiving/parsing asynchronous message (msg=%d) in iosystem (iosysid=%d). Out of memory allocating %lld bytes for receiving a byte array", msg, ios->iosysid, (long long int) (sz * sizeof(char)));
                     }
                 }
                 mpierr = MPI_Bcast((void *)cargp, sz, MPI_BYTE, ios->compmaster, ios->intercomm);
@@ -957,7 +962,8 @@ int send_async_msg(iosystem_desc_t *ios, int msg, ...)
         if(ret != PIO_NOERR)
         {
             LOG((1, "Could not bcast async msg header"));
-            return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                            "Sending asynchronous message (msg=%d, seq_num=%d, prev_msg=%d) failed on iosystem (iosysid=%d). Internal error sending message header.", msg, seq_num, prev_msg, ios->iosysid);
         } 
 
         /* Send message */
@@ -967,7 +973,8 @@ int send_async_msg(iosystem_desc_t *ios, int msg, ...)
         if(ret != PIO_NOERR)
         {
             LOG((1, "Could not bcast async msg body"));
-            return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                            "Sending asynchronous message (msg=%d, seq_num=%d, prev_msg=%d) failed on iosystem (iosysid=%d). Internal error sending message arguments.", msg, seq_num, prev_msg, ios->iosysid);
         } 
         va_end(args);
 
@@ -1021,7 +1028,6 @@ static int recv_async_msg_hdr(iosystem_desc_t *ios, int msg, int eseq_num, int e
 
 int recv_async_msg(iosystem_desc_t *ios, int msg, ...)
 {
-    int mpierr = MPI_SUCCESS;
     int ret = PIO_NOERR;
     
     assert(ios && (msg > PIO_MSG_INVALID) && (msg < PIO_MAX_MSGS));
@@ -1038,7 +1044,8 @@ int recv_async_msg(iosystem_desc_t *ios, int msg, ...)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Could not bcast (recv) async msg header"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Receiving asynchronous message (msg=%d, expected seq_num = %d, expected prev msg=%d) failed on iosystem (iosysid=%d). Internal error receiving message header", msg, eseq_num, eprev_msg, ios->iosysid);
     } 
 
     /* Recv message */
@@ -1048,7 +1055,8 @@ int recv_async_msg(iosystem_desc_t *ios, int msg, ...)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Could not bcast (recv) async msg body"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Receiving asynchronous message (msg=%d, expected seq_num = %d, expected prev msg=%d) failed on iosystem (iosysid=%d). Internal error receiving message arguments", msg, eseq_num, eprev_msg, ios->iosysid);
     } 
     va_end(args);
     ios->async_ios_msg_info.seq_num++;
@@ -1074,7 +1082,6 @@ int inq_type_handler(iosystem_desc_t *ios)
     char name_present, size_present;
     char *namep = NULL, name[PIO_MAX_NAME + 1];
     PIO_Offset *sizep = NULL, size;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_type_handler"));
@@ -1087,7 +1094,8 @@ int inq_type_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Error receiving async msg for PIO_MSG_INQ_TYPE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_TYPE, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     /* Handle null pointer issues. */
@@ -1098,7 +1106,10 @@ int inq_type_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_inq_type(ncid, xtype, namep, sizep)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_TYPE, on iosystem (iosysid=%d). Unable to inquire name/size of type=%x in file (%s, ncid=%d)", ios->iosysid, xtype, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "inq_type_handler succeeded!"));
     return PIO_NOERR;
@@ -1119,7 +1130,6 @@ int inq_format_handler(iosystem_desc_t *ios)
     int ncid;
     int *formatp = NULL, format;
     char format_present;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_format_handler"));
@@ -1131,7 +1141,8 @@ int inq_format_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Error received async msg for PIO_MSG_INQ_FORMAT"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_FORMAT, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     /* Manage NULL pointers. */
@@ -1140,7 +1151,10 @@ int inq_format_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_inq_format(ncid, formatp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_FORMAT, on iosystem (iosysid=%d). Unable to inquire the binary format of file (%s, ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     if (formatp)
         LOG((2, "inq_format_handler format = %d", *formatp));
@@ -1163,7 +1177,6 @@ int set_fill_handler(iosystem_desc_t *ios)
     int fillmode;
     int old_modep_present;
     int old_mode, *old_modep = NULL;
-    int mpierr;
     int ret;
 
     LOG((1, "set_fill_handler"));
@@ -1175,7 +1188,8 @@ int set_fill_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Error receiving async message for PIO_MSG_SET_FILL"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SET_FILL, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "set_fill_handler got parameters ncid = %d fillmode = %d old_modep_present = %d",
          ncid, fillmode, old_modep_present));
@@ -1186,7 +1200,10 @@ int set_fill_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_set_fill(ncid, fillmode, old_modep)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SET_FILL, on iosystem (iosysid=%d). Unable to set fillvalue mode in file (%s, ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "set_fill_handler succeeded!"));
 
@@ -1208,7 +1225,6 @@ int create_file_handler(iosystem_desc_t *ios)
     int len;
     int iotype;
     int mode;
-    int mpierr;
     int ret;
 
     LOG((1, "create_file_handler comproot = %d", ios->comproot));
@@ -1219,12 +1235,16 @@ int create_file_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "create_file_handler() failed, unable to receive async msg"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_CREATE_FILE, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     /* Call the create file function. */
     if ((ret = PIOc_createfile(ios->iosysid, &ncid, &iotype, filename, mode)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_CREATE_FILE, on iosystem (iosysid=%d). Unable to create file (%s) using %s (%d) iotype", ios->iosysid, filename, pio_iotype_to_string(iotype), iotype);
+    }
 
     LOG((1, "create_file_handler succeeded!"));
     return PIO_NOERR;
@@ -1243,7 +1263,6 @@ int create_file_handler(iosystem_desc_t *ios)
 int close_file_handler(iosystem_desc_t *ios)
 {
     int ncid;
-    int mpierr;
     int ret;
 
     LOG((1, "close_file_handler"));
@@ -1255,13 +1274,17 @@ int close_file_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Error receiving async msg for PIO_MSG_CLOSE_FILE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_CLOSE_FILE, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "create_file_handler got parameter ncid = %d", ncid));
 
     /* Call the close file function. */
     if ((ret = PIOc_closefile(ncid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_CLOSE_FILE, on iosystem (iosysid=%d). Unable to close file (%s, ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "close_file_handler succeeded!"));
     return PIO_NOERR;
@@ -1283,7 +1306,6 @@ int inq_handler(iosystem_desc_t *ios)
     int ndims, nvars, ngatts, unlimdimid;
     int *ndimsp = NULL, *nvarsp = NULL, *ngattsp = NULL, *unlimdimidp = NULL;
     char ndims_present, nvars_present, ngatts_present, unlimdimid_present;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_handler"));
@@ -1296,7 +1318,8 @@ int inq_handler(iosystem_desc_t *ios)
     if(ret != PIO_NOERR)
     {
         LOG((1, "Error receiving async msg for PIO_MSG_INQ"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "inq_handler ndims_present = %d nvars_present = %d ngatts_present = %d unlimdimid_present = %d",
          ndims_present, nvars_present, ngatts_present, unlimdimid_present));
@@ -1315,7 +1338,10 @@ int inq_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq(ncid, ndimsp, nvarsp, ngattsp, unlimdimidp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ, on iosystem (iosysid=%d). Unable to inquire number of dimensions/variables/attributes/unlimited_dimension in file (%s, ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1337,7 +1363,6 @@ int inq_unlimdims_handler(iosystem_desc_t *ios)
     int unlimdimids;
     int *nunlimdimsp = NULL, *unlimdimidsp = NULL;
     bool nunlimdimsp_present = false, unlimdimidsp_present = false;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_unlimdims_handler"));
@@ -1349,8 +1374,8 @@ int inq_unlimdims_handler(iosystem_desc_t *ios)
         &nunlimdimsp_present, &unlimdimidsp_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_UNLIMDIMS"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_UNLIMDIMS, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "inq_unlimdims_handler nunlimdimsp_present = %d unlimdimidsp_present = %d",
          nunlimdimsp_present, unlimdimidsp_present));
@@ -1365,7 +1390,10 @@ int inq_unlimdims_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_unlimdims(ncid, nunlimdimsp, unlimdimidsp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_UNLIMDIMS, on iosystem (iosysid=%d). Unable to inquire unlimited dimension info in file (%s, ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1390,7 +1418,6 @@ int inq_dim_handler(iosystem_desc_t *ios, int msg)
     char dimname[PIO_MAX_NAME + 1];
     PIO_Offset dimlen;
 
-    int mpierr;
     int ret;
 
     LOG((1, "inq_dim_handler"));
@@ -1401,8 +1428,8 @@ int inq_dim_handler(iosystem_desc_t *ios, int msg)
     PIO_RECV_ASYNC_MSG(ios, msg, &ret, &ncid, &dimid, &name_present, &len_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_DIM"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_DIM, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "inq_handler name_present = %d len_present = %d", name_present,
          len_present));
@@ -1415,7 +1442,10 @@ int inq_dim_handler(iosystem_desc_t *ios, int msg)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_dim(ncid, dimid, dimnamep, dimlenp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_DIM, on iosystem (iosysid=%d). Unable to inquire info about dimension (dimid=%d) in file (%s, ncid=%d)", ios->iosysid, dimid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1433,7 +1463,6 @@ int inq_dimid_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int *dimidp = NULL, dimid;
-    int mpierr;
     int id_present;
     int ret;
     int namelen;
@@ -1447,8 +1476,8 @@ int inq_dimid_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_INQ_DIMID, &ret, &ncid, &namelen, name, &id_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_DIMID"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_DIMID, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "inq_dimid_handler ncid = %d namelen = %d name = %s id_present = %d",
          ncid, namelen, name, id_present));
@@ -1459,7 +1488,10 @@ int inq_dimid_handler(iosystem_desc_t *ios)
 
     /* Call the inq_dimid function. */
     if ((ret = PIOc_inq_dimid(ncid, name, dimidp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_DIMID, on iosystem (iosysid=%d). Unable to inquire dimension id for dimension (dimension name=%s) in file (%s, ncid=%d)", ios->iosysid, (namelen > 0) ? name : "UNKNOWN", pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1478,7 +1510,6 @@ int inq_att_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     int ret;
     char name[PIO_MAX_NAME + 1];
     int namelen = PIO_MAX_NAME + 1;
@@ -1495,8 +1526,8 @@ int inq_att_handler(iosystem_desc_t *ios)
         &namelen, name, &xtype_present, &len_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error while recieving PIO_MSG_INQ_ATT msg"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_ATT, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     /* Match NULLs in collective function call. */
@@ -1507,7 +1538,10 @@ int inq_att_handler(iosystem_desc_t *ios)
 
     /* Call the function to learn about the attribute. */
     if ((ret = PIOc_inq_att(ncid, varid, name, xtypep, lenp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_ATT, on iosystem (iosysid=%d). Unable to inquire type/length of attribute (name=%s) of variable (name=%s, varid=%d) in file (%s, ncid=%d)", ios->iosysid, name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1529,7 +1563,6 @@ int inq_attname_handler(iosystem_desc_t *ios)
     int attnum;
     char name[PIO_MAX_NAME + 1], *namep = NULL;
     char name_present;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_att_name_handler"));
@@ -1541,8 +1574,8 @@ int inq_attname_handler(iosystem_desc_t *ios)
         &ncid, &varid, &attnum, &name_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_ATTNAME"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_ATTNAME, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "inq_attname_handler got ncid = %d varid = %d attnum = %d name_present = %d",
          ncid, varid, attnum, name_present));
@@ -1553,7 +1586,10 @@ int inq_attname_handler(iosystem_desc_t *ios)
 
     /* Call the function to learn about the attribute. */
     if ((ret = PIOc_inq_attname(ncid, varid, attnum, namep)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_ATTNAME, on iosystem (iosysid=%d). Unable to inquire name of attribute with id=%d of variable (name=%s, varid=%d) in file (%s, ncid=%d)", ios->iosysid, attnum, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1576,7 +1612,6 @@ int inq_attid_handler(iosystem_desc_t *ios)
     int namelen = PIO_MAX_NAME + 1;
     int id, *idp = NULL;
     char id_present;
-    int mpierr;
     int ret;
 
     LOG((1, "inq_attid_handler"));
@@ -1587,8 +1622,8 @@ int inq_attid_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_INQ_ATTID, &ret, &ncid, &varid, &namelen, name, &id_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_ATTID"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_ATTID, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "inq_attid_handler got ncid = %d varid = %d id_present = %d",
          ncid, varid, id_present));
@@ -1599,7 +1634,10 @@ int inq_attid_handler(iosystem_desc_t *ios)
 
     /* Call the function to learn about the attribute. */
     if ((ret = PIOc_inq_attid(ncid, varid, name, idp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_ATTID, on iosystem (iosysid=%d). Unable to inquire id of attribute with name=%s of variable (name=%s, varid=%d) in file (%s, ncid=%d)", ios->iosysid, name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1617,7 +1655,6 @@ int att_put_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     int ret;
     char name[PIO_MAX_NAME + 1];
     int namelen;
@@ -1639,8 +1676,8 @@ int att_put_handler(iosystem_desc_t *ios)
         &op_sz, &op);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_PUT_ATT"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_PUT_ATT, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "att_put_handler ncid = %d varid = %d namelen = %d name = %s"
          "atttype = %d attlen = %d atttype_len = %d memtype = %d memtype_len = 5d",
@@ -1652,9 +1689,11 @@ int att_put_handler(iosystem_desc_t *ios)
     /* Free resources. */
     free(op);
 
-    /* Did it work? */
     if (ret)
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_PUT_ATT, on iosystem (iosysid=%d). Unable to put attribute with name=%s of variable (name=%s, varid=%d) in file (%s, ncid=%d)", ios->iosysid, name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((2, "att_put_handler complete!"));
     return PIO_NOERR;
@@ -1673,7 +1712,6 @@ int att_get_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     char name[PIO_MAX_NAME + 1];
     int namelen;
     PIO_Offset attlen;
@@ -1695,8 +1733,8 @@ int att_get_handler(iosystem_desc_t *ios)
         &memtype, &memtype_len);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_GET_ATT"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_GET_ATT, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "att_get_handler ncid = %d varid = %d namelen = %d name = %s iotype = %d"
          " atttype = %d attlen = %d atttype_len = %d memtype = %d memtype_len = %d",
@@ -1704,7 +1742,10 @@ int att_get_handler(iosystem_desc_t *ios)
 
     /* Allocate space for the attribute data. */
     if (!(ip = malloc(attlen * memtype_len)))
-        return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_GET_ATT on iosystem (iosysid=%d). Out of memory allocating %lld bytes for attribute (name=%s) data of variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, (unsigned long long) (attlen * memtype_len), name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     /* Call the function to read the attribute. */
     ret = PIOc_get_att_tc(ncid, varid, name, memtype, ip);
@@ -1712,9 +1753,11 @@ int att_get_handler(iosystem_desc_t *ios)
     /* Free resources. */
     free(ip);
 
-    /* Did it work? */
     if (ret)
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_GET_ATT on iosystem (iosysid=%d). Unable to get attribute (name=%s) data of variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1743,7 +1786,6 @@ int put_vars_handler(iosystem_desc_t *ios)
     void *buf = NULL;           /* Buffer for data storage. */
     PIO_Offset buf_sz = 0;
     PIO_Offset num_elem; /* Number of data elements in the buffer. */
-    int mpierr;          /* Error code from MPI function calls. */
     int ret = PIO_NOERR;
 
     LOG((1, "put_vars_handler"));
@@ -1763,8 +1805,8 @@ int put_vars_handler(iosystem_desc_t *ios)
         &buf_sz, &buf);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg PIO_MSG_PUT_VARS"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_PUT_VARS, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((1, "put_vars_handler ncid = %d varid = %d ndims = %d "
@@ -1785,41 +1827,41 @@ int put_vars_handler(iosystem_desc_t *ios)
     switch(xtype)
     {
     case NC_BYTE:
-        PIOc_put_vars_schar(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_schar(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_CHAR:
-        PIOc_put_vars_text(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_text(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_SHORT:
-        PIOc_put_vars_short(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_short(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_INT:
-        PIOc_put_vars_int(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_int(ncid, varid, startp, countp, stridep, buf);
         break;
     case PIO_LONG_INTERNAL:
-        PIOc_put_vars_long(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_long(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_FLOAT:
-        PIOc_put_vars_float(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_float(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_DOUBLE:
-        PIOc_put_vars_double(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_double(ncid, varid, startp, countp, stridep, buf);
         break;
 #ifdef _NETCDF4
     case NC_UBYTE:
-        PIOc_put_vars_uchar(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_uchar(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_USHORT:
-        PIOc_put_vars_ushort(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_ushort(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_UINT:
-        PIOc_put_vars_uint(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_uint(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_INT64:
-        PIOc_put_vars_longlong(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_longlong(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_UINT64:
-        PIOc_put_vars_ulonglong(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_put_vars_ulonglong(ncid, varid, startp, countp, stridep, buf);
         break;
         /* case NC_STRING: */
         /*      PIOc_put_vars_string(ncid, varid, startp, countp, */
@@ -1832,6 +1874,12 @@ int put_vars_handler(iosystem_desc_t *ios)
     }
 
     free(buf);
+
+    if (ret)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_PUT_VARS on iosystem (iosysid=%d). Unable to put variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -1848,7 +1896,6 @@ int get_vars_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     int ret = PIO_NOERR;
     PIO_Offset typelen; /** Length (in bytes) of this type. */
     nc_type xtype; /** 
@@ -1878,8 +1925,8 @@ int get_vars_handler(iosystem_desc_t *ios)
         &xtype, &num_elem, &typelen);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_GET_VARS"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_GET_VARS, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "get_vars_handler ncid = %d varid = %d ndims = %d "
          "stride_present = %d xtype = %d num_elem = %d typelen = %d",
@@ -1887,7 +1934,10 @@ int get_vars_handler(iosystem_desc_t *ios)
 
     /* Allocate room for our data. */
     if (!(buf = malloc(num_elem * typelen)))
-        return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_GET_VARS, on iosystem (iosysid=%d). Out of memory allocating %lld bytes for getting data for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, (unsigned long long) (num_elem * typelen), pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     /* Set the non-NULL pointers. */
     if (start_present)
@@ -1903,41 +1953,41 @@ int get_vars_handler(iosystem_desc_t *ios)
     switch(xtype)
     {
     case NC_BYTE:
-        PIOc_get_vars_schar(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_schar(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_CHAR:
-        PIOc_get_vars_text(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_text(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_SHORT:
-        PIOc_get_vars_short(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_short(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_INT:
-        PIOc_get_vars_int(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_int(ncid, varid, startp, countp, stridep, buf);
         break;
     case PIO_LONG_INTERNAL:
-        PIOc_get_vars_long(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_long(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_FLOAT:
-        PIOc_get_vars_float(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_float(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_DOUBLE:
-        PIOc_get_vars_double(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_double(ncid, varid, startp, countp, stridep, buf);
         break;
 #ifdef _NETCDF4
     case NC_UBYTE:
-        PIOc_get_vars_uchar(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_uchar(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_USHORT:
-        PIOc_get_vars_ushort(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_ushort(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_UINT:
-        PIOc_get_vars_uint(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_uint(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_INT64:
-        PIOc_get_vars_longlong(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_longlong(ncid, varid, startp, countp, stridep, buf);
         break;
     case NC_UINT64:
-        PIOc_get_vars_ulonglong(ncid, varid, startp, countp, stridep, buf);
+        ret = PIOc_get_vars_ulonglong(ncid, varid, startp, countp, stridep, buf);
         break;
         /* case NC_STRING: */
         /*      PIOc_get_vars_string(ncid, varid, startp, countp, */
@@ -1952,6 +2002,12 @@ int get_vars_handler(iosystem_desc_t *ios)
     /* Free resourses. */
     free(buf);
     
+    if (ret)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_GET_VARS on iosystem (iosysid=%d). Unable to get variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
+
     LOG((1, "get_vars_handler succeeded!"));
     return PIO_NOERR;
 }
@@ -1967,7 +2023,6 @@ int inq_var_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     char name_present, xtype_present, ndims_present, dimids_present, natts_present;
     char name[PIO_MAX_NAME + 1], *namep = NULL;
     nc_type xtype, *xtypep = NULL;
@@ -1985,8 +2040,8 @@ int inq_var_handler(iosystem_desc_t *ios)
         &dimids_present, &natts_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error received async msg for PIO_MSG_INQ_VAR"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VAR, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((2,"inq_var_handler ncid = %d varid = %d name_present = %d xtype_present = %d ndims_present = %d "
@@ -2007,7 +2062,10 @@ int inq_var_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_var(ncid, varid, namep, PIO_MAX_NAME + 1, xtypep, ndimsp, dimidsp, nattsp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VAR on iosystem (iosysid=%d). Unable to inquire name/type/number of dimensions/number of attributes about variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     if (ndims_present)
         LOG((2, "inq_var_handler ndims = %d", ndims));
@@ -2029,7 +2087,6 @@ int inq_var_chunking_handler(iosystem_desc_t *ios)
     char storage_present, chunksizes_present;
     int storage, *storagep = NULL;
     PIO_Offset chunksizes[PIO_MAX_DIMS], *chunksizesp = NULL;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2041,8 +2098,8 @@ int inq_var_chunking_handler(iosystem_desc_t *ios)
         &ncid, &varid, &storage_present, &chunksizes_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_VAR_CHUNKING"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VAR_CHUNKING, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2,"inq_var_handler ncid = %d varid = %d storage_present = %d chunksizes_present = %d",
          ncid, varid, storage_present, chunksizes_present));
@@ -2055,7 +2112,10 @@ int inq_var_chunking_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_var_chunking(ncid, varid, storagep, chunksizesp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VAR on iosystem (iosysid=%d). Unable to inquire chunking parameters about variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2075,7 +2135,7 @@ int inq_var_fill_handler(iosystem_desc_t *ios)
     PIO_Offset type_size;
     int fill_mode, *fill_modep = NULL;
     PIO_Offset *fill_value, *fill_valuep = NULL;
-    int mpierr, ret = PIO_NOERR;
+    int ret = PIO_NOERR;
 
     assert(ios);
     LOG((1, "inq_var_fill_handler"));
@@ -2086,8 +2146,8 @@ int inq_var_fill_handler(iosystem_desc_t *ios)
         &ncid, &varid, &type_size, &fill_mode_present, &fill_value_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_VAR_FILL"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VAR_FILL, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2,"inq_var_fill_handler ncid = %d varid = %d type_size = %lld, fill_mode_present = %d fill_value_present = %d",
          ncid, varid, type_size, fill_mode_present, fill_value_present));
@@ -2095,7 +2155,10 @@ int inq_var_fill_handler(iosystem_desc_t *ios)
     /* If we need to, alocate storage for fill value. */
     if (fill_value_present)
         if (!(fill_value = malloc(type_size)))
-            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+        {
+            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                            "Error processing asynchronous message, PIO_MSG_INQ_VAR_FILL on iosystem (iosysid=%d). Out of memory allocating %lld bytes for fillvalue associated with variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, (unsigned long long) (type_size), pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+        }
 
     /* Set the non-NULL pointers. */
     if (fill_mode_present)
@@ -2104,11 +2167,17 @@ int inq_var_fill_handler(iosystem_desc_t *ios)
         fill_valuep = fill_value;
 
     /* Call the inq function to get the values. */
-    PIOc_inq_var_fill(ncid, varid, fill_modep, fill_valuep);
+    ret = PIOc_inq_var_fill(ncid, varid, fill_modep, fill_valuep);
 
     /* Free fill value storage if we allocated some. */
     if (fill_value_present)
         free(fill_value);
+
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VAR_FILL on iosystem (iosysid=%d). Unable to inquire fillvalue for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2126,7 +2195,6 @@ int inq_var_endian_handler(iosystem_desc_t *ios)
     int varid;
     char endian_present;
     int endian = 0, *endianp = NULL;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2137,8 +2205,8 @@ int inq_var_endian_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_INQ_VAR_ENDIAN, &ret, &ncid, &varid, &endian_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Receiving async msg failed for PIO_MSG_INQ_VAR_ENDIAN"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VAR_ENDIAN, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2,"inq_var_endian_handler ncid = %d varid = %d endian_present = %d", ncid, varid,
          endian_present));
@@ -2149,7 +2217,10 @@ int inq_var_endian_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_var_endian(ncid, varid, endianp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VAR_ENDIAN on iosystem (iosysid=%d). Unable to inquire endianness settings for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2171,7 +2242,6 @@ int inq_var_deflate_handler(iosystem_desc_t *ios)
     int shuffle, *shufflep;
     int deflate, *deflatep;
     int deflate_level, *deflate_levelp;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2185,8 +2255,8 @@ int inq_var_deflate_handler(iosystem_desc_t *ios)
         &deflate_level_present, &deflate_level);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_VAR_DEFLATE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VAR_DEFLATE, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "inq_var_handler ncid = %d varid = %d shuffle_present = %d deflate_present = %d "
          "deflate_level_present = %d", ncid, varid, shuffle_present, deflate_present,
@@ -2202,7 +2272,10 @@ int inq_var_deflate_handler(iosystem_desc_t *ios)
 
     /* Call the inq function to get the values. */
     if ((ret = PIOc_inq_var_deflate(ncid, varid, shufflep, deflatep, deflate_levelp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VAR_DEFLATE on iosystem (iosysid=%d). Unable to inquire deflate settings for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2220,7 +2293,6 @@ int inq_varid_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     int ret;
     int namelen = PIO_MAX_NAME + 1;
     char name[PIO_MAX_NAME + 1];
@@ -2232,13 +2304,16 @@ int inq_varid_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_INQ_VARID, &ret, &ncid, &namelen, name);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INQ_VARID"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INQ_VARID, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
-    /* Call the inq_dimid function. */
+    /* Call the inq_varid function. */
     if ((ret = PIOc_inq_varid(ncid, name, &varid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INQ_VARID on iosystem (iosysid=%d). Unable to inquire id of variable %s in file %s (ncid=%d)", ios->iosysid, name, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2255,7 +2330,6 @@ int inq_varid_handler(iosystem_desc_t *ios)
 int sync_file_handler(iosystem_desc_t *ios)
 {
     int ncid;
-    int mpierr;
     int ret;
 
     LOG((1, "sync_file_handler"));
@@ -2266,14 +2340,17 @@ int sync_file_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_SYNC, &ret, &ncid);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_SYNC"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SYNC, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "sync_file_handler got parameter ncid = %d", ncid));
 
     /* Call the sync file function. */
     if ((ret = PIOc_sync(ncid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SYNC on iosystem (iosysid=%d). Unable to sync file %s (ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((2, "sync_file_handler succeeded!"));
     return PIO_NOERR;
@@ -2294,7 +2371,6 @@ int setframe_handler(iosystem_desc_t *ios)
     int ncid;
     int varid;
     int frame;
-    int mpierr;
     int ret;
 
     LOG((1, "setframe_handler"));
@@ -2305,15 +2381,18 @@ int setframe_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_SETFRAME, &ret, &ncid, &varid, &frame);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_SETFRAME"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SETFRAME, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "setframe_handler got parameter ncid = %d varid = %d frame = %d",
          ncid, varid, frame));
 
     /* Call the function. */
     if ((ret = PIOc_setframe(ncid, varid, frame)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SETFRAME on iosystem (iosysid=%d). Unable to setframe (frame = %d) for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, frame, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((2, "setframe_handler succeeded!"));
     return PIO_NOERR;
@@ -2333,7 +2412,6 @@ int advanceframe_handler(iosystem_desc_t *ios)
 {
     int ncid;
     int varid;
-    int mpierr;
     int ret;
 
     LOG((1, "advanceframe_handler"));
@@ -2344,15 +2422,18 @@ int advanceframe_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_ADVANCEFRAME, &ret, &ncid, &varid);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_ADVANCEFRAME"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_ADVANCEFRAME, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "advanceframe_handler got parameter ncid = %d varid = %d",
          ncid, varid));
 
     /* Call the function. */
     if ((ret = PIOc_advanceframe(ncid, varid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SETFRAME on iosystem (iosysid=%d). Unable to advance frame for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((2, "advanceframe_handler succeeded!"));
     return PIO_NOERR;
@@ -2370,7 +2451,6 @@ int advanceframe_handler(iosystem_desc_t *ios)
 int change_def_file_handler(iosystem_desc_t *ios, int msg)
 {
     int ncid;
-    int mpierr;
     int ret;
 
     LOG((1, "change_def_file_handler"));
@@ -2381,15 +2461,21 @@ int change_def_file_handler(iosystem_desc_t *ios, int msg)
     PIO_RECV_ASYNC_MSG(ios, msg, &ret, &ncid);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_ENDDEF/REDEF"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, %s, on iosystem (iosysid=%d)", ((msg == PIO_MSG_ENDDEF) ? "PIO_MSG_ENDDEF" : "PIO_MSG_REDEF"), ios->iosysid);
     }
 
     /* Call the function. */
     if (msg == PIO_MSG_ENDDEF)
-        PIOc_enddef(ncid);
+        ret = PIOc_enddef(ncid);
     else
-        PIOc_redef(ncid);
+        ret = PIOc_redef(ncid);
+
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, %s on iosystem (iosysid=%d). Unable to %s in file %s (ncid=%d)", ((msg == PIO_MSG_ENDDEF) ? "PIO_MSG_ENDDEF" : "PIO_MSG_REDEF"), ios->iosysid, ((msg == PIO_MSG_ENDDEF) ? "end define mode" : "re-enter define mode"), pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "change_def_file_handler succeeded!"));
     return PIO_NOERR;
@@ -2410,7 +2496,6 @@ int def_var_handler(iosystem_desc_t *ios)
     int ncid;
     int namelen = PIO_MAX_NAME + 1;
     char name[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
     int varid;
     nc_type xtype;
@@ -2427,8 +2512,8 @@ int def_var_handler(iosystem_desc_t *ios)
       &ncid, &namelen, name, &xtype, &ndims, &dimids_sz, dimids);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error while receiving async msg for PIO_MSG_DEF_VAR"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_VAR, on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((1, "def_var_handler got parameters namelen = %d "
@@ -2437,7 +2522,8 @@ int def_var_handler(iosystem_desc_t *ios)
     /* Call the function. */
     if ((ret = PIOc_def_var(ncid, name, xtype, ndims, dimids, &varid)))
     {
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_VAR on iosystem (iosysid=%d). Unable to define variable %s in file %s (ncid=%d)", ios->iosysid, name, pio_get_fname_from_file_id(ncid), ncid);
     }
 
     LOG((1, "def_var_handler succeeded!"));
@@ -2460,7 +2546,6 @@ int def_var_chunking_handler(iosystem_desc_t *ios)
     char chunksizes_present;
     int chunksizes_sz = 0;
     PIO_Offset chunksizes[PIO_MAX_DIMS], *chunksizesp = NULL;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2473,8 +2558,8 @@ int def_var_chunking_handler(iosystem_desc_t *ios)
         &chunksizes_sz, chunksizes);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_DEF_VAR_CHUNKING"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_VAR_CHUNKING, on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "def_var_chunking_handler got parameters ncid = %d varid = %d storage = %d "
          "ndims = %d chunksizes_present = %d", ncid, varid, storage, ndims, chunksizes_present));
@@ -2485,7 +2570,10 @@ int def_var_chunking_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_def_var_chunking(ncid, varid, storage, chunksizesp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_VAR_CHUNKING on iosystem (iosysid=%d). Unable to define chunking parameters for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_var_chunking_handler succeeded!"));
     return PIO_NOERR;
@@ -2506,7 +2594,7 @@ int def_var_fill_handler(iosystem_desc_t *ios)
     char fill_value_present;
     PIO_Offset type_size, fill_value_sz;
     PIO_Offset *fill_valuep = NULL;
-    int mpierr, ret = PIO_NOERR;
+    int ret = PIO_NOERR;
 
     assert(ios);
     LOG((1, "def_var_fill_handler comproot = %d", ios->comproot));
@@ -2517,15 +2605,27 @@ int def_var_fill_handler(iosystem_desc_t *ios)
         &ncid, &varid, &fill_mode, &type_size, &fill_value_present,
         &fill_value_sz, &fill_valuep);
 
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_VAR_FILL, on iosystem (iosysid=%d)", ios->iosysid);
+    }
+
     LOG((1, "def_var_fill_handler got parameters ncid = %d varid = %d fill_mode = %d "
          "type_size = %lld fill_value_present = %d", ncid, varid, fill_mode, type_size, fill_value_present));
 
     /* Call the function. */
-    PIOc_def_var_fill(ncid, varid, fill_mode, (fill_value_present) ? (fill_valuep) : NULL);
+    ret = PIOc_def_var_fill(ncid, varid, fill_mode, (fill_value_present) ? (fill_valuep) : NULL);
 
     /* Free memory allocated for the fill value. */
     if (fill_valuep)
         free(fill_valuep);
+
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_VAR_FILL on iosystem (iosysid=%d). Unable to define fill mode/value for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_var_fill_handler succeeded!"));
     return PIO_NOERR;
@@ -2543,7 +2643,6 @@ int def_var_endian_handler(iosystem_desc_t *ios)
     int ncid;
     int varid;
     int endian;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2554,8 +2653,8 @@ int def_var_endian_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_DEF_VAR_ENDIAN, &ret, &ncid, &varid, &endian);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_DEF_VAR_ENDIAN"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_VAR_ENDIAN on iosystem (iosysid=%d)", ios->iosysid);
     }
       
     LOG((1, "def_var_endian_handler got parameters ncid = %d varid = %d endain = %d ",
@@ -2563,7 +2662,10 @@ int def_var_endian_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_def_var_endian(ncid, varid, endian)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_VAR_ENDIAN on iosystem (iosysid=%d). Unable to define endianness for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_var_chunking_handler succeeded!"));
     return PIO_NOERR;
@@ -2583,7 +2685,6 @@ int def_var_deflate_handler(iosystem_desc_t *ios)
     int shuffle;
     int deflate;
     int deflate_level;
-    int mpierr;
     int ret;
 
     assert(ios);
@@ -2595,15 +2696,18 @@ int def_var_deflate_handler(iosystem_desc_t *ios)
         &ncid, &varid, &shuffle, &deflate, &deflate_level);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_DEF_VAR_DEFLATE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_VAR_DEFLATE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "def_var_deflate_handler got parameters ncid = %d varid = %d shuffle = %d ",
          "deflate = %d deflate_level = %d", ncid, varid, shuffle, deflate, deflate_level));
 
     /* Call the function. */
     if ((ret = PIOc_def_var_deflate(ncid, varid, shuffle, deflate, deflate_level)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_VAR_DEFLATE on iosystem (iosysid=%d). Unable to deflate variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_var_deflate_handler succeeded!"));
     return PIO_NOERR;
@@ -2623,7 +2727,6 @@ int set_var_chunk_cache_handler(iosystem_desc_t *ios)
     PIO_Offset size;
     PIO_Offset nelems;
     float preemption;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     assert(ios);
@@ -2636,9 +2739,18 @@ int set_var_chunk_cache_handler(iosystem_desc_t *ios)
     LOG((1, "set_var_chunk_cache_handler got params ncid = %d varid = %d size = %d "
          "nelems = %d preemption = %g", ncid, varid, size, nelems, preemption));
 
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SET_VAR_CHUNK_CACHE on iosystem (iosysid=%d)", ios->iosysid);
+    }
+
     /* Call the function. */
     if ((ret = PIOc_set_var_chunk_cache(ncid, varid, size, nelems, preemption)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SET_VAR_CHUNK_CACHE on iosystem (iosysid=%d). Unable to set cache size for chunking variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_var_chunk_cache_handler succeeded!"));
     return PIO_NOERR;
@@ -2659,7 +2771,6 @@ int def_dim_handler(iosystem_desc_t *ios)
     int ncid;
     int len, namelen;
     char name[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
     int dimid;
 
@@ -2671,15 +2782,18 @@ int def_dim_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_DEF_DIM, &ret, &ncid, &namelen, name, &len);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_DEF_DIM"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEF_DIM on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "def_dim_handler got parameters namelen = %d "
          "name = %s len = %d ncid = %d", namelen, name, len, ncid));
 
     /* Call the function. */
     if ((ret = PIOc_def_dim(ncid, name, len, &dimid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEF_DIM on iosystem (iosysid=%d). Unable to define dim %s in file %s (ncid=%d)", ios->iosysid, name, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "def_dim_handler succeeded!"));
     return PIO_NOERR;
@@ -2700,7 +2814,6 @@ int rename_dim_handler(iosystem_desc_t *ios)
     int ncid;
     int namelen;
     char name[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
     int dimid;
 
@@ -2713,15 +2826,18 @@ int rename_dim_handler(iosystem_desc_t *ios)
         &ncid, &dimid, &namelen, name);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_RENAME_DIM"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_RENAME_DIM on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "rename_dim_handler got parameters namelen = %d "
          "name = %s ncid = %d dimid = %d", namelen, name, ncid, dimid));
 
     /* Call the function. */
     if ((ret = PIOc_rename_dim(ncid, dimid, name)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_RENAME_DIM on iosystem (iosysid=%d). Unable to rename dim (dimid=%d) to %s in file %s (ncid=%d)", ios->iosysid, dimid, name, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "rename_dim_handler succeeded!"));
     return PIO_NOERR;
@@ -2742,7 +2858,6 @@ int rename_var_handler(iosystem_desc_t *ios)
     int ncid;
     int namelen;
     char name[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
     int varid;
 
@@ -2755,15 +2870,18 @@ int rename_var_handler(iosystem_desc_t *ios)
         &ncid, &varid, &namelen, name);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_RENAME_VAR"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_RENAME_VAR on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "rename_var_handler got parameters namelen = %d "
          "name = %s ncid = %d varid = %d", namelen, name, ncid, varid));
 
     /* Call the function. */
     if ((ret = PIOc_rename_var(ncid, varid, name)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_RENAME_VAR on iosystem (iosysid=%d). Unable to rename variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "rename_var_handler succeeded!"));
     return PIO_NOERR;
@@ -2785,7 +2903,6 @@ int rename_att_handler(iosystem_desc_t *ios)
     int varid;
     int namelen, newnamelen;
     char name[PIO_MAX_NAME + 1], newname[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
 
     LOG((1, "rename_att_handler"));
@@ -2797,15 +2914,18 @@ int rename_att_handler(iosystem_desc_t *ios)
         &namelen, name, &newnamelen, newname);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving message for PIO_MSG_RENAME_ATT"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_RENAME_ATT on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "rename_att_handler got parameters namelen = %d name = %s ncid = %d varid = %d "
          "newnamelen = %d newname = %s", namelen, name, ncid, varid, newnamelen, newname));
 
     /* Call the function. */
     if ((ret = PIOc_rename_att(ncid, varid, name, newname)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_RENAME_ATT on iosystem (iosysid=%d). Unable to rename attribute %s to %s of variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, name, newname, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "rename_att_handler succeeded!"));
     return PIO_NOERR;
@@ -2827,7 +2947,6 @@ int delete_att_handler(iosystem_desc_t *ios)
     int varid;
     int namelen;
     char name[PIO_MAX_NAME + 1];
-    int mpierr;
     int ret;
 
     LOG((1, "delete_att_handler"));
@@ -2839,15 +2958,18 @@ int delete_att_handler(iosystem_desc_t *ios)
         &namelen, name);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error while receiving async msg for PIO_MSG_DEL_ATT"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DEL_ATT on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "delete_att_handler namelen = %d name = %s ncid = %d varid = %d ",
          namelen, name, ncid, varid));
 
     /* Call the function. */
     if ((ret = PIOc_del_att(ncid, varid, name)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DEL_ATT on iosystem (iosysid=%d). Unable to delete attribute %s of variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, name, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "delete_att_handler succeeded!"));
     return PIO_NOERR;
@@ -2869,7 +2991,6 @@ int open_file_handler(iosystem_desc_t *ios)
     int len;
     int iotype;
     int mode;
-    int mpierr;
     int ret = PIO_NOERR;
 
     LOG((1, "open_file_handler comproot = %d", ios->comproot));
@@ -2881,16 +3002,20 @@ int open_file_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_OPEN_FILE, &ret, &len, filename, &iotype, &mode);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "open_file_handler() failed : Unable to get async msg"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_OPEN_FILE on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((2, "open_file_handler got parameters len = %d filename = %s iotype = %d mode = %d",
          len, filename, iotype, mode));
 
-    /* Call the open file function. Errors are handling within
-     * function, so return code can be ignored. */
-    PIOc_openfile_retry(ios->iosysid, &ncid, &iotype, filename, mode, 0);
+    /* Call the open file function */
+    ret = PIOc_openfile_retry(ios->iosysid, &ncid, &iotype, filename, mode, 0);
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_OPEN_FILE on iosystem (iosysid=%d). Unable to open file %s (ncid=%d)", ios->iosysid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     return PIO_NOERR;
 }
@@ -2908,8 +3033,7 @@ int open_file_handler(iosystem_desc_t *ios)
 int delete_file_handler(iosystem_desc_t *ios)
 {
     char filename[PIO_MAX_NAME+1];
-    int len;
-    int mpierr;
+    int len = 0;
     int ret;
 
     LOG((1, "delete_file_handler comproot = %d", ios->comproot));
@@ -2920,15 +3044,19 @@ int delete_file_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_DELETE_FILE, &ret, &len, filename);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_DELETE_FILE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_DELETE_FILE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "delete_file_handler got parameters len = %d filename = %s",
          len, filename));
 
     /* Call the delete file function. */
     if ((ret = PIOc_deletefile(ios->iosysid, filename)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        const char *fname = (len > 0) ? filename : "UNKNOWN";
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_DELETE_FILE on iosystem (iosysid=%d). Unable to delete file %s", ios->iosysid, fname);
+    }
 
     LOG((1, "delete_file_handler succeeded!"));
     return PIO_NOERR;
@@ -2956,7 +3084,6 @@ int initdecomp_dof_handler(iosystem_desc_t *ios)
     PIO_Offset *iostartp = NULL;
     char iocount_present;
     PIO_Offset *iocountp = NULL;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     LOG((1, "initdecomp_dof_handler called"));
@@ -2976,8 +3103,8 @@ int initdecomp_dof_handler(iosystem_desc_t *ios)
         iocount);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_INITDECOMP_DOF"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_INITDECOMP_DOF on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((2, "initdecomp_dof_handler iosysid = %d pio_type = %d ndims = %d maplen = %d "
@@ -3002,6 +3129,12 @@ int initdecomp_dof_handler(iosystem_desc_t *ios)
     if(compmap)
     {
         free(compmap);
+    }
+
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_INITDECOMP_DOF on iosystem (iosysid=%d). Initializing PIO decomposition failed, pio_type = %d ndims = %d maplen = %d rearranger_present = %d iostart_present = %d iocount_present = %d", ios->iosysid, pio_type, ndims, maplen, rearranger_present, iostart_present, iocount_present);
     }
     
     LOG((1, "PIOc_InitDecomp returned %d", ret));
@@ -3034,7 +3167,6 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
     void *fillvaluep = NULL;
     void *fillvalue = NULL;
     int flushtodisk;
-    int mpierr;
     int ret;
 
     LOG((1, "write_darray_multi_handler"));
@@ -3053,8 +3185,8 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
         &fillvalue_present, &nfillvalues, &fillvalue, &flushtodisk);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_WRITEDARRAYMULTI"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_WRITEDARRAYMULTI on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((1, "write_darray_multi_handler ncid = %d nvars = %d ioid = %d arraylen = %d "
@@ -3063,11 +3195,18 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
 
     /* Get file info based on ncid. */
     if ((ret = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_WRITEDARRAYMULTI on iosystem (iosysid=%d). Unable to inquire internal structure associated with file id (ncid=%d)", ios->iosysid, ncid);
+
+    }
     
     /* Get decomposition information. */
     if (!(iodesc = pio_get_iodesc_from_id(ioid)))
-        return pio_err(ios, file, PIO_EBADID, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_EBADID, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_WRITEDARRAYMULTI on iosystem (iosysid=%d). Unable to inquire I/O decomposition associated with ioid (ioid=%d)", ios->iosysid, ioid);
+    }
 
     /* Was a frame array provided? */
     if (frame_present)
@@ -3079,8 +3218,8 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
 
     /* Call the function from IO tasks. Errors are handled within
      * function. */
-    PIOc_write_darray_multi(ncid, varids, ioid, nvars, arraylen, array, framep,
-                            fillvaluep, flushtodisk);
+    ret = PIOc_write_darray_multi(ncid, varids, ioid, nvars, arraylen,
+                            array, framep, fillvaluep, flushtodisk);
 
     /* Free resources. */
     if(varids_sz > 0)
@@ -3096,6 +3235,12 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
         free(fillvalue);
     }
     free(array);
+
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_WRITEDARRAYMULTI on iosystem (iosysid=%d). Unable to write multiple variables (%d vars, ioid=%d) to file %s (ncid=%d)", ios->iosysid, nvars, ioid, pio_get_fname_from_file_id(ncid), ncid);
+    }
     
     LOG((1, "write_darray_multi_handler succeeded!"));
     return PIO_NOERR;
@@ -3115,7 +3260,7 @@ int write_darray_multi_handler(iosystem_desc_t *ios)
 int readdarray_handler(iosystem_desc_t *ios)
 {
     int ncid, varid, ioid;
-    int mpierr, ierr;
+    int ierr;
 
     LOG((1, "read_darray_handler"));
     assert(ios);
@@ -3123,8 +3268,8 @@ int readdarray_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_READDARRAY, &ierr, &ncid, &varid, &ioid);
     if(ierr != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_READDARRAY"));
-        return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_READDARRAY on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((1, "PIOc_read_darray(ncid=%d, varid=%d, ioid=%d, 0, NULL)", ncid, varid, ioid));
@@ -3132,8 +3277,13 @@ int readdarray_handler(iosystem_desc_t *ios)
      * i.e., arraylen == 0
      */
     ierr = PIOc_read_darray(ncid, varid, ioid, 0, NULL);
+    if (ierr != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_READDARRAY on iosystem (iosysid=%d). Unable to read variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
-    return ierr;
+    return PIO_NOERR;
 }
 
 /** 
@@ -3152,7 +3302,6 @@ int seterrorhandling_handler(iosystem_desc_t *ios)
     bool old_method_present;
     int old_method;
     int *old_methodp = NULL;
-    int mpierr;
     int ret;
 
     LOG((1, "seterrorhandling_handler comproot = %d", ios->comproot));
@@ -3163,8 +3312,8 @@ int seterrorhandling_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_SETERRORHANDLING, &ret, &method, &old_method_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_SETERRORHANDLING"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SETERRORHANDLING on iosystem (iosysid=%d)", ios->iosysid);
     }
 
     LOG((1, "seterrorhandling_handler got parameters method = %d old_method_present = %d",
@@ -3175,7 +3324,10 @@ int seterrorhandling_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_set_iosystem_error_handling(ios->iosysid, method, old_methodp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SETERRORHANDLING on iosystem (iosysid=%d). Unable to set the iosystem error handler", ios->iosysid);
+    }
 
     LOG((1, "seterrorhandling_handler succeeded!"));
     return PIO_NOERR;
@@ -3197,7 +3349,6 @@ int set_chunk_cache_handler(iosystem_desc_t *ios)
     PIO_Offset size;
     PIO_Offset nelems;
     float preemption;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     LOG((1, "set_chunk_cache_handler called"));
@@ -3209,15 +3360,18 @@ int set_chunk_cache_handler(iosystem_desc_t *ios)
         &iotype, &size, &nelems, &preemption);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_SET_CHUNK_CACHE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_SET_CHUNK_CACHE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "set_chunk_cache_handler got params iosysid = %d iotype = %d size = %d "
          "nelems = %d preemption = %g", iosysid, iotype, size, nelems, preemption));
 
     /* Call the function. */
     if ((ret = PIOc_set_chunk_cache(iosysid, iotype, size, nelems, preemption)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_SET_CHUNK_CACHE on iosystem (iosysid=%d). Unable to set the iosystem chunk cache info", ios->iosysid);
+    }
 
     LOG((1, "set_chunk_cache_handler succeeded!"));
     return PIO_NOERR;
@@ -3240,7 +3394,6 @@ int get_chunk_cache_handler(iosystem_desc_t *ios)
     PIO_Offset size, *sizep;
     PIO_Offset nelems, *nelemsp;
     float preemption, *preemptionp;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     LOG((1, "get_chunk_cache_handler called"));
@@ -3252,8 +3405,8 @@ int get_chunk_cache_handler(iosystem_desc_t *ios)
         &iosysid, &iotype, &size_present, &nelems_present, &preemption_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_GET_CHUNK_CACHE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_GET_CHUNK_CACHE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "get_chunk_cache_handler got params iosysid = %d iotype = %d size_present = %d "
          "nelems_present = %d preemption_present = %g", iosysid, iotype, size_present,
@@ -3269,7 +3422,10 @@ int get_chunk_cache_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_get_chunk_cache(iosysid, iotype, sizep, nelemsp, preemptionp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_GET_CHUNK_CACHE on iosystem (iosysid=%d). Unable to get the iosystem chunk cache info", ios->iosysid);
+    }
 
     LOG((1, "get_chunk_cache_handler succeeded!"));
     return PIO_NOERR;
@@ -3292,7 +3448,6 @@ int get_var_chunk_cache_handler(iosystem_desc_t *ios)
     PIO_Offset size, *sizep;
     PIO_Offset nelems, *nelemsp;
     float preemption, *preemptionp;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     LOG((1, "get_var_chunk_cache_handler called"));
@@ -3304,8 +3459,8 @@ int get_var_chunk_cache_handler(iosystem_desc_t *ios)
         &ncid, &varid, &size_present, &nelems_present, &preemption_present);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_GET_VAR_CHUNK_CACHE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_GET_VAR_CHUNK_CACHE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "get_var_chunk_cache_handler got params ncid = %d varid = %d size_present = %d "
          "nelems_present = %d preemption_present = %g", ncid, varid, size_present,
@@ -3321,7 +3476,10 @@ int get_var_chunk_cache_handler(iosystem_desc_t *ios)
 
     /* Call the function. */
     if ((ret = PIOc_get_var_chunk_cache(ncid, varid, sizep, nelemsp, preemptionp)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_GET_VAR_CHUNK_CACHE on iosystem (iosysid=%d). Unable to get chunk cache info for variable %s (varid=%d) in file %s (ncid=%d)", ios->iosysid, pio_get_vname_from_file_id(ncid, varid), varid, pio_get_fname_from_file_id(ncid), ncid);
+    }
 
     LOG((1, "get_var_chunk_cache_handler succeeded!"));
     return PIO_NOERR;
@@ -3339,7 +3497,6 @@ int freedecomp_handler(iosystem_desc_t *ios)
 {
     int iosysid;
     int ioid;
-    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
     int ret; /* Return code. */
 
     LOG((1, "freedecomp_handler called"));
@@ -3350,15 +3507,20 @@ int freedecomp_handler(iosystem_desc_t *ios)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_FREEDECOMP, &ret, &iosysid, &ioid);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_FREEDECOMP"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_FREEDECOMP on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((2, "freedecomp_handler iosysid = %d ioid = %d", iosysid, ioid));
 
     /* Call the function. */
     ret = PIOc_freedecomp(iosysid, ioid);
-    
     LOG((1, "PIOc_freedecomp returned %d", ret));
+    if (ret != PIO_NOERR)
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_FREEDECOMP on iosystem (iosysid=%d). Unable to free I/O decomposition (ioid=%d)", ios->iosysid, ioid);
+    }
+
     return PIO_NOERR;
 }
 
@@ -3375,7 +3537,6 @@ int freedecomp_handler(iosystem_desc_t *ios)
 int finalize_handler(iosystem_desc_t *ios, int index)
 {
     int iosysid;
-    int mpierr;
     int ret;
 
     LOG((1, "finalize_handler called index = %d", index));
@@ -3386,8 +3547,8 @@ int finalize_handler(iosystem_desc_t *ios, int index)
     PIO_RECV_ASYNC_MSG(ios, PIO_MSG_FINALIZE, &ret, &iosysid);
     if(ret != PIO_NOERR)
     {
-        LOG((1, "Error receiving async msg for PIO_MSG_FINALIZE"));
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error receiving asynchronous message, PIO_MSG_FINALIZE on iosystem (iosysid=%d)", ios->iosysid);
     }
     LOG((1, "finalize_handler got parameter iosysid = %d", iosysid));
 
@@ -3395,7 +3556,10 @@ int finalize_handler(iosystem_desc_t *ios, int index)
     LOG((2, "finalize_handler calling PIOc_finalize for iosysid = %d",
          iosysid));
     if ((ret = PIOc_finalize(iosysid)))
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Error processing asynchronous message, PIO_MSG_FINALIZE on iosystem (iosysid=%d). Unable to finalize I/O system", ios->iosysid);
+    }
 
     LOG((1, "finalize_handler succeeded!"));
     return PIO_NOERR;
@@ -3483,95 +3647,95 @@ int pio_msg_handler2(int io_rank, int component_count, iosystem_desc_t **iosys,
         switch (msg)
         {
         case PIO_MSG_INQ_TYPE:
-            inq_type_handler(my_iosys);
+            ret = inq_type_handler(my_iosys);
             break;
         case PIO_MSG_INQ_FORMAT:
-            inq_format_handler(my_iosys);
+            ret = inq_format_handler(my_iosys);
             break;
         case PIO_MSG_CREATE_FILE:
-            create_file_handler(my_iosys);
+            ret = create_file_handler(my_iosys);
             LOG((2, "returned from create_file_handler"));
             break;
         case PIO_MSG_SYNC:
-            sync_file_handler(my_iosys);
+            ret = sync_file_handler(my_iosys);
             break;
         case PIO_MSG_ENDDEF:
         case PIO_MSG_REDEF:
             LOG((2, "calling change_def_file_handler"));
-            change_def_file_handler(my_iosys, msg);
+            ret = change_def_file_handler(my_iosys, msg);
             LOG((2, "returned from change_def_file_handler"));
             break;
         case PIO_MSG_OPEN_FILE:
-            open_file_handler(my_iosys);
+            ret = open_file_handler(my_iosys);
             break;
         case PIO_MSG_CLOSE_FILE:
-            close_file_handler(my_iosys);
+            ret = close_file_handler(my_iosys);
             break;
         case PIO_MSG_DELETE_FILE:
-            delete_file_handler(my_iosys);
+            ret = delete_file_handler(my_iosys);
             break;
         case PIO_MSG_RENAME_DIM:
-            rename_dim_handler(my_iosys);
+            ret = rename_dim_handler(my_iosys);
             break;
         case PIO_MSG_RENAME_VAR:
-            rename_var_handler(my_iosys);
+            ret = rename_var_handler(my_iosys);
             break;
         case PIO_MSG_RENAME_ATT:
-            rename_att_handler(my_iosys);
+            ret = rename_att_handler(my_iosys);
             break;
         case PIO_MSG_DEL_ATT:
-            delete_att_handler(my_iosys);
+            ret = delete_att_handler(my_iosys);
             break;
         case PIO_MSG_DEF_DIM:
-            def_dim_handler(my_iosys);
+            ret = def_dim_handler(my_iosys);
             break;
         case PIO_MSG_DEF_VAR:
-            def_var_handler(my_iosys);
+            ret = def_var_handler(my_iosys);
             break;
         case PIO_MSG_DEF_VAR_CHUNKING:
-            def_var_chunking_handler(my_iosys);
+            ret = def_var_chunking_handler(my_iosys);
             break;
         case PIO_MSG_DEF_VAR_FILL:
-            def_var_fill_handler(my_iosys);
+            ret = def_var_fill_handler(my_iosys);
             break;
         case PIO_MSG_DEF_VAR_ENDIAN:
-            def_var_endian_handler(my_iosys);
+            ret = def_var_endian_handler(my_iosys);
             break;
         case PIO_MSG_DEF_VAR_DEFLATE:
-            def_var_deflate_handler(my_iosys);
+            ret = def_var_deflate_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VAR_ENDIAN:
-            inq_var_endian_handler(my_iosys);
+            ret = inq_var_endian_handler(my_iosys);
             break;
         case PIO_MSG_SET_VAR_CHUNK_CACHE:
-            set_var_chunk_cache_handler(my_iosys);
+            ret = set_var_chunk_cache_handler(my_iosys);
             break;
         case PIO_MSG_GET_VAR_CHUNK_CACHE:
-            get_var_chunk_cache_handler(my_iosys);
+            ret = get_var_chunk_cache_handler(my_iosys);
             break;
         case PIO_MSG_INQ:
-            inq_handler(my_iosys);
+            ret = inq_handler(my_iosys);
             break;
         case PIO_MSG_INQ_UNLIMDIMS:
-            inq_unlimdims_handler(my_iosys);
+            ret = inq_unlimdims_handler(my_iosys);
             break;
         case PIO_MSG_INQ_DIM:
-            inq_dim_handler(my_iosys, msg);
+            ret = inq_dim_handler(my_iosys, msg);
             break;
         case PIO_MSG_INQ_DIMID:
-            inq_dimid_handler(my_iosys);
+            ret = inq_dimid_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VAR:
-            inq_var_handler(my_iosys);
+            ret = inq_var_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VAR_CHUNKING:
-            inq_var_chunking_handler(my_iosys);
+            ret = inq_var_chunking_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VAR_FILL:
-            inq_var_fill_handler(my_iosys);
+            ret = inq_var_fill_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VAR_DEFLATE:
-            inq_var_deflate_handler(my_iosys);
+            ret = inq_var_deflate_handler(my_iosys);
             break;
         case PIO_MSG_GET_ATT:
             ret = att_get_handler(my_iosys);
@@ -3580,55 +3744,55 @@ int pio_msg_handler2(int io_rank, int component_count, iosystem_desc_t **iosys,
             ret = att_put_handler(my_iosys);
             break;
         case PIO_MSG_INQ_VARID:
-            inq_varid_handler(my_iosys);
+            ret = inq_varid_handler(my_iosys);
             break;
         case PIO_MSG_INQ_ATT:
-            inq_att_handler(my_iosys);
+            ret = inq_att_handler(my_iosys);
             break;
         case PIO_MSG_INQ_ATTNAME:
-            inq_attname_handler(my_iosys);
+            ret = inq_attname_handler(my_iosys);
             break;
         case PIO_MSG_INQ_ATTID:
-            inq_attid_handler(my_iosys);
+            ret = inq_attid_handler(my_iosys);
             break;
         case PIO_MSG_GET_VARS:
-            get_vars_handler(my_iosys);
+            ret = get_vars_handler(my_iosys);
             break;
         case PIO_MSG_PUT_VARS:
-            put_vars_handler(my_iosys);
+            ret = put_vars_handler(my_iosys);
             break;
         case PIO_MSG_INITDECOMP_DOF:
-            initdecomp_dof_handler(my_iosys);
+            ret = initdecomp_dof_handler(my_iosys);
             break;
         case PIO_MSG_WRITEDARRAYMULTI:
-            write_darray_multi_handler(my_iosys);
+            ret = write_darray_multi_handler(my_iosys);
             break;
         case PIO_MSG_SETFRAME:
-            setframe_handler(my_iosys);
+            ret = setframe_handler(my_iosys);
             break;
         case PIO_MSG_ADVANCEFRAME:
-            advanceframe_handler(my_iosys);
+            ret = advanceframe_handler(my_iosys);
             break;
         case PIO_MSG_READDARRAY:
-            readdarray_handler(my_iosys);
+            ret = readdarray_handler(my_iosys);
             break;
         case PIO_MSG_SETERRORHANDLING:
-            seterrorhandling_handler(my_iosys);
+            ret = seterrorhandling_handler(my_iosys);
             break;
         case PIO_MSG_SET_CHUNK_CACHE:
-            set_chunk_cache_handler(my_iosys);
+            ret = set_chunk_cache_handler(my_iosys);
             break;
         case PIO_MSG_GET_CHUNK_CACHE:
-            get_chunk_cache_handler(my_iosys);
+            ret = get_chunk_cache_handler(my_iosys);
             break;
         case PIO_MSG_FREEDECOMP:
-            freedecomp_handler(my_iosys);
+            ret = freedecomp_handler(my_iosys);
             break;
         case PIO_MSG_SET_FILL:
-            set_fill_handler(my_iosys);
+            ret = set_fill_handler(my_iosys);
             break;
         case PIO_MSG_FINALIZE:
-            finalize_handler(my_iosys, index);
+            ret = finalize_handler(my_iosys, index);
             break;
         default:
             LOG((0, "unknown message received %d", msg));

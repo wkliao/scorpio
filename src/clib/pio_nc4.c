@@ -37,16 +37,21 @@ int PIOc_def_var_deflate(int ncid, int varid, int shuffle, int deflate,
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Defining variable compression/deflate parameters for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Defining variable compression/deflate parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to define parameters on a non-NetCDF file. Variable compression is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -56,8 +61,8 @@ int PIOc_def_var_deflate(int ncid, int varid, int shuffle, int deflate,
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid, varid, shuffle, deflate, deflate_level);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_DEF_VAR_DEFLATE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Defining variable compression/deflate parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_DEF_VAR_DEFLATE, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 
@@ -111,16 +116,22 @@ int PIOc_inq_var_deflate(int ncid, int varid, int *shufflep, int *deflatep,
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Inquiring variable compression/deflate parameters for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Inquiring variable compression/deflate parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to query parameters on a non-NetCDF file. Variable compression is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -140,8 +151,8 @@ int PIOc_inq_var_deflate(int ncid, int varid, int *shufflep, int *deflatep,
                             deflate_level_present, amsg_deflate_level);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg PIO_MSG_INQ_VAR_DEFLATE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Inquiring variable compression/deflate parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_INQ_VAR_DEFLATE, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 
@@ -203,19 +214,25 @@ int PIOc_def_var_chunking(int ncid, int varid, int storage, const PIO_Offset *ch
     file_desc_t *file;     /* Pointer to file information. */
     int ndims;             /* The number of dimensions for this var. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
 
     LOG((1, "PIOc_def_var_chunking ncid = %d varid = %d storage = %d", ncid,
          varid, storage));
 
     /* Find the info about this file. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Defining variable chunking parameters for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Defining variable chunking parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to define variable chunking parameters on a non-NetCDF file. This option is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* Run this on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. Get the number of
@@ -245,8 +262,8 @@ int PIOc_def_var_chunking(int ncid, int varid, int storage, const PIO_Offset *ch
             (chunksizes_present) ? (chunksizesp) : amsg_chunksizesp);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_DEF_VAR_CHUNKING"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Defining variable chunking parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_DEF_VAR_CHUNKING, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
 
         if(!chunksizes_present)
@@ -319,19 +336,26 @@ int PIOc_inq_var_chunking(int ncid, int varid, int *storagep, PIO_Offset *chunks
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
-    int ndims; /* The number of dimensions in the variable. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
+    int ndims = 0; /* The number of dimensions in the variable. */
 
     LOG((1, "PIOc_inq_var_chunking ncid = %d varid = %d"));
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Inquiring variable chunking parameters for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
+
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Inquiring variable chunking parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to query variable chunking parameters on a non-NetCDF file. This option is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* Run these on all tasks if async is not in use, but only on
      * non-IO tasks if async is in use. */
@@ -339,7 +363,10 @@ int PIOc_inq_var_chunking(int ncid, int varid, int *storagep, PIO_Offset *chunks
     {
         /* Find the number of dimensions of this variable. */
         if ((ierr = PIOc_inq_varndims(ncid, varid, &ndims)))
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        {
+            return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                            "Inquiring variable chunking parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Inquiring number of dimensions of the variable failed", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+        }
         LOG((2, "ndims = %d", ndims));
     }
 
@@ -354,8 +381,8 @@ int PIOc_inq_var_chunking(int ncid, int varid, int *storagep, PIO_Offset *chunks
             storage_present, chunksizes_present);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_INQ_VAR_CHUNKING"));
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Inquiring variable chunking parameters for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_INQ_VAR_CHUNKING, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
 
         /* Broadcast values currently only known on computation tasks to IO tasks. */
@@ -434,16 +461,21 @@ int PIOc_def_var_endian(int ncid, int varid, int endian)
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Defining endianness for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Defining endianness for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to define variable endianness on a non-NetCDF file. This option is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -452,8 +484,8 @@ int PIOc_def_var_endian(int ncid, int varid, int endian)
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid, varid, endian);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_DEF_VAR_ENDIAN"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Defining endianness variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_DEF_VAR_ENDIAN, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 
@@ -498,18 +530,24 @@ int PIOc_inq_var_endian(int ncid, int varid, int *endianp)
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
 
     LOG((1, "PIOc_inq_var_endian ncid = %d varid = %d", ncid, varid));
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Inquiring endianness for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Inquiring endianness for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to inquire variable endianness on a non-NetCDF file. This option is only available for NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -520,8 +558,8 @@ int PIOc_inq_var_endian(int ncid, int varid, int *endianp)
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid, varid, endian_present);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_INQ_VAR_ENDIAN"));
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                            "Inquiring endianness of variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_INQ_VAR_ENDIAN, on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 
@@ -578,18 +616,23 @@ int PIOc_set_chunk_cache(int iosysid, int iotype, PIO_Offset size, PIO_Offset ne
 {
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
 
     LOG((1, "PIOc_set_chunk_cache iosysid = %d iotype = %d size = %d nelems = %d preemption = %g",
          iosysid, iotype, size, nelems, preemption));
 
     /* Get the IO system info. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
-        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__,
+                        "Setting cache chunk parameters failed. Invalid iosystem (iosysid=%d) provided", iosysid);
+    }
 
     /* Only netCDF-4 files can use this feature. */
     if (iotype != PIO_IOTYPE_NETCDF4P && iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, NULL, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Setting cache chunk parameters failed. Unable to set cache chunk parameters on a non-NetCDF4 iotype. The usage is only supported for NetCDF4 iotypes");
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -600,8 +643,8 @@ int PIOc_set_chunk_cache(int iosysid, int iotype, PIO_Offset size, PIO_Offset ne
             nelems, preemption);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO-MSG_SET_CHUNK_CACHE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Setting cache chunk parameters failed. Unable to send asynchronous message, PIO_MSG_SET_CHUNK_CACHE, on iosystem (iosysid=%d)", iosysid);
         }
     }
 
@@ -663,17 +706,23 @@ int PIOc_get_chunk_cache(int iosysid, int iotype, PIO_Offset *sizep, PIO_Offset 
 {
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
 
     LOG((1, "PIOc_get_chunk_cache iosysid = %d iotype = %d", iosysid, iotype));
 
     /* Get the io system info. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
-        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__,
+                        "Getting cache chunk parameters failed. Invalid iosystem (iosysid=%d) provided", iosysid);
+    }
 
     /* Only netCDF-4 files can use this feature. */
     if (iotype != PIO_IOTYPE_NETCDF4P && iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, NULL, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, NULL, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Getting cache chunk parameters failed. Unable to set cache chunk parameters on a non-NetCDF4 iotype. The usage is only supported for NetCDF4 iotypes");
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -687,8 +736,8 @@ int PIOc_get_chunk_cache(int iosysid, int iotype, PIO_Offset *sizep, PIO_Offset 
             nelems_present, preemption_present);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_GET_CHUNK_CACHE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Getting cache chunk parameters failed. Unable to send asynchronous message, PIO_MSG_GET_CHUNK_CACHE, on iosystem (iosysid=%d)", iosysid);
         }
     }
 
@@ -765,16 +814,21 @@ int PIOc_set_var_chunk_cache(int ncid, int varid, PIO_Offset size, PIO_Offset ne
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Setting chunk cache for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Setting chunk cache for variable %s (varid=%d) failed on file %s (ncid=%d). This option is only available for variables in NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -784,8 +838,8 @@ int PIOc_set_var_chunk_cache(int ncid, int varid, PIO_Offset size, PIO_Offset ne
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid, varid, size, nelems, preemption);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_SET_VAR_CHUNK_CACHE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                            "Setting chunk cache for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_SET_VAR_CHUNK_CACHE on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 
@@ -835,18 +889,24 @@ int PIOc_get_var_chunk_cache(int ncid, int varid, PIO_Offset *sizep, PIO_Offset 
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;              /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
 
     LOG((1, "PIOc_get_var_chunk_cache ncid = %d varid = %d"));
 
     /* Get the file info. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Getting chunk cache for variable (varid=%d) failed on file (ncid=%d). Unable to query the internal file structure associated with the file", varid, ncid);
+    }
     ios = file->iosystem;
 
     /* Only netCDF-4 files can use this feature. */
     if (file->iotype != PIO_IOTYPE_NETCDF4P && file->iotype != PIO_IOTYPE_NETCDF4C)
-        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__);
+    {
+        return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                        "Getting chunk cache for variable %s (varid=%d) failed on file %s (ncid=%d). This option is only available for variables in NetCDF4 files", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid);
+    }
 
     /* If async is in use, and this is not an IO task, bcast the parameters. */
     if (ios->async)
@@ -860,8 +920,8 @@ int PIOc_get_var_chunk_cache(int ncid, int varid, PIO_Offset *sizep, PIO_Offset 
             nelems_present, preemption_present);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_GET_VAR_CHUNK_CACHE"));
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            return pio_err(ios, file, PIO_ENOTNC4, __FILE__, __LINE__,
+                            "Getting chunk cache for variable %s (varid=%d) failed on file %s (ncid=%d). Unable to send asynchronous message, PIO_MSG_GET_VAR_CHUNK_CACHE on iosystem (iosysid=%d)", pio_get_vname_from_file(file, varid), varid, pio_get_fname_from_file(file), ncid, ios->iosysid);
         }
     }
 

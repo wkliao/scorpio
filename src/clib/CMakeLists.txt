@@ -7,7 +7,7 @@ project (PIOC C CXX)
 #==============================================================================
 
 add_library (pioc topology.c pio_mpi_timer.c pio_timer.c pio_file.c
-  pioc_support.c pio_lists.c
+  pioc_support.c pio_lists.c pio_print.c
   pioc.c pioc_sc.c pio_spmd.c pio_rearrange.c pio_nc4.c bget.c
   pio_nc.c pio_put_nc.c pio_get_nc.c pio_getput_int.c pio_msg.c pio_varm.c
   pio_darray.c pio_darray_int.c pio_sdecomps_regex.cpp)
@@ -30,17 +30,21 @@ target_compile_definitions (pioc
   PUBLIC MPICH_SKIP_MPICXX)
 
 # Compiler-specific compiler options
-if ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "PGI")
+string (TOUPPER "${CMAKE_C_COMPILER_ID}" CMAKE_C_COMPILER_NAME)
+if (CMAKE_C_COMPILER_NAME STREQUAL "CRAY")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -h std=c99")
+elseif (CMAKE_C_COMPILER_NAME STREQUAL "PGI")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -c99")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
+else ()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-endif()
+endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+string (TOUPPER "${CMAKE_CXX_COMPILER_ID}" CMAKE_CXX_COMPILER_NAME)
+if (CMAKE_CXX_COMPILER_NAME STREQUAL "CRAY")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -h std=c++11")
+else ()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif ()
 
 #==============================================================================
 #  DEFINE THE INSTALL
@@ -97,9 +101,9 @@ endif ()
 
 #===== NetCDF-C =====
 if (WITH_NETCDF)
-  find_package (NetCDF "4.3.3" COMPONENTS C)
+  find_package (NetCDF ${NETCDF_C_MIN_VER_REQD} COMPONENTS C)
 endif ()
-if (NetCDF_C_FOUND)
+if (NetCDF_FOUND)
   target_include_directories (pioc
     PUBLIC ${NetCDF_C_INCLUDE_DIRS})
   target_compile_definitions (pioc
@@ -124,9 +128,9 @@ endif ()
 
 #===== PnetCDF-C =====
 if (WITH_PNETCDF)
-  find_package (PnetCDF "1.7.0" COMPONENTS C)
+  find_package (PnetCDF ${PNETCDF_MIN_VER_REQD} COMPONENTS C)
 endif ()
-if (PnetCDF_C_FOUND)
+if (PnetCDF_FOUND)
   target_include_directories (pioc
     PUBLIC ${PnetCDF_C_INCLUDE_DIRS})
   target_compile_definitions (pioc
@@ -149,7 +153,7 @@ endif ()
 
 #===== ADIOS-C =====
 if (WITH_ADIOS)
-  find_package (ADIOS "1.10.0")
+  find_package (ADIOS ${ADIOS_MIN_VER_REQD})
 endif ()
 if (ADIOS_FOUND)
   target_include_directories (pioc
@@ -207,3 +211,12 @@ CHECK_TYPE_SIZE("long long" SIZEOF_LONG_LONG)
 if (NOT ${SIZEOF_SIZE_T} EQUAL ${SIZEOF_LONG_LONG})
   message (FATAL_ERROR "size_t and long long must be the same size!")
 endif ()
+
+# Hack to circumvent IBM XL (16.1.1-3) internal compiler error by
+# disabling optimization for pioc_support.c
+cmake_host_system_information (RESULT FQDN_SITENAME QUERY FQDN)
+if (FQDN_SITENAME MATCHES "^.*summit[.]olcf")
+  if (CMAKE_C_COMPILER_NAME STREQUAL "XL")
+    set_source_files_properties(pioc_support.c PROPERTIES COMPILE_FLAGS "-qnoopt -qnosmp")
+  endif()
+endif()

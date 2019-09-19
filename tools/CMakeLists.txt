@@ -3,10 +3,10 @@
 ###-------------------------------------------------------------------------###
 
 if (WITH_ADIOS)
-  find_package (ADIOS "1.10.0")
-   if (ADIOS_FOUND)
-     ADD_SUBDIRECTORY(adios2pio-nm)
-   endif (ADIOS_FOUND)
+  find_package (ADIOS ${ADIOS_MIN_VER_REQD})
+  if (ADIOS_FOUND)
+    ADD_SUBDIRECTORY(adios2pio-nm)
+  endif (ADIOS_FOUND)
 endif(WITH_ADIOS)
 
 if (WITH_ADIOS2)

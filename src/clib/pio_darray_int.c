@@ -20,10 +20,7 @@
 extern PIO_Offset pio_buffer_size_limit;
 
 /* Initial size of compute buffer. */
-bufsize pio_cnbuffer_limit = 33554432;
-
-/* Global buffer pool pointer. */
-extern void *CN_bpool;
+bufsize pio_cnbuffer_limit = 0;
 
 /* Maximum buffer usage. */
 extern PIO_Offset maxusage;
@@ -32,11 +29,14 @@ extern PIO_Offset maxusage;
 void bpool_free(void *p)
 {
   free(p);
-  if(p == CN_bpool){
-    CN_bpool = NULL;
-  }
 }
 
+/* Handler for allocating more memory for the bget buffer pool */
+void *bpool_alloc(bufsize sz)
+{
+  void *p = malloc((size_t ) sz);
+  return p;
+}
 
 /**
  * Initialize the compute buffer to size pio_cnbuffer_limit.
@@ -52,21 +52,15 @@ void bpool_free(void *p)
  */
 int compute_buffer_init(iosystem_desc_t *ios)
 {
+    /* Default block size increment = 32 MB */
+    const bufsize DEFAULT_BUF_INC_SZ = (bufsize ) (32L * 1024L * 1024L);
+    bufsize bpool_block_inc_sz = (bufsize )((pio_buffer_size_limit > 0) ? pio_buffer_size_limit : DEFAULT_BUF_INC_SZ);
+    LOG((2, "Initializing buffer pool with block increment = %lld bytes", (long long int) bpool_block_inc_sz));
+    pio_cnbuffer_limit = bpool_block_inc_sz;
 #if PIO_USE_MALLOC
     bpool(NULL, pio_cnbuffer_limit);
 #else
-
-    if (!CN_bpool)
-    {
-        if (!(CN_bpool = malloc(pio_cnbuffer_limit)))
-            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
-
-        bpool(CN_bpool, pio_cnbuffer_limit);
-        if (!CN_bpool)
-            return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__);
-
-        bectl(NULL, malloc, bpool_free, pio_cnbuffer_limit);
-    }
+    bectl(NULL, bpool_alloc, bpool_free, pio_cnbuffer_limit);
 #endif /* PIO_USE_MALLOC */
     LOG((2, "compute_buffer_init complete"));
 
@@ -202,10 +196,9 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
     if (ios->ioproc)
     {
         int rrcnt = 0; /* Number of subarray requests (pnetcdf only). */
-        void *bufptr;
+        void *bufptr = NULL;
         size_t start[fndims];
         size_t count[fndims];
-        int ndims = iodesc->ndims;
         PIO_Offset *startlist[num_regions]; /* Array of start arrays for ncmpi_iput_varn(). */
         PIO_Offset *countlist[num_regions]; /* Array of count  arrays for ncmpi_iput_varn(). */
 
@@ -216,7 +209,10 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
         {
             /* Fill the start/count arrays. */
             if ((ierr = find_start_count(iodesc->ndims, iodesc->dimlen, fndims, vdesc, region, start, count)))
-                return pio_err(ios, file, ierr, __FILE__, __LINE__);            
+            {
+                return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                                "Writing variables (number of variables = %d) to file (%s, ncid=%d) failed. Internal error, finding start/count for the I/O regions written out from the I/O process failed", nvars, pio_get_fname_from_file(file), file->pio_ncid);
+            }
 
             /* IO tasks will run the netCDF/pnetcdf functions to write the data. */
             switch (file->iotype)
@@ -283,7 +279,8 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
                             ierr = nc_put_vara_string(file->fh, varids[nv], start, count, (const char**)bufptr);
                             break;
                         default:
-                            return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__);
+                            return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__,
+                                            "Writing variables (number of variables = %d) to file (%s, ncid=%d) using PIO_IOTYPE_NETCDF4P iotype failed. Unsupported variable data type (type=%d)", nvars, pio_get_fname_from_file(file), file->pio_ncid, iodesc->piotype);
                         }
                     }
                 }
@@ -305,9 +302,13 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
                     /* Allocate storage for start/count arrays for
                      * this region. */
                     if (!(startlist[rrcnt] = calloc(fndims, sizeof(PIO_Offset))))
-                        return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__);
+                    {
+                        return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,
+                                          "Writing variables (number of variables = %d) to file (%s, ncid=%d) using PIO_IOTYPE_PNETCDF iotype failed. Out of memory allocating buffer (%lld bytes) for array to store starts of I/O regions written out to file", nvars, pio_get_fname_from_file(file), file->pio_ncid, (long long int) (fndims * sizeof(PIO_Offset)));
+                    }
                     if (!(countlist[rrcnt] = calloc(fndims, sizeof(PIO_Offset))))
-                        return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__);
+                        return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,
+                                          "Writing variables (number of variables = %d) to file (%s, ncid=%d) using PIO_IOTYPE_PNETCDF iotype failed. Out of memory allocating buffer (%lld bytes) for array to store counts of I/O regions written out to file", nvars, pio_get_fname_from_file(file), file->pio_ncid, (long long int) (fndims * sizeof(PIO_Offset)));
 
                     /* Copy the start/count arrays for this region. */
                     for (int i = 0; i < fndims; i++)
@@ -342,7 +343,8 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
                         {
                             if (!(vdesc->request = realloc(vdesc->request, sizeof(int) *
                                                            (vdesc->nreqs + PIO_REQUEST_ALLOC_CHUNK))))
-                                return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__);
+                                return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,
+                                          "Writing variables (number of variables = %d) to file (%s, ncid=%d) using PIO_IOTYPE_PNETCDF iotype failed. Out of memory reallocing buffer (%lld bytes) for array to store pnetcdf request handles", nvars, pio_get_fname_from_file(file), file->pio_ncid, (long long int) (sizeof(int) * (vdesc->nreqs + PIO_REQUEST_ALLOC_CHUNK)));
 
                             for (int i = vdesc->nreqs; i < vdesc->nreqs + PIO_REQUEST_ALLOC_CHUNK; i++)
                                 vdesc->request[i] = NC_REQ_NULL;
@@ -371,7 +373,8 @@ int write_darray_multi_par(file_desc_t *file, int nvars, int fndims, const int *
                 break;
 #endif
             default:
-                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
+                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__,
+                                "Writing variables (number of variables = %d) to file (%s, ncid=%d) failed. Invalid iotype (%d) specified", nvars, pio_get_fname_from_file(file), file->pio_ncid, file->iotype);
             }
 
             /* Go to next region. */
@@ -726,7 +729,8 @@ int recv_and_write_data(file_desc_t *file, const int *varids, const int *frame,
                         break;
 #endif /* _NETCDF4 */
                     default:
-                        return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__);
+                        return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__,
+                                        "Writing multiple variables (number of variables = %d) to file (%s, ncid=%d) using serial I/O failed. Unsupported variable type (type = %d)", nvars, pio_get_fname_from_file(file), file->pio_ncid, iodesc->piotype);
                     }
                     if(ierr != PIO_NOERR){
                         LOG((1, "nc_put_vara* failed, ierr = %d", ierr));
@@ -817,7 +821,10 @@ int write_darray_multi_serial(file_desc_t *file, int nvars, int fndims, const in
          * start and count arrays for all regions. */
         if ((ierr = find_all_start_count(region, num_regions, fndims, iodesc->ndims, iodesc->dimlen, vdesc,
                                          tmp_start, tmp_count)))
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+        {
+            return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                            "Writing multiple variables (number of variables = %d) to file (%s, ncid=%d) using serial I/O failed. Internal error finding start/count of I/O regions to write to file.", nvars, pio_get_fname_from_file(file), file->pio_ncid);
+        }
 
         /* Tasks other than 0 will send their data to task 0. */
         if (ios->io_rank > 0)
@@ -826,7 +833,10 @@ int write_darray_multi_serial(file_desc_t *file, int nvars, int fndims, const in
              * to task 0. */
             if ((ierr = send_all_start_count(ios, iodesc, llen, num_regions, nvars, fndims,
                                              tmp_start, tmp_count, iobuf)))
-                return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            {
+                return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                                "Writing multiple variables (number of variables = %d) to file (%s, ncid=%d) using serial I/O failed. Internal error sending start/count of I/O regions to write to file to root process.", nvars, pio_get_fname_from_file(file), file->pio_ncid);
+            }
         }
         else
         {
@@ -834,13 +844,17 @@ int write_darray_multi_serial(file_desc_t *file, int nvars, int fndims, const in
 
             if ((ierr = recv_and_write_data(file, varids, frame, iodesc, llen, num_regions, nvars, fndims,
                                             tmp_start, tmp_count, iobuf)))
-                return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            {
+                return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                                "Writing multiple variables (number of variables = %d) to file (%s, ncid=%d) using serial I/O failed. Internal error receiving start/count of I/O regions to write to file from non-root processes.", nvars, pio_get_fname_from_file(file), file->pio_ncid);
+            }
         }
     }
     ierr = check_netcdf(ios, file, ierr, __FILE__, __LINE__);
     if(ierr != PIO_NOERR){
         LOG((1, "nc_put_vara* or sending data to root failed, ierr = %d", ierr));
-        return ierr;
+        return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                        "Writing multiple variables (number of variables = %d) to file (%s, ncid=%d) using serial I/O failed. Internal error in I/O processes finding/sending/receiving start/count of I/O regions to write to file", nvars, pio_get_fname_from_file(file), file->pio_ncid);
     }
 
 #ifdef TIMING
@@ -1026,7 +1040,8 @@ int pio_read_darray_nc(file_desc_t *file, int fndims, io_desc_t *iodesc, int vid
                     ierr = nc_get_vara_string(file->fh, vid, start, count, (char**)bufptr);
                     break;
                 default:
-                    return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__);
+                    return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__,
+                                    "Reading variable (%s, varid=%d) from file (%s, ncid=%d) failed with iotype=PIO_IOTYPE_NETCDF4P. Unsupported variable type (type=%d)", pio_get_vname_from_file(file, vid), vid, pio_get_fname_from_file(file), file->pio_ncid, file->iotype);
                 }
                 break;
 #endif
@@ -1068,7 +1083,8 @@ int pio_read_darray_nc(file_desc_t *file, int fndims, io_desc_t *iodesc, int vid
             break;
 #endif
             default:
-                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
+                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__,
+                                "Reading variable (%s, varid=%d) from file (%s, ncid=%d) failed with iotype=PIO_IOTYPE_PNETCDF. Unsupported variable type (type=%d)", pio_get_vname_from_file(file, vid), vid, pio_get_fname_from_file(file), file->pio_ncid, file->iotype);
             }
 
             /* Check return code. */
@@ -1084,7 +1100,8 @@ int pio_read_darray_nc(file_desc_t *file, int fndims, io_desc_t *iodesc, int vid
     ierr = check_netcdf(NULL, file, ierr, __FILE__,__LINE__);
     if(ierr != PIO_NOERR){
         LOG((1, "nc*_get_var* failed, ierr = %d", ierr));
-        return ierr;
+        return pio_err(NULL, file, ierr, __FILE__, __LINE__,
+                        "Reading variable (%s, varid=%d) from file (%s, ncid=%d) failed with iotype=%s. The underlying I/O library (%s) call, nc*_get_var*, failed.", pio_get_vname_from_file(file, vid), vid, pio_get_fname_from_file(file), file->pio_ncid, pio_iotype_to_string(file->iotype), (file->iotype == PIO_IOTYPE_NETCDF4P) ? "NetCDF" : "PnetCDF");
     }
 
 #ifdef TIMING
@@ -1369,7 +1386,8 @@ int pio_read_darray_nc_serial(file_desc_t *file, int fndims, io_desc_t *iodesc, 
                         break;
 #endif /* _NETCDF4 */
                     default:
-                        return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__);
+                        return pio_err(ios, file, PIO_EBADTYPE, __FILE__, __LINE__,
+                                        "Reading variable (%s, varid=%d) from file (%s, ncid=%d) with serial I/O failed. Unsupported variable type (iotype=%d)", pio_get_vname_from_file(file, vid), vid, pio_get_fname_from_file(file), file->pio_ncid, iodesc->piotype);
                     }
 
                     /* Check error code of netCDF call. */
@@ -1395,7 +1413,8 @@ int pio_read_darray_nc_serial(file_desc_t *file, int fndims, io_desc_t *iodesc, 
     ierr = check_netcdf(NULL, file, ierr, __FILE__, __LINE__);
     if(ierr != PIO_NOERR){
         LOG((1, "nc*_get_var* failed, ierr = %d", ierr));
-        return ierr;
+        return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                        "Reading variable (%s, varid=%d) from file (%s, ncid=%d) with serial I/O failed. The underlying I/O library call to write data failed on root I/O process", pio_get_vname_from_file(file, vid), vid, pio_get_fname_from_file(file), file->pio_ncid);
     }
 
 #ifdef TIMING
@@ -1437,7 +1456,10 @@ int flush_output_buffer(file_desc_t *file, bool force, PIO_Offset addsize)
     if ((ierr = ncmpi_inq_buffer_usage(file->fh, &usage)))
 	/* allow the buffer to be undefined */
 	if (ierr != NC_ENULLABUF)
-	    return pio_err(NULL, file, PIO_EBADID, __FILE__, __LINE__);
+        {
+            return pio_err(NULL, file, PIO_EBADID, __FILE__, __LINE__,
+                              "Internal error flushing data written (ensuring/waiting_for all pending data is written to disk) to file (%s, ncid=%d). Unable to query the PnetCDF library buffer usage", file->fname, file->pio_ncid);
+        }
 
     /* If we are not forcing a flush, spread the usage to all IO
      * tasks. */
@@ -1486,7 +1508,8 @@ int flush_output_buffer(file_desc_t *file, bool force, PIO_Offset addsize)
         if(!mtimer_is_valid(tmp_mt))
         {
             LOG((1, "Unable to create a temp timer"));
-            return pio_err(file->iosystem, file, PIO_EINTERNAL, __FILE__, __LINE__);
+            return pio_err(file->iosystem, file, PIO_EINTERNAL, __FILE__, __LINE__,
+                              "Internal error flushing data written (ensuring/waiting_for all pending data is written to disk) to file (%s, ncid=%d). Unable to create a micro timer to measure wait/flush time", pio_get_fname_from_file(file), file->pio_ncid);
         }
 
         ierr = mtimer_start(tmp_mt);
@@ -1659,65 +1682,38 @@ void cn_buffer_report(iosystem_desc_t *ios, bool collective)
 {
     int mpierr = MPI_SUCCESS;  /* Return code from MPI functions. */
 
-    LOG((2, "cn_buffer_report ios->iossysid = %d collective = %d CN_bpool = %d",
-         ios->iosysid, collective, CN_bpool));
-    if (CN_bpool)
-    {
-        long bget_stats[5];
-        long bget_mins[5];
-        long bget_maxs[5];
+    LOG((2, "cn_buffer_report ios->iossysid = %d collective = %d",
+         ios->iosysid, collective));
+    long bget_stats[5];
+    long bget_mins[5];
+    long bget_maxs[5];
 
-        bstats(bget_stats, bget_stats+1,bget_stats+2,bget_stats+3,bget_stats+4);
-        if (collective)
+    bstats(bget_stats, bget_stats+1,bget_stats+2,bget_stats+3,bget_stats+4);
+    if (collective)
+    {
+        LOG((3, "cn_buffer_report calling MPI_Reduce ios->comp_comm = %d", ios->comp_comm));
+        if ((mpierr = MPI_Reduce(bget_stats, bget_maxs, 5, MPI_LONG, MPI_MAX, 0, ios->comp_comm)))
+            check_mpi(NULL, NULL, mpierr, __FILE__, __LINE__);
+        LOG((3, "cn_buffer_report calling MPI_Reduce"));
+        if ((mpierr = MPI_Reduce(bget_stats, bget_mins, 5, MPI_LONG, MPI_MIN, 0, ios->comp_comm)))
+            check_mpi(NULL, NULL, mpierr, __FILE__, __LINE__);
+        if (ios->compmaster == MPI_ROOT)
         {
-            LOG((3, "cn_buffer_report calling MPI_Reduce ios->comp_comm = %d", ios->comp_comm));
-            if ((mpierr = MPI_Reduce(bget_stats, bget_maxs, 5, MPI_LONG, MPI_MAX, 0, ios->comp_comm)))
-                check_mpi(NULL, NULL, mpierr, __FILE__, __LINE__);
-            LOG((3, "cn_buffer_report calling MPI_Reduce"));
-            if ((mpierr = MPI_Reduce(bget_stats, bget_mins, 5, MPI_LONG, MPI_MIN, 0, ios->comp_comm)))
-                check_mpi(NULL, NULL, mpierr, __FILE__, __LINE__);
-            if (ios->compmaster == MPI_ROOT)
-            {
-                LOG((1, "Currently allocated buffer space %ld %ld", bget_mins[0], bget_maxs[0]));
-                LOG((1, "Currently available buffer space %ld %ld", bget_mins[1], bget_maxs[1]));
-                LOG((1, "Current largest free block %ld %ld", bget_mins[2], bget_maxs[2]));
-                LOG((1, "Number of successful bget calls %ld %ld", bget_mins[3], bget_maxs[3]));
-                LOG((1, "Number of successful brel calls  %ld %ld", bget_mins[4], bget_maxs[4]));
-            }
-        }
-        else
-        {
-            LOG((1, "Currently allocated buffer space %ld", bget_stats[0]));
-            LOG((1, "Currently available buffer space %ld", bget_stats[1]));
-            LOG((1, "Current largest free block %ld", bget_stats[2]));
-            LOG((1, "Number of successful bget calls %ld", bget_stats[3]));
-            LOG((1, "Number of successful brel calls  %ld", bget_stats[4]));
+            LOG((1, "Currently allocated buffer space %ld %ld", bget_mins[0], bget_maxs[0]));
+            LOG((1, "Currently available buffer space %ld %ld", bget_mins[1], bget_maxs[1]));
+            LOG((1, "Current largest free block %ld %ld", bget_mins[2], bget_maxs[2]));
+            LOG((1, "Number of successful bget calls %ld %ld", bget_mins[3], bget_maxs[3]));
+            LOG((1, "Number of successful brel calls  %ld %ld", bget_mins[4], bget_maxs[4]));
         }
     }
-}
-
-/**
- * Free the buffer pool. If malloc is used (that is, PIO_USE_MALLOC is
- * non zero), this function does nothing.
- *
- * @param ios pointer to the IO system structure.
- * @ingroup PIO_write_darray
- * @author Jim Edwards
- */
-void free_cn_buffer_pool(iosystem_desc_t *ios)
-{
-#if !PIO_USE_MALLOC
-    LOG((2, "free_cn_buffer_pool CN_bpool = %d", CN_bpool));
-    /* Note: it is possible that CN_bpool has been freed and set to NULL by bpool_free() */
-    if (CN_bpool)
+    else
     {
-        cn_buffer_report(ios, false);
-        bpoolrelease(CN_bpool);
-        LOG((2, "free_cn_buffer_pool done!"));
-        free(CN_bpool);
-        CN_bpool = NULL;
+        LOG((1, "Currently allocated buffer space %ld", bget_stats[0]));
+        LOG((1, "Currently available buffer space %ld", bget_stats[1]));
+        LOG((1, "Current largest free block %ld", bget_stats[2]));
+        LOG((1, "Number of successful bget calls %ld", bget_stats[3]));
+        LOG((1, "Number of successful brel calls  %ld", bget_stats[4]));
     }
-#endif /* !PIO_USE_MALLOC */
 }
 
 /**
@@ -1743,7 +1739,10 @@ int flush_buffer(int ncid, wmulti_buffer *wmb, bool flushtodisk)
 
     /* Get the file info (to get error handler). */
     if ((ret = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ret, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ret, __FILE__, __LINE__,
+                        "Internal error flushing data cached in a write multi buffer to %s. Invalid file id (ncid=%d) provided", (flushtodisk) ? "disk" : "I/O processes", ncid);
+    }
 
     LOG((1, "flush_buffer ncid = %d flushtodisk = %d", ncid, flushtodisk));
 
@@ -1777,7 +1776,10 @@ int flush_buffer(int ncid, wmulti_buffer *wmb, bool flushtodisk)
         wmb->frame = NULL;
 
         if (ret)
-            return pio_err(NULL, file, ret, __FILE__, __LINE__);
+        {
+            return pio_err(NULL, file, ret, __FILE__, __LINE__,
+                        "Internal error flushing data cached in a write multi buffer to file (%s, ncid=%d). Error while flushing data to %s. Internal error flushing arrays (%d) in the write multi buffer", pio_get_fname_from_file(file), file->pio_ncid, (flushtodisk) ? "disk" : "I/O processes", wmb->num_arrays);
+        }
     }
 
 #ifdef TIMING

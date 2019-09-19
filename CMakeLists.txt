@@ -1,11 +1,11 @@
 cmake_minimum_required (VERSION 2.8.12)
-project (PIO C CXX Fortran)
+project (SCORPIO C CXX Fortran)
 #cmake_policy(VERSION 3.5.2)
 
 # The project version number.
-set(VERSION_MAJOR   2   CACHE STRING "Project major version number.")
+set(VERSION_MAJOR   1   CACHE STRING "Project major version number.")
 set(VERSION_MINOR   0   CACHE STRING "Project minor version number.")
-set(VERSION_PATCH  28   CACHE STRING "Project patch version number.")
+set(VERSION_PATCH   1   CACHE STRING "Project patch version number.")
 mark_as_advanced(VERSION_MAJOR VERSION_MINOR VERSION_PATCH)
 
 #==============================================================================
@@ -17,10 +17,10 @@ option (PIO_ENABLE_FORTRAN   "Enable the Fortran library builds"            ON)
 option (PIO_ENABLE_TIMING    "Enable the use of the GPTL timing library"    ON)
 option (PIO_ENABLE_INTERNAL_TIMING    "Gather and print GPTL timing stats"  OFF)
 option (PIO_ENABLE_LOGGING   "Enable debug logging (large output possible)" OFF)
-option (PIO_ENABLE_DOC       "Enable building PIO documentation"            ON)
+option (PIO_ENABLE_DOC       "Enable building SCORPIO documentation"            ON)
 option (PIO_ENABLE_COVERAGE  "Enable code coverage"                         OFF)
-option (PIO_ENABLE_EXAMPLES  "Enable PIO examples"                          ON)
-option (PIO_INTERNAL_DOC     "Enable PIO developer documentation"           OFF)
+option (PIO_ENABLE_EXAMPLES  "Enable SCORPIO examples"                          ON)
+option (PIO_INTERNAL_DOC     "Enable SCORPIO developer documentation"           OFF)
 option (PIO_TEST_BIG_ENDIAN  "Enable test to see if machine is big endian"  ON)
 option (PIO_USE_MPIIO        "Enable support for MPI-IO auto detect"        ON)
 option (PIO_USE_MPISERIAL    "Enable mpi-serial support (instead of MPI)"   OFF)
@@ -83,25 +83,11 @@ endif()
 list (APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 #===== External modules =====
-if (NOT DEFINED USER_CMAKE_MODULE_PATH)
-  message (STATUS "Importing CMake_Fortran_utils")
-  execute_process(
-    COMMAND git clone https://github.com/CESM-Development/CMake_Fortran_utils
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    OUTPUT_QUIET
-    ERROR_QUIET)
-  find_path (USER_CMAKE_MODULE_PATH
-    NAMES mpiexec.cmake
-    HINTS ${CMAKE_BINARY_DIR}/CMake_Fortran_utils)
-  if (USER_CMAKE_MODULE_PATH)
-    message (STATUS "Importing CMake_Fortran_utils - success")
-  else ()
-    message (FATAL_ERROR "Failed to import CMake_Fortran_utils")
-  endif ()
+if (DEFINED USER_CMAKE_MODULE_PATH)
+  set (USER_CMAKE_MODULE_PATH ${USER_CMAKE_MODULE_PATH}
+    CACHE STRING "Location of the CMake_Fortran_utils")
+  list (APPEND CMAKE_MODULE_PATH ${USER_CMAKE_MODULE_PATH})
 endif ()
-set (USER_CMAKE_MODULE_PATH ${USER_CMAKE_MODULE_PATH}
-  CACHE STRING "Location of the CMake_Fortran_utils")
-list (APPEND CMAKE_MODULE_PATH ${USER_CMAKE_MODULE_PATH})
 
 INCLUDE (CheckTypeSize)
 
@@ -128,7 +114,7 @@ option (PIO_ENABLE_TESTS  "Enable the testing builds"                           
 option (PIO_ENABLE_LARGE_TESTS  "Enable large (file, processes) tests"         OFF)
 option (PIO_VALGRIND_CHECK  "Enable memory leak check using valgrind"           OFF)
 include(CMakeDependentOption)
-cmake_dependent_option (PIO_TEST_CLOSE_OPEN_FOR_SYNC  "PIO fortran tests will close+open for sync" ON "WITH_ADIOS2" OFF)
+cmake_dependent_option (PIO_TEST_CLOSE_OPEN_FOR_SYNC  "SCORPIO fortran tests will close+open for sync" ON "WITH_ADIOS2" OFF)
 
 #==============================================================================
 #  BACKWARDS COMPATIBILITY
@@ -184,9 +170,18 @@ configure_file (
 # Regex is only available in GCC 4.9+ (> 4.8)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if (NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.8)
-    message (FATAL_ERROR "PIO requires GCC 4.9+ to build correctly")
+    message (FATAL_ERROR "SCORPIO requires GCC 4.9+ to build correctly")
   endif()
 endif ()
+
+#==============================================================================
+#  MIN VERSION OF LIBRARIES REQD
+#==============================================================================
+set (MPE_MIN_VER_REQD "2.4.8")
+set (NETCDF_C_MIN_VER_REQD "4.3.3")
+set (NETCDF_FORTRAN_MIN_VER_REQD "4.3.3")
+set (PNETCDF_MIN_VER_REQD "1.8.1")
+set (ADIOS_MIN_VER_REQD "1.10.0")
 
 #==============================================================================
 #  SET CODE COVERAGE COMPILER FLAGS

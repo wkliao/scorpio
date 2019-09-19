@@ -10,16 +10,13 @@ INCLUDE_DIRECTORIES(${PIO_INCLUDE_DIRS})
 LINK_DIRECTORIES(${PIO_LIB_DIR})
 
 # Compiler-specific compiler options
+string (TOUPPER "${CMAKE_CXX_COMPILER_ID}" CMAKE_CXX_COMPILER_NAME)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
-if ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+if (CMAKE_CXX_COMPILER_NAME STREQUAL "CRAY")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -h std=c++11")
+else ()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "PGI")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif()
+endif ()
 
 SET(SRC argparser.cxx adios2pio-nm.cxx)
 add_library(adios2pio-nm-lib adios2pio-nm-lib.cxx)
@@ -53,7 +50,7 @@ install (TARGETS adios2pio-nm.exe DESTINATION bin)
 
 #===== NetCDF-C =====
 if (WITH_NETCDF)
-find_package (NetCDF "4.3.3" COMPONENTS C)
+find_package (NetCDF ${NETCDF_C_MIN_VER_REQD} COMPONENTS C)
 endif ()
 if (NetCDF_C_FOUND)
   target_include_directories (adios2pio-nm-lib
@@ -80,7 +77,7 @@ endif ()
 
 #===== PnetCDF-C =====
 if (WITH_PNETCDF)
-  find_package (PnetCDF "1.7.0" COMPONENTS C)
+  find_package (PnetCDF ${PNETCDF_MIN_VER_REQD} COMPONENTS C)
 endif ()
 if (PnetCDF_C_FOUND)
   target_include_directories (adios2pio-nm-lib
@@ -105,7 +102,7 @@ endif ()
 
 #===== ADIOS-C =====
 if (WITH_ADIOS)
-  find_package (ADIOS "1.10.0")
+  find_package (ADIOS ${ADIOS_MIN_VER_REQD})
 endif ()
 if (ADIOS_FOUND)
   target_include_directories (adios2pio-nm-lib

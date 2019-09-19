@@ -15,7 +15,7 @@ static int needs_to_write_decomp(file_desc_t *file, int ioid)
 static int register_decomp(file_desc_t *file, int ioid)
 {
     if (file->n_written_ioids >= ADIOS_PIO_MAX_DECOMPS)
-        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__);
+        return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,"ADIOS_PIO_MAX_DECOMPS exceeded: %d",file->n_written_ioids);
 
     file->written_ioids[file->n_written_ioids] = ioid;
     ++file->n_written_ioids;
@@ -178,7 +178,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid, io_de
 {
     int ierr = PIO_NOERR;
     if (varid < 0 || varid >= file->num_vars)
-        return pio_err(file->iosystem, file, PIO_EBADID, __FILE__, __LINE__);
+        return pio_err(file->iosystem, file, PIO_EBADID, __FILE__, __LINE__,"varid is wrong: %d %d",varid,file->num_vars);
 
     adios_var_desc_t * av = &(file->adios_vars[varid]);
 

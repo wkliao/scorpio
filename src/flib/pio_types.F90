@@ -133,7 +133,7 @@ module pio_types
 !! @public
 !! @defgroup PIO_error_method error_methods
 !! @details
-!! The three types of error handling methods are:
+!! The four types of error handling methods are:
 !!  - PIO_INTERNAL_ERROR  : abort on error from any task
 !!  - PIO_BCAST_ERROR     : broadcast an error from io_rank 0 to all tasks in comm
 !!  - PIO_REDUCE_ERROR     : Reduce error across all tasks in comm
@@ -250,7 +250,7 @@ module pio_types
    integer, public, parameter :: PIO_NOWRITE = 21
    integer, public, parameter :: PIO_64BIT_OFFSET = 0
    integer, public, parameter :: PIO_64BIT_DATA = 0
-   integer, public, parameter :: PIO_FILL_CHAR = achar(0);
+   integer, public, parameter :: PIO_FILL_CHAR = 0;
    integer, public, parameter :: PIO_FILL_INT = -2147483647;
    real, public, parameter :: PIO_FILL_FLOAT =  9.9692099683868690e+36;
    double precision, public, parameter :: PIO_FILL_DOUBLE = 9.9692099683868690e+36;

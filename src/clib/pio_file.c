@@ -148,7 +148,10 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 
     /* Get the IO system info from the id. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
-        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__,
+                        "Unable to create file (%s, mode = %d, iotype=%s). Invalid arguments provided, invalid iosystem id (iosysid = %d)", (filename) ? filename : "NULL", mode, (!iotype) ? "UNKNOWN" : pio_iotype_to_string(*iotype), iosysid);
+    }
 
     /* Create the file. */
     if ((ret = PIOc_createfile_int(iosysid, ncidp, iotype, filename, mode)))
@@ -162,7 +165,8 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
         GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
 #endif
 #endif
-        return pio_err(ios, NULL, ret, __FILE__, __LINE__);
+        return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                        "Unable to create file (%s, mode = %d, iotype=%s) on iosystem (iosystem id = %d). Internal error creating the file", (filename) ? filename : "NULL", mode, (!iotype) ? "UNKNOWN" : pio_iotype_to_string(*iotype), iosysid);
     }
 
     /* Run this on all tasks if async is not in use, but only on
@@ -173,7 +177,10 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     {
         /* Set the fill mode to NOFILL. */
         if ((ret = PIOc_set_fill(*ncidp, NC_NOFILL, NULL)))
-            return ret;
+        {
+            return pio_err(ios, NULL, ret, __FILE__, __LINE__,
+                            "Unable to create file (%s, mode = %d, iotype=%s) on iosystem (iosystem id = %d). Setting fill mode to NOFILL failed.", (filename) ? filename : "NULL", mode, (!iotype) ? "UNKNOWN" : pio_iotype_to_string(*iotype), iosysid);
+        }
     }
 
 #ifdef TIMING
@@ -235,6 +242,127 @@ int PIOc_create(int iosysid, const char *filename, int cmode, int *ncidp)
     return PIOc_createfile_int(iosysid, ncidp, &iotype, filename, cmode);
 }
 
+/* Internal helper function to perform sync operations
+ * ncid : the ncid of the file to sync
+ * Returns PIO_NOERR for success, error code otherwise
+ */
+static int sync_file(int ncid)
+{
+    iosystem_desc_t *ios;  /* Pointer to io system information. */
+    file_desc_t *file;     /* Pointer to file information. */
+    int ierr = PIO_NOERR;  /* Return code from function calls. */
+
+    LOG((1, "sync_file ncid = %d", ncid));
+
+    /* Get the file info from the ncid. */
+    if ((ierr = pio_get_file(ncid, &file)))
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Syncing file (ncid=%d) failed. Invalid file id. Unable to find internal structure associated with the file id", ncid);
+    }
+
+#if defined(_ADIOS) || defined(_ADIOS2)
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+        return PIO_NOERR;
+#endif
+
+    ios = file->iosystem;
+
+    /* Flush data buffers on computational tasks. */
+    if (!ios->async || !ios->ioproc)
+    {
+        if (file->mode & PIO_WRITE)
+        {
+            wmulti_buffer *wmb, *twmb;
+
+            LOG((3, "sync_file checking buffers"));
+            wmb = &file->buffer;
+            while (wmb)
+            {
+                /* If there are any data arrays waiting in the
+                 * multibuffer, flush it to IO tasks. */
+                if (wmb->num_arrays > 0)
+                    flush_buffer(ncid, wmb, false);
+                twmb = wmb;
+                wmb = wmb->next;
+                if (twmb == &file->buffer)
+                {
+                    twmb->ioid = -1;
+                    twmb->next = NULL;
+                }
+                else
+                {
+                    free(twmb);
+                }
+            }
+        }
+    }
+
+    /* If async is in use, send message to IO master tasks. */
+    if (ios->async)
+    {
+        int msg = PIO_MSG_SYNC;
+
+        PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid);
+        if (ierr != PIO_NOERR)
+        {
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                            "Syncing file %s (ncid=%d) failed. Unable to send asynchronous message, PIO_MSG_SYNC, on iosystem (iosysid=%d)", pio_get_fname_from_file(file), ncid, ios->iosysid);
+        }
+    }
+
+    /* Call the sync function on IO tasks.
+
+       We choose not to call ncmpi_sync() for PIO_IOTYPE_PNETCDF,
+       as it has been confirmed to have a very high cost on some
+       systems. ncmpi_sync() itself does nothing but simply calls
+       MPI_File_sync(), which usually incurs a huge performance
+       penalty by calling POSIX sync internally. It is designed
+       to ensure the data is safely stored on the disk hardware,
+       before the function returns. People use it for extremely
+       cautious behavior only.
+     */
+    if (file->mode & PIO_WRITE)
+    {
+        if (ios->ioproc)
+        {
+            switch (file->iotype)
+            {
+#ifdef _NETCDF4
+            case PIO_IOTYPE_NETCDF4P:
+                ierr = nc_sync(file->fh);
+                break;
+            case PIO_IOTYPE_NETCDF4C:
+#endif
+#ifdef _NETCDF
+            case PIO_IOTYPE_NETCDF:
+                if (ios->io_rank == 0)
+                    ierr = nc_sync(file->fh);
+                break;
+#endif
+#ifdef _PNETCDF
+            case PIO_IOTYPE_PNETCDF:
+                flush_output_buffer(file, true, 0);
+                break;
+#endif
+            default:
+                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__,
+                                "Syncing file %s (ncid=%d) failed. Invalid/Unsupported iotype (%s:%d) provided", pio_get_fname_from_file(file), ncid, pio_iotype_to_string(file->iotype), file->iotype);
+            }
+        }
+        LOG((2, "sync_file ierr = %d", ierr));
+    }
+
+    ierr = check_netcdf(ios, NULL, ierr, __FILE__, __LINE__);
+    if (ierr != PIO_NOERR)
+    {
+        LOG((1, "nc*_sync failed, ierr = %d", ierr));
+        return ierr;
+    }
+
+    return PIO_NOERR;
+}
+
 /**
  * Close a file previously opened with PIO.
  *
@@ -260,7 +388,10 @@ int PIOc_closefile(int ncid)
 
     /* Find the info about this file. */
     if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__,
+                        "Closing file failed. Invalid file id (ncid=%d) provided", ncid);
+    }
     ios = file->iosystem;
 
 #if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
@@ -268,13 +399,17 @@ int PIOc_closefile(int ncid)
     if (file->iotype==PIO_IOTYPE_ADIOS)
         GPTLstart("PIO:PIOc_closefile_adios"); /* TAHSIN: start */
 #endif
+#endif 
+#ifdef TIMING
+    if (file->mode & PIO_WRITE)
+        GPTLstart("PIO:PIOc_closefile_write_mode");
 #endif
 
     /* Sync changes before closing on all tasks if async is not in
      * use, but only on non-IO tasks if async is in use. */
     if (!ios->async || !ios->ioproc)
         if (file->mode & PIO_WRITE)
-            PIOc_sync(ncid);
+            sync_file(ncid);
 
     /* If async is in use and this is a comp tasks, then the compmaster
      * sends a msg to the pio_msg_handler running on the IO master and
@@ -287,8 +422,8 @@ int PIOc_closefile(int ncid)
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_CLOSE_FILE"));
-            return pio_err(ios, file, ierr, __FILE__, __LINE__);
+            return pio_err(ios, file, ierr, __FILE__, __LINE__,
+                            "Closing file (%s, ncid=%d) failed. Error sending async msg PIO_MSG_CLOSE_FILE", pio_get_fname_from_file(file), ncid);
         }
     }
 
@@ -454,14 +589,16 @@ int PIOc_closefile(int ncid)
             break;
 #endif
         default:
-            return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
+            return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__,
+                            "Closing file (%s, ncid=%d) failed. Unsupported iotype (%d) specified", pio_get_fname_from_file(file), file->pio_ncid, file->iotype);
         }
     }
 
     ierr = check_netcdf(NULL, file, ierr, __FILE__, __LINE__);
     if(ierr != PIO_NOERR){
         LOG((1, "nc*_close failed, ierr = %d", ierr));
-        return ierr;
+        return pio_err(NULL, file, ierr, __FILE__, __LINE__,
+                        "Closing file (%s, ncid=%d) failed. Underlying I/O library (iotype=%s) call failed", pio_get_fname_from_file(file), file->pio_ncid, pio_iotype_to_string(file->iotype));
     }
 
 #if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
@@ -469,6 +606,10 @@ int PIOc_closefile(int ncid)
     if (file->iotype==PIO_IOTYPE_ADIOS)
         GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
 #endif
+#endif
+#ifdef TIMING
+    if (file->mode & PIO_WRITE)
+        GPTLstop("PIO:PIOc_closefile_write_mode");
 #endif
 
     /* Delete file from our list of open files. */
@@ -493,7 +634,7 @@ int PIOc_deletefile(int iosysid, const char *filename)
 {
     iosystem_desc_t *ios;  /* Pointer to io system information. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
+    int mpierr = MPI_SUCCESS;  /* Return code from MPI function codes. */
      int msg = PIO_MSG_DELETE_FILE;
     size_t len;
 
@@ -504,7 +645,10 @@ int PIOc_deletefile(int iosysid, const char *filename)
 
     /* Get the IO system info from the id. */
     if (!(ios = pio_get_iosystem_from_id(iosysid)))
-        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__);
+    {
+        return pio_err(NULL, NULL, PIO_EBADID, __FILE__, __LINE__,
+                        "Deleting file (%s) failed. Invalid I/O system id (iosysid=%d) specified.", (filename) ? filename : "NULL", iosysid);
+    }
 
     /* If async is in use, send message to IO master task. */
     if (ios->async)
@@ -514,8 +658,8 @@ int PIOc_deletefile(int iosysid, const char *filename)
         PIO_SEND_ASYNC_MSG(ios, msg, &ierr, len, filename);
         if(ierr != PIO_NOERR)
         {
-            LOG((1, "Error sending async msg for PIO_MSG_DELETE_FILE"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
+            return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                        "Deleting file (%s) failed. Sending async message, PIO_MSG_DELETE_FILE, failed", (filename) ? filename : "NULL");
         }
     }
 
@@ -541,8 +685,8 @@ int PIOc_deletefile(int iosysid, const char *filename)
 
     ierr = check_netcdf(ios, NULL, ierr, __FILE__, __LINE__);
     if(ierr != PIO_NOERR){
-        LOG((1, "nc*_delete failed, ierr = %d", ierr));
-        return ierr;
+        return pio_err(ios, NULL, ierr, __FILE__, __LINE__,
+                    "Deleting file (%s) failed. Internal I/O library call failed.", (filename) ? filename : "NULL");
     }
 
 #ifdef TIMING
@@ -565,9 +709,6 @@ int PIOc_deletefile(int iosysid, const char *filename)
  */
 int PIOc_sync(int ncid)
 {
-    iosystem_desc_t *ios;  /* Pointer to io system information. */
-    file_desc_t *file;     /* Pointer to file information. */
-    int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
 
 #ifdef TIMING
@@ -575,105 +716,7 @@ int PIOc_sync(int ncid)
 #endif
 
     LOG((1, "PIOc_sync ncid = %d", ncid));
-
-    /* Get the file info from the ncid. */
-    if ((ierr = pio_get_file(ncid, &file)))
-        return pio_err(NULL, NULL, ierr, __FILE__, __LINE__);
-    ios = file->iosystem;
-
-#if defined(_ADIOS) || defined(_ADIOS2)
-    if (file->iotype != PIO_IOTYPE_ADIOS)
-    {
-#endif
-
-
-    /* Flush data buffers on computational tasks. */
-    if (!ios->async || !ios->ioproc)
-    {
-        if (file->mode & PIO_WRITE)
-        {
-            wmulti_buffer *wmb, *twmb;
-
-            LOG((3, "PIOc_sync checking buffers"));
-            wmb = &file->buffer;
-            while (wmb)
-            {
-                /* If there are any data arrays waiting in the
-                 * multibuffer, flush it to IO tasks. */
-                if (wmb->num_arrays > 0)
-                    flush_buffer(ncid, wmb, false);
-                twmb = wmb;
-                wmb = wmb->next;
-                if (twmb == &file->buffer)
-                {
-                    twmb->ioid = -1;
-                    twmb->next = NULL;
-                }
-                else
-                {
-                    free(twmb);
-                }
-            }
-        }
-    }
-
-    /* If async is in use, send message to IO master tasks. */
-    if (ios->async)
-    {
-        int msg = PIO_MSG_SYNC;
-
-        PIO_SEND_ASYNC_MSG(ios, msg, &ierr, ncid);
-        if(ierr != PIO_NOERR)
-        {
-            LOG((1, "Error sending async msg for PIO_MSG_SYNC"));
-            return pio_err(ios, NULL, ierr, __FILE__, __LINE__);
-        }
-    }
-
-    /* Call the sync function on IO tasks. */
-    if (file->mode & PIO_WRITE)
-    {
-        if (ios->ioproc)
-        {
-            switch(file->iotype)
-            {
-#ifdef _NETCDF4
-            case PIO_IOTYPE_NETCDF4P:
-                ierr = nc_sync(file->fh);
-                break;
-            case PIO_IOTYPE_NETCDF4C:
-#endif
-#ifdef _NETCDF
-            case PIO_IOTYPE_NETCDF:
-                if (ios->io_rank == 0)
-                    ierr = nc_sync(file->fh);
-                break;
-#endif
-#ifdef _PNETCDF
-            case PIO_IOTYPE_PNETCDF:
-                flush_output_buffer(file, true, 0);
-                ierr = ncmpi_sync(file->fh);
-                break;
-#endif
-            default:
-                return pio_err(ios, file, PIO_EBADIOTYPE, __FILE__, __LINE__);
-            }
-        }
-        LOG((2, "PIOc_sync ierr = %d", ierr));
-    }
-
-#if defined(_ADIOS) || defined(_ADIOS2)
-    }
-#endif
-
-    ierr = check_netcdf(ios, NULL, ierr, __FILE__, __LINE__);
-    if(ierr != PIO_NOERR){
-#ifdef TIMING
-        GPTLstop("PIO:PIOc_sync");
-#endif
-        LOG((1, "nc*_sync failed, ierr=%d", ierr));
-        return ierr;
-    }
+    ierr = sync_file(ncid);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_sync");
