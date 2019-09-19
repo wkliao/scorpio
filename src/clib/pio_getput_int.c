@@ -193,10 +193,13 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 			char att_name[PIO_MAX_NAME];
 			sprintf(att_name,"%s/%s",path,name);
 			if (NC_CHAR==atttype || adios2_type_string==adios_type)
-            	adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
+				// if (adios2_inquire_attribute(file->ioH,att_name)==NULL)
+            		adios2_define_attribute(file->ioH, att_name, adios2_type_string, op);
 			else
-            	adios2_define_attribute(file->ioH, att_name, adios_type, op);
-            ierr = 0;
+				// if (adios2_inquire_attribute(file->ioH,att_name)==NULL)
+            		adios2_define_attribute(file->ioH, att_name, adios_type, op);
+            ierr = PIO_NOERR;
+			return ierr;
     }
 #endif
 

@@ -501,7 +501,8 @@ int PIOc_closefile(int ncid)
 		if (file->engineH != NULL)
         {
         	LOG((2,"ADIOS close file %s\n", file->filename));
-			adios2_define_attribute(file->ioH,"/__pio__/fillmode",adios2_type_int32_t,&file->fillmode);
+			if (adios2_inquire_attribute(file->ioH,"/__pio__/fillmode")==NULL) 
+				adios2_define_attribute(file->ioH,"/__pio__/fillmode",adios2_type_int32_t,&file->fillmode);
             adios2_close(file->engineH);
             file->engineH = NULL;
         }
@@ -555,6 +556,9 @@ int PIOc_closefile(int ncid)
 
         free(file->filename);
         ierr = 0;
+		/* Delete file from our list of open files. */
+		pio_delete_file_from_list(ncid);
+		return ierr;
     }
 #endif
 

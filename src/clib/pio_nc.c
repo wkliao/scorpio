@@ -141,7 +141,8 @@ int PIOc_inq(int ncid, int *ndimsp, int *nvarsp, int *ngattsp, int *unlimdimidp)
             }
         }
 
-        ierr = 0;
+        ierr = PIO_NOERR;
+		return ierr;
      }
 #endif
 
@@ -397,7 +398,7 @@ int PIOc_inq_unlimdims(int ncid, int *nunlimdimsp, int *unlimdimidsp)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -493,7 +494,8 @@ int PIOc_inq_type(int ncid, nc_type xtype, char *name, PIO_Offset *sizep)
                 int asize = adios2_type_size(atype,NULL);
                 *sizep = (PIO_Offset) asize;
             }
-            ierr = 0;
+            ierr = PIO_NOERR;
+			return ierr;
     }
 #endif
 
@@ -583,7 +585,8 @@ int PIOc_inq_format(int ncid, int *formatp)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         *formatp = 1;
-        ierr = 0;
+        ierr = PIO_NOERR;
+		return ierr;
     }
 #endif
 
@@ -599,7 +602,7 @@ int PIOc_inq_format(int ncid, int *formatp)
         if (file->iotype == PIO_IOTYPE_ADIOS)
         {
             LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-            ierr = 0;
+            ierr = PIO_NOERR;
         }
 #endif
 
@@ -685,7 +688,7 @@ int PIOc_inq_dim(int ncid, int dimid, char *name, PIO_Offset *lenp)
             if (lenp)
                 *lenp = file->dim_values[dimid];
 
-            ierr = 0;
+            ierr = PIO_NOERR;
         }
         else
         {
@@ -705,6 +708,7 @@ int PIOc_inq_dim(int ncid, int dimid, char *name, PIO_Offset *lenp)
 
             ierr = PIO_EBADDIM;
         }
+		return ierr;
     }
 #endif
 
@@ -877,6 +881,7 @@ int PIOc_inq_dimid(int ncid, const char *name, int *idp)
             }
             printf("\n");
         }
+		return ierr;
     }
 #endif
  
@@ -996,10 +1001,20 @@ int PIOc_inq_var(int ncid, int varid, char *name, int namelen, nc_type *xtypep, 
             if (nattsp)
                 *nattsp = file->adios_vars[varid].nattrs;
 
-            ierr = 0;
+            ierr = PIO_NOERR;
         }
         else
             ierr = PIO_EBADID;
+
+		/* Copied and modified from MPI_Bcast lines */
+        slen = strlen(my_name);
+    	if (name && namelen > 0)
+    	{
+        	assert(namelen <= PIO_MAX_NAME + 1);
+        	strncpy(name, my_name, namelen);
+    	}
+    	strncpy(file->varlist[varid].vname, my_name, PIO_MAX_NAME);
+		return ierr;
     }
 #endif
 
@@ -1343,10 +1358,11 @@ int PIOc_inq_varid(int ncid, const char *name, int *varidp)
             if (!strcmp(name, file->adios_vars[i].name))
             {
                 *varidp = i;
-                ierr = 0;
+                ierr = PIO_NOERR;
                 break;
             }
         }
+		return ierr;
     }
 #endif
 
@@ -1504,6 +1520,7 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
                 i = file->num_attrs + 1;
             }
         }
+		return ierr;
     }
 #endif
 
@@ -1631,7 +1648,7 @@ int PIOc_inq_attname(int ncid, int varid, int attnum, char *name)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -1735,7 +1752,7 @@ int PIOc_inq_attid(int ncid, int varid, const char *name, int *idp)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -1833,7 +1850,7 @@ int PIOc_rename_dim(int ncid, int dimid, const char *name)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -1922,7 +1939,7 @@ int PIOc_rename_var(int ncid, int varid, const char *name)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -2021,7 +2038,7 @@ int PIOc_rename_att(int ncid, int varid, const char *name,
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -2111,7 +2128,7 @@ int PIOc_del_att(int ncid, int varid, const char *name)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -2194,7 +2211,8 @@ int PIOc_set_fill(int ncid, int fillmode, int *old_modep)
 
         file->fillmode = fillmode;
 
-        ierr = 0;
+        ierr = PIO_NOERR;
+		return ierr;
     }
 #endif
 
@@ -2372,7 +2390,21 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             *idp = file->num_dim_vars;
             ++file->num_dim_vars;
 			adios2_put(file->engineH,variableH,&len,adios2_mode_sync);
-            ierr = 0;
+            ierr = PIO_NOERR;
+
+    		if(len == PIO_UNLIMITED)
+    		{
+        		file->num_unlim_dimids++;
+        		file->unlim_dimids = (int *)realloc(file->unlim_dimids,
+               		                       file->num_unlim_dimids * sizeof(int));
+        		if(!file->unlim_dimids)
+        		{
+            		return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,"Error: %d",1);
+        		}
+        		file->unlim_dimids[file->num_unlim_dimids-1] = *idp;
+        		LOG((1, "pio_def_dim : %d dim is unlimited", *idp));
+    		}
+			return ierr;
     }
 #endif
 
@@ -2575,7 +2607,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             memcpy(file->adios_vars[file->num_vars].gdimids, dimidsp, ndims*sizeof(int));
             *varidp = file->num_vars;
             file->num_vars++;
-            ierr = 0;
+            ierr = PIO_NOERR;
 
 			/* some codes moved from pio_darray.c */
 			{
@@ -2599,6 +2631,24 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 					}
          		}
     		}
+
+    		strncpy(file->varlist[*varidp].vname, name, PIO_MAX_NAME);
+    		if(file->num_unlim_dimids > 0)
+    		{
+        		int is_rec_var = 0;
+        		for(int i=0; (i<ndims) && (!is_rec_var); i++)
+        		{
+            		for(int j=0; (j<file->num_unlim_dimids) && (!is_rec_var); j++)
+            		{
+                		if(dimidsp[i] == file->unlim_dimids[j])
+                		{
+                    		is_rec_var = 1;
+                		}
+            		}
+        		}
+        		file->varlist[*varidp].rec_var = is_rec_var;
+    		}
+			return ierr;
     }
 #endif
  
@@ -2839,7 +2889,7 @@ int PIOc_def_var_fill(int ncid, int varid, int fill_mode, const void *fill_value
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
@@ -3012,7 +3062,7 @@ int PIOc_inq_var_fill(int ncid, int varid, int *no_fill, void *fill_valuep)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS missing %s:%s", __FILE__, __func__));
-        ierr = 0;
+        ierr = PIO_NOERR;
     }
 #endif
 
