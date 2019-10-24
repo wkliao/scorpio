@@ -292,7 +292,7 @@ int main(int argc, char* argv[])
 #ifdef _NETCDF4
     format[num_flavors++] = PIO_IOTYPE_NETCDF4P;
 #endif
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
     format[num_flavors++] = PIO_IOTYPE_ADIOS;
 #endif
 

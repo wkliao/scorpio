@@ -2,6 +2,8 @@
 ### CMakeList.txt for adios2pio 
 ###-------------------------------------------------------------------------###
 
+list (APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
 # Adding PIO definitions - defined in the root directory
 ADD_DEFINITIONS(${PIO_DEFINITIONS})
 
@@ -101,8 +103,8 @@ else ()
 endif ()
 
 #===== ADIOS-C =====
-if (WITH_ADIOS2)
-  find_package (ADIOS2)
+if ((WITH_ADIOS2) AND (NOT ADIOS2_FOUND))
+   find_package (ADIOS2)
 endif ()
 if (ADIOS2_FOUND)
   # target_include_directories (adios2pio-nm-lib)

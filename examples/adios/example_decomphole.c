@@ -110,15 +110,14 @@ int main(int argc, char* argv[])
 #ifdef _PNETCDF
   format[num_flavors++] = PIO_IOTYPE_PNETCDF;
 #endif
+#ifdef _NETCDF
   format[num_flavors++] = PIO_IOTYPE_NETCDF;
+#endif
 #ifdef _NETCDF4
   format[num_flavors++] = PIO_IOTYPE_NETCDF4C;
   format[num_flavors++] = PIO_IOTYPE_NETCDF4P;
 #endif
-#ifdef _ADIOS
-  format[num_flavors++] = PIO_IOTYPE_ADIOS;
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS) || defined(_ADIOS2)
   format[num_flavors++] = PIO_IOTYPE_ADIOS;
 #endif
 

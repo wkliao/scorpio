@@ -2413,7 +2413,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			char declare_name[PIO_MAX_NAME];
 			sprintf(declare_name,"%s%d",file->filename,get_adios2_io_cnt());
     		file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)(declare_name));
-			adios2_set_engine(file->ioH,"BPFile");
+			adios2_set_engine(file->ioH,"BP3");
 			int num_adios_iotasks; // set MPI Aggregate params
            	if (ios->num_comptasks != ios->num_iotasks) {
 				num_adios_iotasks = ios->num_iotasks;
