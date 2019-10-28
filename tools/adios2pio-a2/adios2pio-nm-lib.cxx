@@ -1453,6 +1453,8 @@ int ConvertBPToNC(string infilepath, string outfilename, string piotype, int mem
 	int ret = 0;
 	int iosysid = 0;
 
+	MPI_Barrier(comm_in);
+
 	MPI_Comm comm   = comm_in;
 	MPI_Comm w_comm = comm_in;
 	int mpirank, w_mpirank;

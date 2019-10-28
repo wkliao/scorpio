@@ -549,7 +549,6 @@ int PIOc_closefile(int ncid)
         assert(len > 6 && len <= PIO_MAX_NAME);
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
-		MPI_Barrier(ios->union_comm);
         LOG((1, "CONVERTING: %s", file->filename));
         C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 1, ios->union_comm);
         LOG((1, "DONE CONVERTING: %s", file->filename));
