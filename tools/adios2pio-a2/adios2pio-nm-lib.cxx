@@ -446,6 +446,7 @@ Decomposition ProcessOneDecomposition(IOVector &bpIO, EngineVector &bpReader, in
 
    	ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
 #undef declare_template_instantiation	
+	return Decomposition{-1, -1};
 }
 
 DecompositionMap ProcessDecompositions(IOVector &bpIO, EngineVector &bpReader, int ncid, 
@@ -761,6 +762,7 @@ int ConvertVariablePutVar(IOVector &bpIO, EngineVector &bpReader, std::vector<in
     }
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
 #undef declare_template_instantiation	
+	return 1;
 }
 
 template <class T>
@@ -986,6 +988,7 @@ int ConvertVariableTimedPutVar(IOVector &bpIO, EngineVector &bpReader, std::vect
     }
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
 #undef declare_template_instantiation	
+	return 1;
 }
 
 template <class T>
@@ -1168,7 +1171,7 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
     }
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
 #undef declare_template_instantiation
-
+	return 1;
 }
 
 /*
