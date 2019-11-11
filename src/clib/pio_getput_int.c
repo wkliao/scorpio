@@ -199,6 +199,18 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
 				// if (adios2_inquire_attribute(file->ioH,att_name)==NULL)
             		adios2_define_attribute(file->ioH, att_name, adios_type, op);
             ierr = PIO_NOERR;
+
+#ifdef TIMING
+    GPTLstop("PIO:PIOc_put_att_tc");
+#endif
+
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_put_att_tc_adios"); /* TAHSIN: stop */
+#endif
+#endif
+
 			return ierr;
     }
 #endif

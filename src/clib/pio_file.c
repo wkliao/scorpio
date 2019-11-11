@@ -556,8 +556,24 @@ int PIOc_closefile(int ncid)
 
         free(file->filename);
         ierr = 0;
+
+#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#ifdef TIMING
+    if (file->iotype==PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
+#endif
+#endif
+#ifdef TIMING
+    	if (file->mode & PIO_WRITE)
+        	GPTLstop("PIO:PIOc_closefile_write_mode");
+#endif
+
 		/* Delete file from our list of open files. */
 		pio_delete_file_from_list(ncid);
+
+#ifdef TIMING
+    	GPTLstop("PIO:PIOc_closefile");
+#endif
 		return ierr;
     }
 #endif

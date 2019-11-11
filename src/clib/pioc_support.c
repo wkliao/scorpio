@@ -2151,7 +2151,7 @@ int PIO_get_avail_iotypes(char *buf, size_t sz)
     cbuf = buf + strlen(buf);
 #endif /* _PNETCDF */
 
-#ifdef _ADIOS
+#if defined(_ADIOS) || defined(_ADIOS2)
     assert(sz > 0);
     snprintf(cbuf, sz, ", %s (%d)", pio_iotype_to_string(PIO_IOTYPE_ADIOS), PIO_IOTYPE_ADIOS);
     sz = max_sz - strlen(buf);
