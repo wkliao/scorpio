@@ -16,7 +16,8 @@
 #endif
 #include "pio_sdecomps_regex.h"
 
-#ifdef _ADIOS2 /* uint64_t definition */
+/* uint64_t definition */
+#if defined(_ADIOS2)
 #include <stdint.h>
 #endif 
 
@@ -629,10 +630,7 @@ static int PIO_wmb_needs_flush(wmulti_buffer *wmb, int arraylen, io_desc_t *iode
     return NO_FLUSH;
 }
 
-#ifdef _ADIOS
-#include "pio_darray_adios1.h"
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
 #include "pio_darray_adios2.h"
 #endif
 
@@ -715,7 +713,7 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
     }
     ios = file->iosystem;
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (file->iotype == PIO_IOTYPE_ADIOS)
         GPTLstart("PIO:PIOc_write_darray_adios"); /* TAHSIN: start */
@@ -801,7 +799,7 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
             break;
     LOG((3, "wmb->ioid = %d wmb->recordvar = %d", wmb->ioid, wmb->recordvar));
 
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         ierr = PIOc_write_darray_adios(file, varid, ioid, iodesc, arraylen, array, fillvalue);
@@ -1113,7 +1111,7 @@ int PIOc_read_darray(int ncid, int varid, int ioid, PIO_Offset arraylen,
     mtimer_start(file->varlist[varid].rd_mtimer);
 #endif
 
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         return pio_err(ios, file, PIO_EADIOSREAD, __FILE__, __LINE__,

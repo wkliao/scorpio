@@ -706,7 +706,7 @@ int PIOc_InitDecomp(int iosysid, int pio_type, int ndims, const int *gdimlen, in
 
     /* Add this IO description to the list. */
     MPI_Comm comm = MPI_COMM_NULL;
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
     comm = ios->union_comm;
 #endif
     if(ios->async)
@@ -893,11 +893,9 @@ int PIOc_InitDecomp_bc(int iosysid, int pio_type, int ndims, const int *gdimlen,
                            &rearr, NULL, NULL);
 }
 
-#if defined(_ADIOS) || defined(_ADIOS2)
-    /* Initialize ADIOS once */
-    static int adios_init_ref_cnt = 0;
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
+/* Initialize ADIOS once */
+static int adios_init_ref_cnt = 0;
 static unsigned long adios2_io_cnt = 0;
 static adios2_adios *adiosH = NULL;
 adios2_adios *get_adios2_adios()
@@ -986,15 +984,7 @@ int PIOc_Init_Intracomm(MPI_Comm comp_comm, int num_iotasks, int stride, int bas
     }
 #endif
 
-#ifdef _ADIOS
-    /* Initialize ADIOS once */
-    if (!adios_init_ref_cnt)
-    {
-        adios_init_noxml(comp_comm);
-    }
-    adios_init_ref_cnt++;
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
     /* Initialize ADIOS once */
     if (!adios_init_ref_cnt)
 		adiosH = adios2_init(comp_comm, adios2_debug_mode_on);
@@ -1343,14 +1333,7 @@ int PIOc_finalize(int iosysid)
     }
 #endif
 
-#ifdef _ADIOS
-    --adios_init_ref_cnt;
-    if (!adios_init_ref_cnt)
-    {
-        adios_finalize(ios->comp_rank);
-    }
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
     --adios_init_ref_cnt;
     if (!adios_init_ref_cnt)
     	adios2_finalize(adiosH);

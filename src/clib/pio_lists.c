@@ -302,7 +302,7 @@ int pio_num_iosystem(int *niosysid)
  * @returns the ioid of the newly added iodesc.
  */
 static int imax=PIO_IODESC_START_ID; // ADIOS needs a unique ID for the entire run
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
 int pio_get_imax() { return imax; }
 int pio_set_imax(int imax_val) { imax = imax_val; }
 #endif 

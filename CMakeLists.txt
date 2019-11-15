@@ -29,9 +29,7 @@ option (PIO_MICRO_TIMING     "Enable internal micro timers"                 OFF)
 option (PIO_SAVE_DECOMPS     "Dump the decomposition information"           OFF)
 option (WITH_PNETCDF         "Require the use of PnetCDF"                   ON)
 option (WITH_NETCDF          "Require the use of NetCDF"                    OFF)
-option (WITH_ADIOS           "Require the use of ADIOS 1.x"                 OFF)
 option (ADIOS_BP2NC_TEST     "Enable testing of BP to NetCDF conversion"    ON)
-option (WITH_ADIOS1          "Use ADIOS 1.x for converter when WITH_ADIOS2" OFF)
 option (WITH_ADIOS2          "Require the use of ADIOS 2.x"                 ON)
 
 # Set a variable that appears in the config.h.in file.
@@ -66,7 +64,6 @@ else()
   set(SAVE_DECOMPS 0)
   set(PIO_SAVE_DECOMPS_REGEX "")
 endif()
-
 
 if(PIO_MAX_CACHED_IO_REGIONS)
   message (STATUS "Using PIO_MAX_CACHED_IO_REGIONS = " ${PIO_MAX_CACHED_IO_REGIONS})
@@ -225,7 +222,7 @@ add_custom_target (check COMMAND ${CMAKE_CTEST_COMMAND})
 add_dependencies (check tests)
 
 # Tools
-if (WITH_ADIOS OR WITH_ADIOS1 OR WITH_ADIOS2)
+if (WITH_ADIOS2)
    add_subdirectory(tools)
 endif()
 

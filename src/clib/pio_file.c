@@ -6,10 +6,7 @@
 #include <pio.h>
 #include <pio_internal.h>
 
-#ifdef _ADIOS
-#include "../../tools/adios2pio-nm/adios2pio-nm-lib-c.h"
-#endif
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
 #include "../../tools/adios2pio-a2/adios2pio-nm-lib-c.h"
 #endif
 
@@ -139,7 +136,7 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     GPTLstart("PIO:PIOc_createfile");
 #endif
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (*iotype==PIO_IOTYPE_ADIOS)
         GPTLstart("PIO:PIOc_createfile_adios"); /* TAHSIN: start */
@@ -159,7 +156,7 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #ifdef TIMING
         GPTLstop("PIO:PIOc_createfile");
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (*iotype==PIO_IOTYPE_ADIOS) 
         GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
@@ -187,7 +184,7 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
     GPTLstop("PIO:PIOc_createfile");
 #endif
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (*iotype==PIO_IOTYPE_ADIOS)
         GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
@@ -261,7 +258,7 @@ static int sync_file(int ncid)
                         "Syncing file (ncid=%d) failed. Invalid file id. Unable to find internal structure associated with the file id", ncid);
     }
 
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
     if (file->iotype == PIO_IOTYPE_ADIOS)
         return PIO_NOERR;
 #endif
@@ -376,7 +373,7 @@ int PIOc_closefile(int ncid)
     file_desc_t *file;     /* Pointer to file information. */
     int ierr = PIO_NOERR;  /* Return code from function calls. */
     int mpierr = MPI_SUCCESS, mpierr2;  /* Return code from MPI function codes. */
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
     char outfilename[PIO_MAX_NAME + 1];
     size_t len = 0;
 #endif
@@ -394,7 +391,7 @@ int PIOc_closefile(int ncid)
     }
     ios = file->iosystem;
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (file->iotype==PIO_IOTYPE_ADIOS)
         GPTLstart("PIO:PIOc_closefile_adios"); /* TAHSIN: start */
@@ -428,75 +425,7 @@ int PIOc_closefile(int ncid)
     }
 
     /* ADIOS: assume all procs are also IO tasks */
-#ifdef _ADIOS
-    if (file->iotype == PIO_IOTYPE_ADIOS)
-    {
-        if (file->adios_fh != -1)
-        {
-            LOG((2, "ADIOS close file %s", file->filename));
-            adios_define_attribute_byvalue(file->adios_group, "/__pio__/fillmode", "",
-                                           adios_integer, 1, &file->fillmode);
-            ierr = adios_close(file->adios_fh);
-            file->adios_fh = -1;
-        }
-
-        if (file->adios_group != -1)
-        {
-            adios_free_group(file->adios_group);
-            file->adios_group = -1;
-        }
-
-        for (int i = 0; i < file->num_dim_vars; i++)
-        {
-            free(file->dim_names[i]);
-            file->dim_names[i] = NULL;
-        }
-
-        file->num_dim_vars = 0;
-
-        for (int i = 0; i < file->num_vars; i++)
-        {
-            free(file->adios_vars[i].name);
-            file->adios_vars[i].name = NULL;
-            free(file->adios_vars[i].gdimids);
-            file->adios_vars[i].gdimids = NULL;
-        }
-
-        file->num_vars = 0;
-
-        /* Track attributes */
-        for (int i = 0; i < file->num_attrs; i++)
-        {
-            free(file->adios_attrs[i].att_name);
-            file->adios_attrs[i].att_name = NULL;
-        }
-
-        file->num_attrs = 0;
-
-#ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
-
-#ifdef _PNETCDF
-        char conv_iotype[] = "pnetcdf";
-#else
-        char conv_iotype[] = "netcdf";
-#endif
-
-        /* Convert XXXX.nc.bp to XXXX.nc */
-        len = strlen(file->filename);
-        assert(len > 6 && len <= PIO_MAX_NAME);
-        strncpy(outfilename, file->filename, len - 3);
-        outfilename[len - 3] = '\0';
-        LOG((1, "CONVERTING: %s", file->filename));
-        C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, ios->union_comm);
-        LOG((1, "DONE CONVERTING: %s", file->filename));
-#endif
-
-        free(file->filename);
-        ierr = 0;
-    }
-#endif
-
-#ifdef _ADIOS2
+#if defined(_ADIOS2)
     if (file->iotype==PIO_IOTYPE_ADIOS) {
 		if (file->engineH != NULL)
         {
@@ -557,7 +486,7 @@ int PIOc_closefile(int ncid)
         free(file->filename);
         ierr = 0;
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (file->iotype==PIO_IOTYPE_ADIOS)
         GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
@@ -603,7 +532,7 @@ int PIOc_closefile(int ncid)
             ierr = ncmpi_close(file->fh);
             break;
 #endif
-#if defined(_ADIOS) || defined(_ADIOS2)
+#if defined(_ADIOS2)
         case PIO_IOTYPE_ADIOS: /* Needed to avoid default case and error. */
             ierr = 0;
             break;
@@ -621,7 +550,7 @@ int PIOc_closefile(int ncid)
                         "Closing file (%s, ncid=%d) failed. Underlying I/O library (iotype=%s) call failed", pio_get_fname_from_file(file), file->pio_ncid, pio_iotype_to_string(file->iotype));
     }
 
-#if defined(_ADIOS) || defined(_ADIOS2) /* TAHSIN: timing */
+#if defined(_ADIOS2) /* TAHSIN: timing */
 #ifdef TIMING
     if (file->iotype==PIO_IOTYPE_ADIOS)
         GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
