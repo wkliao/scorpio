@@ -2351,10 +2351,13 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				file->adios_iomaster = MPI_PROC_NULL;
 
 			if (MPI_ROOT==file->adios_iomaster) {
-				adios2_variable *variableH = adios2_define_variable(file->ioH,
-																"/__pio__/info/nproc",adios2_type_int32_t,
-																0, NULL, NULL, NULL, 
-																adios2_constant_dims_true);
+				adios2_variable *variableH = adios2_inquire_variable(file->ioH,"/__pio__/info/nproc");
+				if (variableH==NULL) {
+					variableH = adios2_define_variable(file->ioH,
+													"/__pio__/info/nproc",adios2_type_int32_t,
+													0, NULL, NULL, NULL, 
+													adios2_constant_dims_true);
+				}
     			adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
 			}
 		}

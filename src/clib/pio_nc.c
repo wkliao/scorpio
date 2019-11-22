@@ -2348,10 +2348,11 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             char dimname[128];
             snprintf(dimname, sizeof(dimname), "/__pio__/dim/%s", name);
 			adios2_variable *variableH = adios2_inquire_variable(file->ioH,dimname);
-			if (variableH==NULL) 
+			if (variableH==NULL) {
             	variableH = adios2_define_variable(file->ioH,dimname,adios2_type_uint64_t,
 												0,NULL,NULL,NULL,
 												adios2_constant_dims_false);
+			}
             file->dim_names[file->num_dim_vars]  = strdup(name);
             file->dim_values[file->num_dim_vars] = len;
             *idp = file->num_dim_vars;
@@ -2544,13 +2545,16 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 					sprintf(att_name,"%s/__pio__/ndims",av->name);
 					if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
 						adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->ndims);
+
 					sprintf(att_name,"%s/__pio__/nctype",av->name);
 					if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
 						adios2_define_attribute(file->ioH,att_name,adios2_type_int32_t,&av->nc_type);
+
 					if (av->ndims!=0) { /* If zero dimensions, do not write out __pio__/dims */
             			char* dimnames[6];
             			for (int i = 0; i < av->ndims; i++) 
                				dimnames[i] = file->dim_names[av->gdimids[i]];
+
 						sprintf(att_name,"%s/__pio__/dims",av->name);
 						if (adios2_inquire_attribute(file->ioH,att_name)==NULL) 
 							adios2_define_attribute_array(file->ioH,att_name,adios2_type_string,dimnames,av->ndims);
