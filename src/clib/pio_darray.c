@@ -992,11 +992,16 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     }
 
     /* E3SM history data special handling: down-conversion from double to float */
-    void *buf = array;
+    void *databuf = array;
+	void *fillbuf = fillvalue;
     int buf_needs_free = 0;
     if (iodesc->piotype != av->nc_type)
     {
-        buf = PIOc_convert_buffer_adios(file, iodesc, av, array, arraylen, &ierr);
+		if (fillvalue!=NULL) 
+		{
+        	fillbuf = PIOc_convert_buffer_adios(file, iodesc, av, fillvalue, 1, &ierr);
+		}
+        databuf = PIOc_convert_buffer_adios(file, iodesc, av, array, arraylen, &ierr);
         if (ierr != 0)
         {
             if (file->adios_iomaster == MPI_ROOT)
@@ -1011,13 +1016,13 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         }
     }
 
-    adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
+    adios2_put(file->engineH, av->adios_varid, databuf, adios2_mode_sync);
 
     /* NOTE: PIOc_setframe with different decompositions */
     /* Different decompositions at different frames and fillvalue */
-    if (fillvalue != NULL)
+    if (fillbuf != NULL) /* write out user provided fillvalue */
     {
-        adios2_put(file->engineH, av->fillval_varid, fillvalue, adios2_mode_sync);
+        adios2_put(file->engineH, av->fillval_varid, fillbuf, adios2_mode_sync);
     }
     else
     {
@@ -1027,7 +1032,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     adios2_put(file->engineH, av->frame_varid, &(file->varlist[varid].record), adios2_mode_sync);
 
     if (buf_needs_free)
-        free(buf);
+	{
+        free(databuf);
+		if (fillbuf != NULL)
+			free(fillbuf);
+	}
 
     if (temp_buf != NULL)
         free(temp_buf);

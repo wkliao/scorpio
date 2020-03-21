@@ -44,6 +44,14 @@ ADD_EXECUTABLE(example_num_frames example_num_frames.c)
 TARGET_LINK_LIBRARIES(example_num_frames pioc)
 add_dependencies(tests example_num_frames)
 
+ADD_EXECUTABLE(example_ioids example_ioids.c)
+TARGET_LINK_LIBRARIES(example_ioids pioc)
+add_dependencies(tests example_ioids)
+
+ADD_EXECUTABLE(example_stuck example_stuck.c)
+TARGET_LINK_LIBRARIES(example_stuck pioc)
+add_dependencies(tests example_stuck)
+
 ###-------------------------------------------------------------------------###
 ### CMakeList.txt for examples using pio
 ###-------------------------------------------------------------------------###

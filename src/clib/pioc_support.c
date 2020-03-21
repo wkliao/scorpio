@@ -2282,8 +2282,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     {
         LOG((2, "Calling adios_open mode = %d", file->mode));
         /* 
-         * Create a new ADIOS variable group, names the same as the
-         * filename for lack of better solution here
+         * Append .bp to output file for ADIOS output. 
          */
         int len = strlen(filename);
         file->filename = malloc(len + 3 + 3);
@@ -2323,11 +2322,15 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                 return check_mpi(ios, file, mpierr, __FILE__, __LINE__);
         }
 
+ 		/* 
+         * Create a new ADIOS group
+         */
         if (PIO_NOERR == ierr)
         {
             char declare_name[PIO_MAX_NAME];
             sprintf(declare_name, "%s%lu", file->filename, get_adios2_io_cnt());
-            file->ioH = adios2_declare_io(get_adios2_adios(), (const char*)(declare_name));
+			assert(ios->adiosH!=NULL);
+            file->ioH = adios2_declare_io(ios->adiosH, (const char*)(declare_name));
             adios2_set_engine(file->ioH, "BP3");
 
             int num_adios_iotasks; // Set MPI Aggregate params
