@@ -40,6 +40,15 @@ nc_type PIOc_get_nctype_from_adios_type(const std::string &atype)
         return n_type; \
     }
 
+ 	adios2_GET_TYPE(atype, int16_t, PIO_SHORT); 
+    adios2_GET_TYPE(atype, int32_t, PIO_INT); 
+    adios2_GET_TYPE(atype, int64_t, PIO_INT64);
+    adios2_GET_TYPE(atype, int8_t, PIO_BYTE);
+    adios2_GET_TYPE(atype, uint16_t, PIO_USHORT);
+    adios2_GET_TYPE(atype, uint32_t, PIO_UINT);
+    adios2_GET_TYPE(atype, uint64_t, PIO_UINT64);
+    adios2_GET_TYPE(atype, uint8_t, PIO_UBYTE);
+
     adios2_GET_TYPE(atype, char, PIO_BYTE);
     adios2_GET_TYPE(atype, short, PIO_SHORT);
     adios2_GET_TYPE(atype, int, PIO_INT);
@@ -67,6 +76,17 @@ int adios2_type_size_a2(const std::string &atype)
         return a_size; \
     }
 
+    adios2_GET_SIZE(atype, double, sizeof(double));
+    adios2_GET_SIZE(atype, float, sizeof(float));
+    adios2_GET_SIZE(atype, int16_t, sizeof(int16_t));
+    adios2_GET_SIZE(atype, int32_t, sizeof(int32_t));
+    adios2_GET_SIZE(atype, int64_t, sizeof(int64_t));
+    adios2_GET_SIZE(atype, int8_t, sizeof(int8_t));
+    adios2_GET_SIZE(atype, uint16_t, sizeof(uint16_t));
+    adios2_GET_SIZE(atype, uint32_t, sizeof(uint32_t));
+    adios2_GET_SIZE(atype, uint64_t, sizeof(uint64_t));
+    adios2_GET_SIZE(atype, uint8_t, sizeof(uint8_t));
+
     adios2_GET_SIZE(atype, char, sizeof(char));
     adios2_GET_SIZE(atype, unsigned char, sizeof(unsigned char));
     adios2_GET_SIZE(atype, std::string, 1);
@@ -78,8 +98,6 @@ int adios2_type_size_a2(const std::string &atype)
     adios2_GET_SIZE(atype, long long, sizeof(long long));
     adios2_GET_SIZE(atype, unsigned long, sizeof(unsigned long));
     adios2_GET_SIZE(atype, unsigned long long, sizeof(unsigned long long));
-    adios2_GET_SIZE(atype, float, sizeof(float));
-    adios2_GET_SIZE(atype, double, sizeof(double));
     adios2_GET_SIZE(atype, std::complex<float>, sizeof(std::complex<float>));
     adios2_GET_SIZE(atype, std::complex<double>, sizeof(std::complex<double>));
 
@@ -727,11 +745,26 @@ int put_var_nm(int ncid, int varid, int nctype, const std::string &memtype, cons
         else
             ret = PIOc_put_var_schar(ncid, varid, (const signed char*)buf);
     }
+    else if (memtype == adios2::GetType<int8_t>())
+    {
+        if (nctype == PIO_CHAR)
+            ret = PIOc_put_var_text(ncid, varid, (const char*)buf);
+        else
+            ret = PIOc_put_var_schar(ncid, varid, (const signed char*)buf);
+    }
     else if (memtype == adios2::GetType<short int>())
     {
         ret = PIOc_put_var_short(ncid, varid, (const signed short*)buf);
     }
+    else if (memtype == adios2::GetType<int16_t>())
+    {
+        ret = PIOc_put_var_short(ncid, varid, (const signed short*)buf);
+    }
     else if (memtype == adios2::GetType<int>())
+    {
+        ret = PIOc_put_var_int(ncid, varid, (const signed int*)buf);
+    }
+    else if (memtype == adios2::GetType<int32_t>())
     {
         ret = PIOc_put_var_int(ncid, varid, (const signed int*)buf);
     }
@@ -747,7 +780,15 @@ int put_var_nm(int ncid, int varid, int nctype, const std::string &memtype, cons
     {
         ret = PIOc_put_var_uchar(ncid, varid, (const unsigned char *)buf);
     }
+    else if (memtype == adios2::GetType<uint8_t>())
+    {
+        ret = PIOc_put_var_uchar(ncid, varid, (const unsigned char*)buf);
+    }
     else if (memtype == adios2::GetType<unsigned short>())
+    {
+        ret = PIOc_put_var_ushort(ncid, varid, (const unsigned short *)buf);
+    }
+    else if (memtype == adios2::GetType<uint16_t>())
     {
         ret = PIOc_put_var_ushort(ncid, varid, (const unsigned short *)buf);
     }
@@ -755,11 +796,23 @@ int put_var_nm(int ncid, int varid, int nctype, const std::string &memtype, cons
     {
         ret = PIOc_put_var_uint(ncid, varid, (const unsigned int *)buf);
     }
+    else if (memtype == adios2::GetType<uint32_t>())
+    {
+        ret = PIOc_put_var_uint(ncid, varid, (const unsigned int *)buf);
+    }
     else if (memtype == adios2::GetType<long long int>())
     {
         ret = PIOc_put_var_longlong(ncid, varid, (const signed long long *)buf);
     }
+    else if (memtype == adios2::GetType<int64_t>())
+    {
+        ret = PIOc_put_var_longlong(ncid, varid, (const signed long long *)buf);
+    }
     else if (memtype == adios2::GetType<unsigned long long int>())
+    {
+        ret = PIOc_put_var_ulonglong(ncid, varid, (const unsigned long long *)buf);
+    }
+    else if (memtype == adios2::GetType<uint64_t>())
     {
         ret = PIOc_put_var_ulonglong(ncid, varid, (const unsigned long long *)buf);
     }
@@ -781,7 +834,15 @@ int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
                 const void* buf)
 {
     int ret = 0;
-    if (memtype == adios2::GetType<char>())
+
+   	if (memtype == adios2::GetType<char>())
+    {
+        if (nctype == PIO_BYTE)
+            ret = PIOc_put_vara_schar(ncid, varid, start, count, (const signed char*)buf);
+        else
+            ret = PIOc_put_vara_text(ncid, varid, start, count, (const char*)buf);
+    }
+    else if (memtype == adios2::GetType<int8_t>())
     {
         if (nctype == PIO_BYTE)
             ret = PIOc_put_vara_schar(ncid, varid, start, count, (const signed char*)buf);
@@ -792,7 +853,15 @@ int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
     {
         ret = PIOc_put_vara_short(ncid, varid, start, count, (const signed short*)buf);
     }
+    else if (memtype == adios2::GetType<int16_t>())
+    {
+        ret = PIOc_put_vara_short(ncid, varid, start, count, (const signed short*)buf);
+    }
     else if (memtype == adios2::GetType<int>())
+    {
+        ret = PIOc_put_vara_int(ncid, varid, start, count, (const signed int*)buf);
+    }
+    else if (memtype == adios2::GetType<int32_t>())
     {
         ret = PIOc_put_vara_int(ncid, varid, start, count, (const signed int*)buf);
     }
@@ -808,7 +877,15 @@ int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
     {
         ret = PIOc_put_vara_uchar(ncid, varid, start, count, (const unsigned char *)buf);
     }
+    else if (memtype == adios2::GetType<uint8_t>())
+    {
+        ret = PIOc_put_vara_uchar(ncid, varid, start, count, (const unsigned char *)buf);
+    }
     else if (memtype == adios2::GetType<unsigned short>())
+    {
+        ret = PIOc_put_vara_ushort(ncid, varid, start, count, (const unsigned short *)buf);
+    }
+    else if (memtype == adios2::GetType<uint16_t>())
     {
         ret = PIOc_put_vara_ushort(ncid, varid, start, count, (const unsigned short *)buf);
     }
@@ -816,11 +893,23 @@ int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
     {
         ret = PIOc_put_vara_uint(ncid, varid, start, count, (const unsigned int *)buf);
     }
+    else if (memtype == adios2::GetType<uint32_t>())
+    {
+        ret = PIOc_put_vara_uint(ncid, varid, start, count, (const unsigned int *)buf);
+    }
     else if (memtype == adios2::GetType<long long int>())
     {
         ret = PIOc_put_vara_longlong(ncid, varid, start, count, (const signed long long *)buf);
     }
+    else if (memtype == adios2::GetType<int64_t>())
+    {
+        ret = PIOc_put_vara_longlong(ncid, varid, start, count, (const signed long long *)buf);
+    }
     else if (memtype == adios2::GetType<unsigned long long int>())
+    {
+        ret = PIOc_put_vara_ulonglong(ncid, varid, start, count, (const unsigned long long *)buf);
+    }
+    else if (memtype == adios2::GetType<uint64_t>())
     {
         ret = PIOc_put_vara_ulonglong(ncid, varid, start, count, (const unsigned long long *)buf);
     }
@@ -1064,6 +1153,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
                 TimerStart(read);
 
                 int elemsize = adios2_type_size_a2(v_base->Type());
+				assert(elemsize>0);
                 uint64_t nelems = 1;
                 for (int d = 0; d < v_dims.size(); d++)
                 {
@@ -1115,6 +1205,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
                     TimerStart(read);
 
                     int elemsize = adios2_type_size_a2(v_base->Type());
+					assert(elemsize>0);
                     uint64_t nelems = 1;
                     for (int d = 0; d < v_dims.size(); d++)
                     {
@@ -1162,6 +1253,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
                     TimerStart(write);
 
                     int elemsize = adios2_type_size_a2(v_base->Type());
+					assert(elemsize>0);
                     uint64_t nelems = 1;
                     std::vector<char> d(nelems * elemsize);
 
@@ -1288,6 +1380,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 
         /* Read local data for each file */
         int elemsize = adios2_type_size_a2(v_base->Type());
+		assert(elemsize>0);
         /* Allocate +1 to prevent d.data() from returning NULL. Otherwise, read/write operations fail */
         /* nelems may be 0, when some processes do not have any data */
         std::vector<char> d((nelems + 1) * elemsize);
@@ -1778,7 +1871,7 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
     int ret = 0;
     int iosysid = 0;
 
-    MPI_Barrier(comm_in);
+    // MPI_Barrier(comm_in);
 
     MPI_Comm comm   = comm_in;
     MPI_Comm w_comm = comm_in;
@@ -1830,7 +1923,7 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
             TimerReport_nm(comm);
         }
 
-        MPI_Barrier(w_comm);
+        // MPI_Barrier(w_comm);
     }
     catch (std::invalid_argument &e)
     {
@@ -1915,9 +2008,11 @@ int MConvertBPToNC(const string &bppdir, const string &piotype, int mem_opt,
     assert(bpdirs.size() == conv_fname_prefixes.size());
     for (size_t i = 0; i < bpdirs.size(); i++)
     {
+		MPI_Barrier(comm);
         ret = ConvertBPToNC(bpdirs[i],
                 conv_fname_prefixes[i] + CONV_FNAME_SUFFIX,
                 piotype, mem_opt, comm);
+		MPI_Barrier(comm);
         if (ret != 0)
         {
             fprintf(stderr, "Unable to convert BP file (%s) to NetCDF\n",

@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
 #endif
 
     SetDebugOutput(debug_lvl);
+	MPI_Barrier(comm_in);
     if (idir.size() == 0)
     {
         ret = ConvertBPToNC(infilepath, outfilename, piotype, mem_opt, comm_in);
@@ -129,6 +130,7 @@ int main(int argc, char *argv[])
     {
         ret = MConvertBPToNC(idir, piotype, mem_opt, comm_in);
     }
+	MPI_Barrier(comm_in);
 
 #ifdef TIMING
     /* Finalize the GPTL timing library. */
