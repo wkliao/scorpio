@@ -36,7 +36,6 @@ nc_type PIOc_get_nctype_from_adios_type(const std::string &atype)
 #define adios2_GET_TYPE(a_type, T, n_type) \
     if (a_type == adios2::GetType<T>()) \
     { \
-        printf("GET TYPE: %s %d\n", atype.c_str(), n_type); \
         return n_type; \
     }
 
