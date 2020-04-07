@@ -204,6 +204,10 @@ int adios_get_attr_a2(adios2::IO &bpIO, char *aname, std::string &atype, Attribu
 		{
 			return BP2PIO_ERROR;
 		}
+		catch (...) 
+		{
+			return BP2PIO_ERROR;
+		}
 		return BP2PIO_NOERR;
     }
 
@@ -568,6 +572,10 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	{
 		ierr = BP2PIO_ERROR;
 	}
+	catch (...)
+	{
+		ierr = BP2PIO_ERROR;
+	}
 	DECOMPOSITION_ERROR_CHECK_RETURN(ierr,err_val,err_cnt,comm);
 
     /* Allocate +1 to prevent d.data() from returning NULL. Otherwise, read/write operations fail */
@@ -605,6 +613,12 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 				ierr = BP2PIO_ERROR;
 				break;
 			}
+			catch (...) 
+			{
+				ierr = BP2PIO_ERROR;
+				break;
+			}
+				
 		}
     }
 	DECOMPOSITION_ERROR_CHECK_RETURN(ierr,err_val,err_cnt,comm);
@@ -780,6 +794,10 @@ DimensionMap ProcessDimensions(IOVector &bpIO, EngineVector &bpReader, int ncid,
                 	bpReader[0].Get(v_base, dimval, adios2::Mode::Sync); \
 				} \
 				catch (const std::exception &e) \
+				{ \
+					ierr = BP2PIO_ERROR; \
+				} \
+				catch (...) \
 				{ \
 					ierr = BP2PIO_ERROR; \
 				} \
@@ -1146,6 +1164,11 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T> *v_base,
 			ierr = BP2PIO_ERROR;
 			return ierr;
 		}
+		catch (...) 
+		{
+			ierr = BP2PIO_ERROR;
+			return ierr;
+		}
         ret = put_var_nm(ncid, var.nc_varid, var.nctype, v_base->Type(), v_value.data());
         if (ret != PIO_NOERR)
         {
@@ -1197,6 +1220,11 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T> *v_base,
                     	}
 					}
 					catch (const std::exception &e)
+					{
+						ierr = BP2PIO_ERROR;
+						return ierr;
+					}
+					catch (...)
 					{
 						ierr = BP2PIO_ERROR;
 						return ierr;
@@ -1307,6 +1335,10 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
         	}
 		}
 		catch (const std::exception &e) 
+		{
+			return BP2PIO_ERROR;
+		}
+		catch (...) 
 		{
 			return BP2PIO_ERROR;
 		}
@@ -1426,6 +1458,10 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
 				{
 					return BP2PIO_ERROR;
 				}
+				catch (...)
+				{
+					return BP2PIO_ERROR;
+				}
             }
         }
         else
@@ -1486,6 +1522,10 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
 					{
 						return BP2PIO_ERROR;
 					}
+					catch (...)
+					{
+						return BP2PIO_ERROR;
+					}
                 }
             }
             else
@@ -1519,6 +1559,10 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> *v_base, std::vector<T
                     	TimerStop(write);
 					}
 					catch (const std::exception &e)
+                    {
+                        return BP2PIO_ERROR;
+                    }
+					catch (...)
                     {
                         return BP2PIO_ERROR;
                     }
@@ -1588,6 +1632,11 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
        		l_nblocks += vb_blocks.size();
 		}
 		catch (const std::exception &e)
+		{
+			ierr = BP2PIO_ERROR;
+			break;
+		}
+		catch (...)
 		{
 			ierr = BP2PIO_ERROR;
 			break;
@@ -1790,6 +1839,12 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 			err_val = 1;
 			break;
 		}
+		catch (...)
+		{
+			ierr = BP2PIO_ERROR;
+			err_val = 1;
+			break;
+		}
     }
 	ERROR_CHECK_RETURN(ierr,err_val,err_cnt,comm);
 
@@ -1969,6 +2024,11 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 			err_msg =  e.what();
 			ierr = BP2PIO_ERROR;
 		}
+		catch (...)
+		{
+			err_msg =  "Unknown exception.";
+			ierr = BP2PIO_ERROR;
+		}
 		ERROR_CHECK_THROW(ierr,err_val,err_cnt,comm,err_msg);
 
 		try {
@@ -1978,6 +2038,11 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 		catch (const std::exception &e)
 		{
 			err_msg =  e.what();
+			ierr = BP2PIO_ERROR;
+		}
+		catch (...)
+		{
+			err_msg =  "Unknown exception.";
 			ierr = BP2PIO_ERROR;
 		}
 		ERROR_CHECK_THROW(ierr,err_val,err_cnt,comm,err_msg);
@@ -2018,10 +2083,16 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
             }
             catch (const std::exception &exc)
             {
-				ierr = BP2PIO_ERROR;
 				err_msg =  exc.what();
+				ierr = BP2PIO_ERROR;
 				break;
             }
+            catch (...)
+            {
+				err_msg = "Unknown exception.";
+				ierr = BP2PIO_ERROR;
+				break;
+			}
         }
 		ERROR_CHECK_THROW(ierr,err_val,err_cnt,comm,err_msg);
 
@@ -2168,6 +2239,13 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 		err_msg =  e.what();
 		ierr = BP2PIO_ERROR; 
     }
+    catch (...)
+    {
+        if (ncid > -1)
+            PIOc_closefile(ncid);
+		err_msg =  "Unknown exception.";
+		ierr = BP2PIO_ERROR; 
+    }
 
 	ERROR_CHECK_THROW(ierr,err_val,err_cnt,comm,err_msg);
 
@@ -2279,6 +2357,12 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
         catch (const std::exception &e)
         {
             fprintf(stderr, "mpirank = %d, exception: %s\n", mpirank, e.what());
+            fflush(stderr);
+			ierr = BP2PIO_ERROR;
+        }
+        catch (...)
+        {
+            fprintf(stderr, "mpirank = %d, exception: Unknown\n", mpirank);
             fflush(stderr);
 			ierr = BP2PIO_ERROR;
         }
