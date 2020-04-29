@@ -2328,6 +2328,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
             char declare_name[PIO_MAX_NAME];
             snprintf(declare_name, PIO_MAX_NAME, "%s%lu", file->filename, get_adios2_io_cnt());
 
+			file->begin_step_called = 0;
+
             file->ioH = adios2_declare_io(ios->adiosH, (const char*)(declare_name));
             if (file->ioH == NULL)
             {
@@ -2386,6 +2388,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
             /* Track attributes */
             file->num_attrs = 0;
+
+			ADIOS2_BEGIN_STEP(file,ios);
 
             if (MPI_ROOT == file->adios_iomaster)
             {

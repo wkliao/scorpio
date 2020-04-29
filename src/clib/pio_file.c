@@ -256,7 +256,10 @@ static int sync_file(int ncid)
 
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
+	{
+		ADIOS2_END_STEP(file,ios);
         return PIO_NOERR;
+	}
 #endif
 
     ios = file->iosystem;
@@ -426,6 +429,8 @@ int PIOc_closefile(int ncid)
         {
             LOG((2, "ADIOS close file %s", file->filename));
 
+			ADIOS2_BEGIN_STEP(file,NULL);
+
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, "/__pio__/fillmode");
             if (attributeH == NULL)
             {
@@ -435,6 +440,8 @@ int PIOc_closefile(int ncid)
                     return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=/__pio__/fillmode) failed for file (%s, ncid=%d)", pio_get_fname_from_file(file), file->pio_ncid);
                 }
             }
+
+			ADIOS2_END_STEP(file,ios);
 
             adios2_error adiosErr = adios2_close(file->engineH);
             if (adiosErr != adios2_error_none)

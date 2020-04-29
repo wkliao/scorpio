@@ -854,6 +854,9 @@ typedef struct file_desc_t
     /** ADIOS file handler is 64bit integer */
     adios2_engine *engineH;
 
+	/** Check if begin_step has been invoked. It is used to invoke end_step **/
+	int begin_step_called;
+
     /** Handler for ADIOS group (of variables) */
     adios2_io *ioH;
 
@@ -1444,6 +1447,34 @@ extern "C" {
 #ifdef _ADIOS2
     adios2_type PIOc_get_adios_type(nc_type xtype);
     int adios2_type_size(adios2_type type, const void *var);
+
+#define ADIOS2_BEGIN_STEP(file,ios) \
+{ \
+	if (0==file->begin_step_called) \
+	{ \
+		adios2_step_status step_status; \
+		adios2_error adiosStepErr = adios2_begin_step(file->engineH,adios2_step_mode_append,100.0,&step_status); \
+		if (adiosStepErr != adios2_error_none) \
+		{ \
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "adios2_begin_step failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
+		} \
+		file->begin_step_called = 1; \
+	} \
+}
+
+#define ADIOS2_END_STEP(file,ios) \
+{ \
+	if (1==file->begin_step_called) \
+	{ \
+		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
+		if (adiosStepErr != adios2_error_none) \
+		{ \
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "adios2_end_step failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
+		} \
+		file->begin_step_called = 0; \
+	} \
+}
+
 #ifndef strdup
     char *strdup(const char *str);
 #endif

@@ -2348,6 +2348,8 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
         LOG((2, "ADIOS define dimension %s with size %llu, id = %d",
                 name, (unsigned long long)len, file->num_dim_vars));
 
+		ADIOS2_BEGIN_STEP(file,ios);
+
         char dimname[PIO_MAX_NAME];
         snprintf(dimname, PIO_MAX_NAME, "/__pio__/dim/%s", name);
         adios2_variable *variableH = adios2_inquire_variable(file->ioH, dimname);
@@ -2539,6 +2541,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "ADIOS pre-define variable %s (%d dimensions, type %d)", name, ndims, xtype));
+
+		ADIOS2_BEGIN_STEP(file,ios);
 
         assert(file->num_vars < PIO_MAX_VARS);
         file->adios_vars[file->num_vars].name = strdup(name);

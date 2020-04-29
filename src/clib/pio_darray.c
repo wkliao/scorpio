@@ -681,6 +681,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
     if (sizeof(PIO_Offset) == 8)
         type = adios2_type_int64_t;
 
+	ADIOS2_BEGIN_STEP(file,NULL);
+
     size_t av_count[1];
     if (iodesc->maplen > 1)
     {
@@ -964,6 +966,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     }
 
     adios_var_desc_t *av = &(file->adios_vars[varid]);
+
+	ADIOS2_BEGIN_STEP(file,NULL);
 
     void *temp_buf = NULL;
     if (arraylen == 1) /* Handle the case where there is one array element */
