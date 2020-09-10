@@ -856,6 +856,10 @@ typedef struct file_desc_t
 
 	/** Check if begin_step has been invoked. It is used to invoke end_step **/
 	int begin_step_called;
+	int num_calls;
+	int max_calls;
+	int num_begin_step;
+	int num_end_step;
 
     /** Handler for ADIOS group (of variables) */
     adios2_io *ioH;
@@ -896,6 +900,9 @@ typedef struct file_desc_t
     /** Array for decompositions that has been written already (must write only once) */
     int n_written_ioids;
     int written_ioids[ADIOS_PIO_MAX_DECOMPS]; /* written_ioids[N] = ioid if that decomp has been already written, */
+
+	/** Store current frameid for end_step in PIO_setframe */
+	int current_frame;
 #endif /* _ADIOS2 */
 
     /* File name - cached */
@@ -1474,6 +1481,10 @@ extern "C" {
 		file->begin_step_called = 0; \
 	} \
 }
+
+
+#define ADIOS2_BEGIN_STEP_TEST(file,ios) {} 
+#define ADIOS2_END_STEP_TEST(file,ios) {} 
 
 #ifndef strdup
     char *strdup(const char *str);

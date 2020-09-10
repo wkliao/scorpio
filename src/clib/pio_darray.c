@@ -1007,52 +1007,52 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
             return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", av->name, pio_get_fname_from_file(file), file->pio_ncid);
         }
 
-        /* Different decompositions at different frames */
-        char name_varid[PIO_MAX_NAME];
-        snprintf(name_varid, PIO_MAX_NAME, "decomp_id/%s", av->name);
-        av_count[0] = 1;
-        av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
-        if (av->decomp_varid == NULL)
+        if (1 || file->adios_iomaster == MPI_ROOT)
         {
-            av->decomp_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-                                                      1, NULL, NULL, av_count,
-                                                      adios2_constant_dims_true);
-            if (av->decomp_varid == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
-            }
-        }
+			/* Different decompositions at different frames */
+			char name_varid[PIO_MAX_NAME];
+			snprintf(name_varid, PIO_MAX_NAME, "decomp_id/%s", av->name);
+			av_count[0] = 1;
+			av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
+			if (av->decomp_varid == NULL)
+			{
+				av->decomp_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
+														  1, NULL, NULL, av_count,
+														  adios2_constant_dims_true);
+				if (av->decomp_varid == NULL)
+				{
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+				}
+			}
 
-        snprintf(name_varid, PIO_MAX_NAME, "frame_id/%s", av->name);
-        av_count[0] = 1;
-        av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
-        if (av->frame_varid == NULL)
-        {
-            av->frame_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-                                                     1, NULL, NULL, av_count,
-                                                     adios2_constant_dims_true);
-            if (av->frame_varid == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
-            }
-        }
+			snprintf(name_varid, PIO_MAX_NAME, "frame_id/%s", av->name);
+			av_count[0] = 1;
+			av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
+			if (av->frame_varid == NULL)
+			{
+				av->frame_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
+														 1, NULL, NULL, av_count,
+														 adios2_constant_dims_true);
+				if (av->frame_varid == NULL)
+				{
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+				}
+			}
 
-        snprintf(name_varid, PIO_MAX_NAME, "fillval_id/%s", av->name);
-        av_count[0] = 1;
-        av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
-        if (av->fillval_varid == NULL)
-        {
-            av->fillval_varid = adios2_define_variable(file->ioH, name_varid, atype,
-                                                       1, NULL, NULL, av_count,
-                                                       adios2_constant_dims_true);
-            if (av->fillval_varid == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
-            }
-        }
+			snprintf(name_varid, PIO_MAX_NAME, "fillval_id/%s", av->name);
+			av_count[0] = 1;
+			av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
+			if (av->fillval_varid == NULL)
+			{
+				av->fillval_varid = adios2_define_variable(file->ioH, name_varid, atype,
+														   1, NULL, NULL, av_count,
+														   adios2_constant_dims_true);
+				if (av->fillval_varid == NULL)
+				{
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+				}
+			}
 
-        if (file->adios_iomaster == MPI_ROOT)
-        {
             /* Some of the codes were moved to pio_nc.c */
             char decompname[PIO_MAX_NAME];
             char att_name[PIO_MAX_NAME];
@@ -1131,32 +1131,35 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
     }
 
-    /* NOTE: PIOc_setframe with different decompositions */
-    /* Different decompositions at different frames and fillvalue */
-    if (fillbuf != NULL) /* Write out user provided fillvalue */
-    {
-        adiosErr = adios2_put(file->engineH, av->fillval_varid, fillbuf, adios2_mode_sync);
-        if (adiosErr != adios2_error_none)
-        {
-            return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-        }
-    }
-    else
-    {
-        ioid = -ioid;
-    }
+	if (1 || file->adios_iomaster == MPI_ROOT)
+	{
+		/* NOTE: PIOc_setframe with different decompositions */
+		/* Different decompositions at different frames and fillvalue */
+		if (fillbuf != NULL) /* Write out user provided fillvalue */
+		{
+			adiosErr = adios2_put(file->engineH, av->fillval_varid, fillbuf, adios2_mode_sync);
+			if (adiosErr != adios2_error_none)
+			{
+				return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+			}
+		}
+		else
+		{
+			ioid = -ioid;
+		}
 
-    adiosErr = adios2_put(file->engineH, av->decomp_varid, &ioid, adios2_mode_sync);
-    if (adiosErr != adios2_error_none)
-    {
-        return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=decomp_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-    }
+		adiosErr = adios2_put(file->engineH, av->decomp_varid, &ioid, adios2_mode_sync);
+		if (adiosErr != adios2_error_none)
+		{
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=decomp_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+		}
 
-    adiosErr = adios2_put(file->engineH, av->frame_varid, &(file->varlist[varid].record), adios2_mode_sync);
-    if (adiosErr != adios2_error_none)
-    {
-        return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=frame_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-    }
+		adiosErr = adios2_put(file->engineH, av->frame_varid, &(file->varlist[varid].record), adios2_mode_sync);
+		if (adiosErr != adios2_error_none)
+		{
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=frame_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+		}
+	}
 
     if (buf_needs_free)
     {
@@ -1256,8 +1259,9 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
 
 #ifdef TIMING
 #ifdef _ADIOS2 /* TAHSIN: timing */
-    if (file->iotype == PIO_IOTYPE_ADIOS)
+    if (file->iotype == PIO_IOTYPE_ADIOS) {
         GPTLstart("PIO:PIOc_write_darray_adios"); /* TAHSIN: start */
+	}
 #endif
 #endif
 
@@ -1393,10 +1397,12 @@ int PIOc_write_darray(int ncid, int varid, int ioid, PIO_Offset arraylen, void *
        maximum number of non-contiguous regions in an IO process and
        forcefully flush out user data cached by a compute process
        when that limit has been reached. */
+#if 0
     decomp_max_regions = (iodesc->maxregions >= iodesc->maxfillregions)? iodesc->maxregions : iodesc->maxfillregions;
     io_max_regions = (1 + wmb->num_arrays) * decomp_max_regions;
     if (io_max_regions > PIO_MAX_CACHED_IO_REGIONS)
         needsflush = 2;
+#endif 
 
     /* Tell all tasks on the computation communicator whether we need
      * to flush data. */

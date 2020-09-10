@@ -197,6 +197,10 @@ int PIOc_setframe(int ncid, int varid, int frame)
     iosystem_desc_t *ios;
     int ret;
 
+#ifdef TIMING
+    GPTLstart("PIO:PIOc_setframe");
+#endif
+
     LOG((1, "PIOc_setframe ncid = %d varid = %d frame = %d", ncid,
          varid, frame));
 
@@ -243,6 +247,48 @@ int PIOc_setframe(int ncid, int varid, int frame)
     /* Set the record dimension value for this variable. This will be
      * used by the write_darray functions. */
     file->varlist[varid].record = frame;
+
+#ifdef _ADIOS2 /* TAHSIN: timing */
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+        GPTLstart("PIO:PIOc_setframe_adios"); /* TAHSIN: start */
+#endif
+
+	/* Add end_step here. Check for frame value of the ncid. */
+#ifdef _ADIOS2
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+	{
+		if (file->current_frame<0)
+		{
+			file->current_frame = frame;
+		}
+		else if (file->current_frame!=frame) 
+		{
+			if (frame==(file->current_frame+1))
+			{
+				file->current_frame = frame;
+				(file->num_calls)++;
+				if (file->num_calls>file->max_calls) 
+				{
+					ADIOS2_END_STEP(file,ios);
+					file->num_calls = 0;
+				}
+			} 
+			else 
+			{
+				return pio_err(ios, file, PIO_EBADID, __FILE__, __LINE__,"Frame does not increase by 1. frame = (%d), current_frame = (%d)",frame,file->current_frame);
+			}
+		}
+	}
+#endif 
+
+#ifdef TIMING
+    GPTLstop("PIO:PIOc_setframe");
+
+#ifdef _ADIOS2 /* TAHSIN: timing */
+    if (file->iotype == PIO_IOTYPE_ADIOS)
+        GPTLstop("PIO:PIOc_setframe_adios"); /* TAHSIN: start */
+#endif
+#endif
 
     return PIO_NOERR;
 }

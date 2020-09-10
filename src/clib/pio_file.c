@@ -429,11 +429,14 @@ int PIOc_closefile(int ncid)
         {
             LOG((2, "ADIOS close file %s", file->filename));
 
+			printf("BEFORE BEGIN_STEP Global filemode: %d\n",file->begin_step_called); fflush(stdout);
 			ADIOS2_BEGIN_STEP(file,NULL);
 
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, "/__pio__/fillmode");
+			printf("BEGIN_STEP Global filemode: %d\n",file->begin_step_called); fflush(stdout);
             if (attributeH == NULL)
             {
+				printf("Writing: Global filemode.\n");
                 attributeH = adios2_define_attribute(file->ioH, "/__pio__/fillmode", adios2_type_int32_t, &file->fillmode);
                 if (attributeH == NULL)
                 {
@@ -441,7 +444,30 @@ int PIOc_closefile(int ncid)
                 }
             }
 
+			/* THIS HAS TO BE HERE, OTHERWISE ADIOS WILL NOT WRITE OUT THE ATTRIBUTE.... */
+			{
+                adios2_variable *variableH = adios2_inquire_variable(file->ioH, "/__pio__/info/testing");
+                if (variableH == NULL)
+                {
+                    variableH = adios2_define_variable(file->ioH,
+                                                       "/__pio__/info/testing", adios2_type_int32_t,
+                                                       0, NULL, NULL, NULL, 
+                                                       adios2_constant_dims_true);
+                    if (variableH == NULL)
+                    {
+                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", pio_get_fname_from_file(file));
+                    }
+                }
+
+                adios2_error adiosErr = adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
+                if (adiosErr != adios2_error_none)
+                {
+                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+                }
+			}
+			
 			ADIOS2_END_STEP(file,ios);
+			printf("END_STEP filemode: %d\n",file->begin_step_called); fflush(stdout);
 
             adios2_error adiosErr = adios2_close(file->engineH);
             if (adiosErr != adios2_error_none)
@@ -482,6 +508,7 @@ int PIOc_closefile(int ncid)
         }
 
         file->num_attrs = 0;
+		printf("***************** ADIOS Converting: %s\n",file->filename);
 
 #ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
 #ifdef _PNETCDF
@@ -490,11 +517,14 @@ int PIOc_closefile(int ncid)
         char conv_iotype[] = "netcdf";
 #endif
 
+		printf("<<<<<<<<<<<<<<<<<<<<<<<<<< ADIOS Converting: %s\n",file->filename);
+
         /* Convert XXXX.nc.bp to XXXX.nc */
         len = strlen(file->filename);
         assert(len > 6 && len <= PIO_MAX_NAME);
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
+		printf("ADIOS Converting: %s\n",file->filename);
         LOG((1, "CONVERTING: %s", file->filename));
         MPI_Barrier(ios->union_comm);
         ierr = C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 0, ios->union_comm);

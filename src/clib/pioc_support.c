@@ -2284,7 +2284,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
         LOG((2, "Calling adios_open mode = %d", file->mode));
- 
+
         /* Append .bp to output file for ADIOS output */
         int len = strlen(filename);
         file->filename = malloc(len + 4);
@@ -2328,18 +2328,17 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
             char declare_name[PIO_MAX_NAME];
             snprintf(declare_name, PIO_MAX_NAME, "%s%lu", file->filename, get_adios2_io_cnt());
 
+			file->max_calls = 0; /* 30; */
 			file->begin_step_called = 0;
+			file->num_calls = 0;
+			file->current_frame = -1;
+			file->num_begin_step = 0;
+			file->num_end_step = 0;
 
             file->ioH = adios2_declare_io(ios->adiosH, (const char*)(declare_name));
             if (file->ioH == NULL)
             {
                 return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Declaring (ADIOS) IO (name=%s) failed for file (%s)", declare_name, pio_get_fname_from_file(file));
-            }
-
-            adios2_error adiosErr = adios2_set_engine(file->ioH, "BP3");
-            if (adiosErr != adios2_error_none)
-            {
-                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) engine (type=BP3) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
             }
 
             int num_adios_iotasks; // Set MPI Aggregate params
@@ -2354,18 +2353,48 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                     num_adios_iotasks = ios->num_comptasks;
             }
 
+			char *bp_type = "BP4";
+            adios2_error adiosErr = adios2_set_engine(file->ioH, bp_type);
+            if (adiosErr != adios2_error_none)
+            {
+                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) engine (type=BP3) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            }
+
             snprintf(file->params, PIO_MAX_NAME, "%d", num_adios_iotasks);
-            adiosErr = adios2_set_parameter(file->ioH, "substreams", file->params);
+            adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
             if (adiosErr != adios2_error_none)
             {
                 return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (substreams=%s) failed (adios2_error=%s) for file (%s)", file->params, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
             }
 
-            adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "OFF");
-            if (adiosErr != adios2_error_none)
-            {
-                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (CollectiveMetadata=OFF) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-            }
+			if (!strcmp(bp_type,"BP3"))
+			{
+            	adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "OFF"); /* OFF for BP3 */
+            	if (adiosErr != adios2_error_none)
+           	 	{
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (CollectiveMetadata=OFF) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            	}
+			} 
+			else if (!strcmp(bp_type,"BP4")) 
+			{
+            	adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "ON"); /* ON for BP4 */
+            	if (adiosErr != adios2_error_none)
+           	 	{
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (CollectiveMetadata=OFF) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            	}
+
+            	snprintf(file->params, PIO_MAX_NAME, "30Gb");
+				adiosErr = adios2_set_parameter(file->ioH, "MaxBufferSize", file->params);
+				printf("BUFFER: %s\n",file->params); fflush(stdout);
+				if (adiosErr != adios2_error_none)
+				{
+				    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (MaxBufferSize) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+				}
+			}
+			else 
+			{
+				return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Undefined BP format (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+			}
 
             file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);
             if (file->engineH == NULL)

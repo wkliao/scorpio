@@ -1,6 +1,7 @@
 !#define VARINT 1
 #define VARREAL 1
 !#define VARDOUBLE 1
+!#define TEST_READ 1
 
 program pioperformance_rearr
 #ifndef NO_MPIMOD
@@ -8,7 +9,7 @@ program pioperformance_rearr
 #endif
   use perf_mod, only : t_initf, t_finalizef
   use pio, only : pio_iotype_netcdf, pio_iotype_pnetcdf, pio_iotype_netcdf4p, &
-       pio_iotype_netcdf4c, pio_rearr_subset, pio_rearr_box, PIO_MAX_NAME,&
+       pio_iotype_netcdf4c, pio_iotype_adios, pio_rearr_subset, pio_rearr_box, PIO_MAX_NAME,&
         pio_rearr_opt_t, pio_rearr_comm_p2p, pio_rearr_comm_coll,&
         pio_rearr_comm_fc_2d_disable, pio_rearr_comm_fc_1d_comp2io,&
         pio_rearr_comm_fc_1d_io2comp, pio_rearr_comm_fc_2d_enable,&
@@ -33,6 +34,7 @@ program pioperformance_rearr
   integer :: niotasks(MAX_IO_TASK_ARRAY_SIZE)
   integer :: nv, nframes, nvars(MAX_NVARS)
   integer :: vs, varsize(MAX_NVARS) !  Local size of array for idealized decomps
+  integer :: imbalance_ratio
   logical :: unlimdimindof
   type(pio_rearr_opt_t) :: rearr_opts
   logical :: nml_file_exists = .false. , use_gptl = .false.
@@ -71,9 +73,10 @@ program pioperformance_rearr
   varsize = 0
   varsize(1) = 1
   unlimdimindof=.false.
+  imbalance_ratio = 1
   call read_user_input(mype, decompfile, piotypes, rearrangers,&
         niotasks, nframes, unlimdimindof, nvars, varsize,&
-        rearr_opts, ierr)
+        rearr_opts, imbalance_ratio, ierr)
 
   inquire(file=PIO_NML_FNAME,exist=nml_file_exists)
   if(nml_file_exists) then
@@ -105,7 +108,7 @@ program pioperformance_rearr
               if(nvars(nv)>0) then
                  call pioperformance_rearrtest(decompfile(i), piotypes(1:niotypes),&
                       mype, npe, rearrangers, rearr_opts, niotasks, nframes,&
-                      nvars(nv), varsize(vs),unlimdimindof) 
+                      nvars(nv), varsize(vs),unlimdimindof,imbalance_ratio) 
               endif
            enddo
         endif
@@ -214,6 +217,8 @@ contains
       pio_type = PIO_IOTYPE_NETCDF4C
     else if(pio_typename .eq. 'pnetcdf') then
       pio_type = PIO_IOTYPE_PNETCDF
+    else if(pio_typename .eq. 'adios') then
+      pio_type = PIO_IOTYPE_ADIOS
     else
       !print *, "ERROR: Unrecognized pio type :", pio_typename,&
       !          __FILE__, __LINE__
@@ -247,7 +252,7 @@ contains
   ! Parse a single command line arg
   subroutine parse_and_process_input(argv, decompfiles, piotypes,&
         rearrangers, niotasks, nframes, unlimdimindof, nvars, varsize,&
-        rearr_opts, ierr)
+        rearr_opts, imbalance_ratio, ierr)
     character(len=*), intent(in)  :: argv
     character(len=MAX_FNAME_LEN), intent(out) :: decompfiles(MAX_DECOMP_FILES)
     integer, intent(out) :: piotypes(MAX_PIO_TYPES)
@@ -258,6 +263,7 @@ contains
     integer, intent(out) :: nvars(MAX_NVARS)
     integer, intent(out) :: varsize(MAX_NVARS)
     type(pio_rearr_opt_t), intent(out) :: rearr_opts
+    integer, intent(out) :: imbalance_ratio
     integer, intent(out) :: ierr
 
     integer, parameter :: MAX_PIO_REARR_OPT_LEN = 128
@@ -329,6 +335,9 @@ contains
       else if (argv(:pos) == "--pio-unlimdimindof=") then
         read(argv(pos+1:), *) unlimdimindof
         !print *, "Read unlimdimindof = ", unlimdimindof
+      else if (argv(:pos) == "--pio-imbalance-ratio=") then
+        read(argv(pos+1:), *) imbalance_ratio
+        !print *, "Read imbalance_ratio = ", imbalance_ratio
       else if (argv(:pos) == "--pio-nvars=") then
         call init_arr_from_list(argv(pos+1:), iarr=nvars, ierr=ierr)
         !print *, "Read nvars : ", nvars
@@ -343,7 +352,7 @@ contains
   ! Parse command line user options
   subroutine read_cmd_line_input(decompfile, piotypes, rearrangers,&
         niotasks, nframes, unlimdimindof, nvars, varsize,&
-        rearr_opts, ierr)
+        rearr_opts, imbalance_ratio, ierr)
     character(len=MAX_FNAME_LEN), intent(out) :: decompfile(MAX_DECOMP_FILES)
     integer, intent(out) :: piotypes(MAX_PIO_TYPES)
     integer, intent(out) :: rearrangers(MAX_PIO_REARRS)
@@ -353,6 +362,7 @@ contains
     integer, intent(out) :: nvars(MAX_NVARS)
     integer, intent(out) :: varsize(MAX_NVARS)
     type(pio_rearr_opt_t), intent(out) :: rearr_opts
+    integer, intent(out) :: imbalance_ratio
     integer, intent(out) :: ierr
 
     integer, parameter :: MAX_STDIN_ARG_LEN = 8192
@@ -364,7 +374,7 @@ contains
       call get_command_argument(i, argv)
       call parse_and_process_input(argv, decompfile, piotypes, rearrangers,&
             niotasks, nframes, unlimdimindof, nvars, varsize,&
-            rearr_opts, ierr)
+            rearr_opts, imbalance_ratio, ierr)
     end do
 
   end subroutine read_cmd_line_input
@@ -520,7 +530,7 @@ contains
   ! read (and override) the command line options
   subroutine read_user_input(mype, decompfile, piotypes, rearrangers,&
         niotasks, nframes, unlimdimindof, nvars, varsize,&
-        rearr_opts, ierr)
+        rearr_opts, imbalance_ratio, ierr)
     integer, intent(in) :: mype
     character(len=MAX_FNAME_LEN), intent(out) :: decompfile(MAX_DECOMP_FILES)
     integer, intent(out) :: piotypes(MAX_PIO_TYPES)
@@ -531,6 +541,7 @@ contains
     integer, intent(out) :: nvars(MAX_NVARS)
     integer, intent(out) :: varsize(MAX_NVARS)
     type(pio_rearr_opt_t), intent(out) :: rearr_opts
+    integer, intent(out) :: imbalance_ratio
     integer, intent(out) :: ierr
 
     character(len=MAX_PIO_TYPENAME_LEN) :: pio_typenames(MAX_PIO_TYPES)
@@ -545,7 +556,7 @@ contains
       ! Allow user to override the values via command line
       call read_cmd_line_input(decompfile, piotypes, rearrangers,&
             niotasks, nframes, unlimdimindof, nvars, varsize,&
-            rearr_opts, ierr)
+            rearr_opts, imbalance_ratio, ierr)
     end if
 
     call MPI_Bcast(decompfile,MAX_FNAME_LEN*MAX_DECOMP_FILES,MPI_CHARACTER,0, MPI_COMM_WORLD,ierr)
@@ -556,6 +567,7 @@ contains
     call MPI_Bcast(unlimdimindof, 1, MPI_INTEGER, 0, MPI_COMM_WORLD,ierr)
     call MPI_Bcast(nvars, MAX_NVARS, MPI_INTEGER, 0, MPI_COMM_WORLD,ierr)
     call MPI_Bcast(varsize, MAX_NVARS, MPI_INTEGER, 0, MPI_COMM_WORLD,ierr)
+    call MPI_Bcast(imbalance_ratio, 1, MPI_INTEGER, 0, MPI_COMM_WORLD,ierr)
 
     call bcast_rearr_opts(rearr_opts)
 
@@ -581,7 +593,7 @@ contains
 
   subroutine pioperformance_rearrtest(filename, piotypes, mype, npe_base, &
        rearrangers, rearr_opts, niotasks,nframes, nvars, varsize,&
-       unlimdimindof)
+       unlimdimindof, imbalance_ratio)
     use pio
     use pio_support, only : pio_readdof
     use perf_mod
@@ -595,6 +607,7 @@ contains
     integer, intent(in) :: nvars
     integer, intent(in) :: varsize
     logical, intent(in) :: unlimdimindof
+    integer, intent(in) :: imbalance_ratio
     integer(kind=PIO_Offset_kind), pointer :: compmap(:)
     integer :: ntasks
     integer :: comm
@@ -603,7 +616,7 @@ contains
     integer(kind=PIO_Offset_kind) :: maplen, gmaplen
     integer :: ndims
     integer, pointer :: gdims(:)
-    character(len=20) :: fname
+    character(len=128) :: fname
     type(var_desc_t) :: vari(nvars), varr(nvars), vard(nvars)
     type(iosystem_desc_t) :: iosystem
     integer :: stride, n
@@ -621,6 +634,7 @@ contains
     integer, parameter :: MAX_TIMESTAMPS = 2
     double precision :: wall(MAX_TIMESTAMPS), sys(MAX_TIMESTAMPS),&
                         usr(MAX_TIMESTAMPS)
+    double precision :: wall_init_decomp(MAX_TIMESTAMPS), wall_wr_darr(MAX_TIMESTAMPS), wall_close(MAX_TIMESTAMPS)
     integer :: niomin, niomax
     integer :: nv, mode
     integer,  parameter :: c0 = -1
@@ -630,7 +644,16 @@ contains
 
     nullify(compmap)
 
-    if(trim(filename) .eq. 'ROUNDROBIN' .or. trim(filename).eq.'BLOCK') then
+    if(trim(filename) .eq. 'IMBALANCE_BLK') then 
+       call init_imbalance_block_dof(filename, mype, npe_base, ndims, gdims, compmap, &
+                    varsize, imbalance_ratio) 
+    else if(trim(filename) .eq. 'DECOMP_HOLES') then 
+       call init_decomp_holes_dof(filename, mype, npe_base, ndims, gdims, compmap, &
+                    varsize, imbalance_ratio) 
+    else if(trim(filename) .eq. 'IMBALANCE_BIN') then
+       call init_scaled_binpack_dof(filename, mype, npe_base, ndims, gdims, compmap, &
+                    varsize, imbalance_ratio) 
+    else if(trim(filename) .eq. 'ROUNDROBIN' .or. trim(filename).eq.'BLOCK') then
        call init_ideal_dof(filename, mype, npe_base, ndims, gdims, compmap, varsize)
     else
        ! Changed to support PIO1 as well
@@ -667,6 +690,10 @@ contains
 !       if(gmaplen /= product(gdims)) then
 !          print *,__FILE__,__LINE__,gmaplen,gdims
 !       endif
+
+       if (gmaplen > product(gdims)) then
+           gmaplen = product(gdims)
+       endif
     
        allocate(ifld(maplen,nvars))
        allocate(ifld_in(maplen,nvars,nframes))
@@ -700,11 +727,11 @@ contains
           if(mype==0) then
              !print *,'iotype=',piotypes(k)
           endif
-!          if(iotype==PIO_IOTYPE_PNETCDF) then
-!             mode = PIO_64BIT_DATA
-!          else
+          if(iotype==PIO_IOTYPE_PNETCDF) then
+             mode = PIO_64BIT_DATA
+          else
              mode = 0
-!          endif
+          endif
           do rearrtype=1,2
              rearr = rearrangers(rearrtype)
              if(rearr /= PIO_REARR_SUBSET .and. rearr /= PIO_REARR_BOX) exit
@@ -718,27 +745,30 @@ contains
                 call pio_init(mype, comm, ntasks, 0, stride, PIO_REARR_SUBSET,&
                   iosystem, rearr_opts=rearr_opts)
                    
-                write(fname, '(a,i1,a,i4.4,a,i1,a)') 'pioperf.',rearr,'-',ntasks,'-',iotype,'.nc'
+                write(fname, '(a,i1,a,i4.4,a,i4.4,a,i4.4,a,i1,a,i3.3,a,i3.3,a)') 'pioperf-rearr-', rearr, &
+                      '-ncomptasks-', npe, '-niotasks-', ntasks, '-stride-', stride, '-iotype-', iotype, &
+                      '-nframes-',nframes,'-nvars-',nvars,'.nc'
 		
                 ierr =  PIO_CreateFile(iosystem, File, iotype, trim(fname), mode)
 
                 call WriteMetadata(File, gdims, vari, varr, vard, unlimdimindof)
 
                 call MPI_Barrier(comm,ierr)
-                call get_tstamp(wall(1), usr(1), sys(1))
+                call get_tstamp(wall_init_decomp(1), usr(1), sys(1))
 
                 if(.not. unlimdimindof) then
 #ifdef VARINT
                    call PIO_InitDecomp(iosystem, PIO_INT, gdims, compmap, iodesc_i4, rearr=rearr)
 #endif
 #ifdef VARREAL
-                   call PIO_InitDecomp(iosystem, PIO_REAL, gdims, compmap, iodesc_r4, rearr=rearr)
+                   call PIO_InitDecomp(iosystem, PIO_DOUBLE, gdims, compmap, iodesc_r4, rearr=rearr)
 #endif
 #ifdef VARDOUBLE
                    call PIO_InitDecomp(iosystem, PIO_DOUBLE, gdims, compmap, iodesc_r8, rearr=rearr)
 #endif
                 endif
 
+                call get_tstamp(wall(1), usr(1), sys(1))
                 ! print *,__FILE__,__LINE__,minval(dfld),maxval(dfld),minloc(dfld),maxloc(dfld)
 
                 do frame=1,nframes
@@ -767,7 +797,7 @@ contains
 #endif
 #ifdef VARREAL
                       call PIO_setframe(File, varr(nv), recnum)
-                      call pio_write_darray(File, varr(nv), iodesc_r4, rfld(:,nv)    , ierr, fillval= PIO_FILL_FLOAT)
+                      call pio_write_darray(File, varr(nv), iodesc_r4, dfld(:,nv)    , ierr, fillval= PIO_FILL_DOUBLE)
 #endif
 #ifdef VARDOUBLE
                       call PIO_setframe(File, vard(nv), recnum)
@@ -786,14 +816,25 @@ contains
 #endif                
                    endif
                 enddo
+                call get_tstamp(wall_wr_darr(2), usr(2), sys(2))
                 call pio_closefile(File)
 
 
                 call MPI_Barrier(comm,ierr)
 
                 call get_tstamp(wall(2), usr(2), sys(2))
+                wall_init_decomp(2) = wall(1)
+                wall_wr_darr(1) = wall(1)
+                wall_close(1) = wall_wr_darr(2)
+                wall_close(2) = wall(2)
                 wall(1) = wall(2)-wall(1)
                 call MPI_Reduce(wall(1), wall(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, comm, ierr)
+                wall_wr_darr(1) = wall_wr_darr(2)-wall_wr_darr(1)
+                call MPI_Reduce(wall_wr_darr(1), wall_wr_darr(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, comm, ierr)
+                wall_close(1) = wall_close(2)-wall_close(1)
+                call MPI_Reduce(wall_close(1), wall_close(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, comm, ierr)
+                wall_init_decomp(1) = wall_init_decomp(2)-wall_init_decomp(1)
+                call MPI_Reduce(wall_init_decomp(1), wall_init_decomp(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, comm, ierr)
                 if(mype==0) then
                    ! print out performance in MB/s
                    nvarmult = 0
@@ -806,6 +847,11 @@ contains
 #ifdef VARDOUBLE
                    nvarmult = nvarmult+2
 #endif
+                   print *, 'nvars = ', nvars, ', nframes = ', nframes, ', gmaplen = ', gmaplen, &
+                            ', init decomp time = ', wall_init_decomp(2), &
+                            ', write darray time = ', wall_wr_darr(2), &
+                            ', close file time = ', wall_close(2), &
+                            ', write time (write darray + close file) = ', wall(2)
                    write(*,'(a15,a9,i10,i10,i10,f20.10)') &	
                    'RESULT: write ',&
                     rearr_name(rearr), piotypes(k), ntasks, nvars, &
@@ -815,6 +861,7 @@ contains
 #endif
                 end if
 ! Now the Read
+#ifdef TEST_READ
                 ierr = PIO_OpenFile(iosystem, File, iotype, trim(fname), mode=PIO_NOWRITE);
                 do nv=1,nvars
 #ifdef VARINT
@@ -961,6 +1008,7 @@ contains
 #ifdef VARINT
                 call PIO_freedecomp(iosystem, iodesc_i4)
 #endif                
+#endif
                 call pio_finalize(iosystem, ierr)
              enddo
           enddo
@@ -1008,6 +1056,259 @@ contains
     endif
   end subroutine init_ideal_dof
 
+  subroutine find_update_bin(binpack,npe,load_value,minj)
+    double precision, pointer, intent(inout) :: binpack(:)
+    integer, intent(in) :: npe
+    double precision, intent(in) :: load_value
+    integer, intent(inout) :: minj
+    integer :: j
+    double precision :: minv
+
+    minv = binpack(1)
+    minj = 1 
+    do j=2,npe
+       if(minv.gt.binpack(j)) then
+          minv = binpack(j)
+          minj = j
+       endif
+    enddo
+    binpack(minj) = binpack(minj)+load_value
+  end subroutine find_update_bin
+
+  subroutine init_scaled_binpack_dof(doftype, mype, npe, ndims, gdims, compmap, &
+            varsize, imbalance_ratio) 
+    use pio
+    use pio_support, only : piodie
+    character(len=*), intent(in) :: doftype
+    integer, intent(in) :: mype
+    integer, intent(in) :: npe
+    integer, intent(out) :: ndims
+    integer, pointer :: gdims(:)
+    integer(kind=PIO_Offset_kind), pointer :: compmap(:)
+    integer, intent(in) :: varsize
+    integer, intent(in) :: imbalance_ratio
+    integer :: i,j,k,minj
+    integer :: ierr
+    integer :: localsize, globalsize, startidx 
+    double precision :: multiply_ratio, load_value, minv;
+    double precision, pointer :: binpack(:)
+     
+    localsize  = varsize 
+    globalsize = localsize*npe
+    multiply_ratio = imbalance_ratio/100.0;
+
+    ndims = 1
+    allocate(gdims(1))
+    gdims(1) = globalsize 
+
+    allocate(binpack(npe))
+    do i=1,npe
+        binpack(i) = 0.0
+    enddo
+
+    localsize = 0
+    do i=globalsize,1,-1
+        load_value = 1.0
+        load_value = load_value + i*multiply_ratio
+        call find_update_bin(binpack,npe,load_value,minj)
+        if((minj-1) .eq. mype) then
+            localsize = localsize+1
+        endif
+    enddo
+    allocate(compmap(localsize))
+
+    do i=1,npe
+        binpack(i) = 0.0
+    enddo
+    k = 1
+    do i=globalsize,1,-1
+        load_value = 1.0
+        load_value = load_value + i*multiply_ratio
+        call find_update_bin(binpack,npe,load_value,minj)
+        if((minj-1) .eq. mype) then
+            compmap(k) = i
+            k = k+1 
+        endif
+    enddo
+
+    print *, 'BINPACK: ',mype,localsize,binpack(mype+1)
+
+    deallocate(binpack)
+
+    if(minval(compmap)< 1 .or. maxval(compmap) > gdims(1)) then
+       print *,__FILE__,__LINE__,trim(doftype),localsize,minval(compmap),maxval(compmap)
+       call piodie(__FILE__,__LINE__,'Compmap out of bounds')
+    endif
+  end subroutine init_scaled_binpack_dof
+
+  subroutine init_binpack_dof(doftype, mype, npe, ndims, gdims, compmap, &
+            varsize, imbalance_ratio) 
+    use pio
+    use pio_support, only : piodie
+    character(len=*), intent(in) :: doftype
+    integer, intent(in) :: mype
+    integer, intent(in) :: npe
+    integer, intent(out) :: ndims
+    integer, pointer :: gdims(:)
+    integer(kind=PIO_Offset_kind), pointer :: compmap(:)
+    integer, intent(in) :: varsize
+    integer, intent(in) :: imbalance_ratio
+    integer :: i,j,k,minv,minj
+    integer :: ierr
+    integer :: localsize, globalsize, startidx 
+    integer, pointer :: binpack(:)
+     
+    localsize  = varsize 
+    globalsize = localsize*npe
+
+    ndims = 1
+    allocate(gdims(1))
+    gdims(1) = globalsize 
+
+    allocate(binpack(npe))
+    do i=1,npe
+        binpack(i) = 0
+    enddo
+
+    localsize = 0
+    do i=globalsize,1,-1
+        minv = binpack(1)
+        minj = 1 
+        do j=2,npe
+            if(minv.gt.binpack(j)) then
+                minv = binpack(j)
+                minj = j
+            endif
+        enddo
+        binpack(minj) = binpack(minj)+i
+        if((minj-1) .eq. mype) then
+            localsize = localsize+1
+        endif
+    enddo
+    allocate(compmap(localsize))
+
+    print *, 'BINPACK: ',mype,localsize,binpack(mype+1)
+    do i=1,npe
+        binpack(i) = 0
+    enddo
+    k = 1
+    do i=globalsize,1,-1
+        minv = binpack(1)
+        minj = 1 
+        do j=2,npe
+            if(minv.gt.binpack(j)) then
+                minv = binpack(j)
+                minj = j
+            endif
+        enddo
+        binpack(minj) = binpack(minj)+i
+        if((minj-1) .eq. mype) then
+            compmap(k) = i
+            k = k+1 
+        endif
+    enddo
+
+    if(mype.eq.0) then
+        do i=1,localsize
+            print *,'COMP ',mype,compmap(i)
+        enddo
+    endif
+
+    deallocate(binpack)
+
+    if(minval(compmap)< 1 .or. maxval(compmap) > gdims(1)) then
+       print *,__FILE__,__LINE__,trim(doftype),localsize,minval(compmap),maxval(compmap)
+       call piodie(__FILE__,__LINE__,'Compmap out of bounds')
+    endif
+  end subroutine init_binpack_dof
+
+  subroutine init_decomp_holes_dof(doftype, mype, npe, ndims, gdims, compmap, &
+            varsize, imbalance_ratio) 
+    use pio
+    use pio_support, only : piodie
+    character(len=*), intent(in) :: doftype
+    integer, intent(in) :: mype
+    integer, intent(in) :: npe
+    integer, intent(out) :: ndims
+    integer, pointer :: gdims(:)
+    integer(kind=PIO_Offset_kind), pointer :: compmap(:)
+    integer, intent(in) :: varsize
+    integer, intent(in) :: imbalance_ratio
+    integer :: i
+    integer :: ierr
+    integer :: localsize, globalsize, startidx 
+    
+    localsize = varsize 
+    if(modulo(mype,2).eq.0) then 
+        localsize = 0
+    endif 
+    globalsize = 0
+    call MPI_Allreduce(localsize,globalsize,1,MPI_INT,MPI_SUM, &
+                        MPI_COMM_WORLD,ierr)
+    call MPI_Exscan(localsize,startidx,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,ierr)
+    if(mype.eq.0) then
+        startidx = 0
+    endif
+    startidx = startidx + 1
+
+    ndims = 1
+    allocate(gdims(1))
+    gdims(1) = globalsize 
+
+    allocate(compmap(localsize))
+    do i=1,localsize
+       compmap(i) = startidx+(i-1)
+    enddo
+
+    if(size(compmap)>0 .and. (minval(compmap)< 1 .or. maxval(compmap) > gdims(1))) then
+       print *,__FILE__,__LINE__,trim(doftype),localsize,minval(compmap),maxval(compmap)
+       call piodie(__FILE__,__LINE__,'Compmap out of bounds')
+    endif
+  end subroutine init_decomp_holes_dof
+
+  subroutine init_imbalance_block_dof(doftype, mype, npe, ndims, gdims, compmap, &
+            varsize, imbalance_ratio) 
+    use pio
+    use pio_support, only : piodie
+    character(len=*), intent(in) :: doftype
+    integer, intent(in) :: mype
+    integer, intent(in) :: npe
+    integer, intent(out) :: ndims
+    integer, pointer :: gdims(:)
+    integer(kind=PIO_Offset_kind), pointer :: compmap(:)
+    integer, intent(in) :: varsize
+    integer, intent(in) :: imbalance_ratio
+    integer :: i
+    integer :: ierr
+    integer :: localsize, globalsize, startidx 
+    
+    localsize = varsize 
+    if(modulo(mype,2).eq.0) then 
+        localsize = varsize/imbalance_ratio
+    endif 
+    globalsize = 0
+    call MPI_Allreduce(localsize,globalsize,1,MPI_INT,MPI_SUM, &
+                        MPI_COMM_WORLD,ierr)
+    call MPI_Exscan(localsize,startidx,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,ierr)
+    if(mype.eq.0) then
+        startidx = 0
+    endif
+    startidx = startidx + 1
+
+    ndims = 1
+    allocate(gdims(1))
+    gdims(1) = globalsize 
+
+    allocate(compmap(localsize))
+    do i=1,localsize
+       compmap(i) = startidx+(i-1)
+    enddo
+
+    if(minval(compmap)< 1 .or. maxval(compmap) > gdims(1)) then
+       print *,__FILE__,__LINE__,trim(doftype),localsize,minval(compmap),maxval(compmap)
+       call piodie(__FILE__,__LINE__,'Compmap out of bounds')
+    endif
+  end subroutine init_imbalance_block_dof
 
   subroutine WriteMetadata(File, gdims, vari, varr, vard,unlimdimindof)
     use pio
