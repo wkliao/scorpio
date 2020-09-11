@@ -783,6 +783,49 @@ void ProcessDecompositions(adios2::IO &bpIO,
     }
 }
 
+Decomposition LoadDecomposition(DecompositionMap& decompmap,
+							  const string &decompname,
+							  adios2::IO &bpIO, adios2::Engine &bpReader, int ncid,
+							  const std::vector<int>& wfiles,
+							  int nctype, int iosysid,
+							  int mpirank, int nproc, MPI_Comm comm,
+							  std::string file0)
+{
+    Decomposition d;
+
+	/* Find the decomp in the file */
+	int time_step = 0;
+	while (bpReader.BeginStep()==adios2::StepStatus::OK) {
+   		std::map<std::string, adios2::Params> a2_vi = bpIO.AvailableVariables();
+		int found_it = 0;
+   		for (std::map<std::string, adios2::Params>::iterator a2_iter = a2_vi.begin(); a2_iter != a2_vi.end(); ++a2_iter)
+   		{
+       		string v = a2_iter->first;
+			if (0==v.compare(decompname)) { /* Found it! */
+				found_it = 1;
+       			d = ProcessOneDecomposition(bpIO, bpReader, ncid, (char*)decompname.c_str(), wfiles,
+                  		                    iosysid, mpirank, nproc, comm, time_step, nctype);
+       			if (d.ioid == BP2PIO_ERROR)
+       			{
+           			return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
+       			}
+       			// decompmap[decompname] = d;
+				break;
+			}
+		}
+		bpReader.EndStep();
+		time_step++;
+		if (found_it) {
+			bpReader.Close();
+           	bpReader = bpIO.Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
+			break;
+		}
+	}
+
+    return d;
+}
+
+
 Decomposition GetNewDecomposition(DecompositionMap& decompmap,
 							  const string &decompname,
 							  adios2::IO &bpIO, adios2::Engine &bpReader, int ncid,
@@ -1737,7 +1780,6 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 
     // TAHSIN -- THIS IS GETTING CONFUSING. NEED TO THINK ABOUT time steps.
     int g_blockid = 0;
-	printf("NBLOCKS: %d\n",nblocks_per_step);
 	std::vector<int> my_blocks = AssignWriteRanks(nblocks_per_step, comm, mpirank, nproc);
     for (; ts < nsteps; ++ts)
     {
@@ -1808,13 +1850,13 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 						offset += vb_blocks[blockid].Count[0] * elemsize;
 						g_blockid++;
 					}
-	
+
 					Decomposition decomp;
-					if (mem_opt)
+					if (mem_opt) 
 					{
 						sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
-						decomp = ProcessOneDecomposition(bpIO[0], bpReader[0], ncid, decompname, wfiles,
-													 iosysid, mpirank, nproc, comm, time_step);
+						decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
+							    					 ncid, wfiles, NC_NAT, iosysid, mpirank, nproc, comm, file0);
 					}
 					else
 					{
@@ -1827,28 +1869,29 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 						ierr = BP2PIO_ERROR;
 						break;
 					}
-
+						
 					if (decomp.piotype != var.nctype)
-					{
-						/* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
-						if (mem_opt)
-						{
+                    {
+                        /* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
+                        if (mem_opt)
+                        {
 							ret = PIOc_freedecomp(iosysid, decomp.ioid);
 							if (ret != PIO_NOERR)
 							{
 								ierr = BP2PIO_ERROR;
 								break;
 							}
-	
-							decomp = ProcessOneDecomposition(bpIO[0], bpReader[0], ncid, decompname, wfiles,
-															 iosysid, mpirank, nproc, comm, time_step, var.nctype);
-						}
-						else
-						{
-							decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-														 ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, file0);
-						}
-					}
+							sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
+                            decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
+                                                         ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, file0);
+                        }
+                        else
+                        {
+							sprintf(decompname, "%d", decomp_id);
+                            decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
+                                                         ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, file0);
+                        }
+                    } 
 
 					if (decomp.ioid == BP2PIO_ERROR)
 					{
@@ -2154,7 +2197,9 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
         	ProcessDimensions(bpIO[0], bpReader[0], ncid, comm, mpirank, nproc, dimension_map);
 
         	/* First process decompositions */
-            ProcessDecompositions(bpIO[0], bpReader[0], ncid, wfiles, iosysid, comm, mpirank, nproc, time_step, decomp_map);
+			if (!mem_opt) {
+            	ProcessDecompositions(bpIO[0], bpReader[0], ncid, wfiles, iosysid, comm, mpirank, nproc, time_step, decomp_map);
+			}
 
         	/* For each variable, define a variable with PIO */
         	ProcessVariableDefinitions(bpIO[0], bpReader[0], ncid, dimension_map, comm, mpirank, nproc, vars_map, 
@@ -2264,9 +2309,9 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 								printf("ConvertVariableDarray: %d\n", mpirank);
 								fflush(stdout);
 							}
-                        	ierr = ConvertVariableDarray(bpIO, bpReader, v, ncid, var, wfiles, decomp_map,
-                                                     n_bp_writers, iosysid, file0, time_step, comm, mpirank, nproc, mem_opt);
-                        	ERROR_CHECK_SINGLE_THROW(ierr, "ConvertVariableDarray failed.")
+							ierr = ConvertVariableDarray(bpIO, bpReader, v, ncid, var, wfiles, decomp_map,
+												n_bp_writers, iosysid, file0, time_step, comm, mpirank, nproc, mem_opt);
+							ERROR_CHECK_SINGLE_THROW(ierr, "ConvertVariableDarray failed.")
 						}
 						else
 						{
@@ -2289,14 +2334,14 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 
 		/* Finish up */
         for (std::map<std::string, Decomposition>::iterator it = decomp_map.begin();
-             it != decomp_map.end(); ++it)
+				it != decomp_map.end(); ++it)
         {
-            Decomposition d = it->second;
-            ret = PIOc_freedecomp(iosysid, d.ioid);
-            if (ret != PIO_NOERR)
-                ierr = BP2PIO_ERROR;
-            ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, "PIOc_freedecomp failed.");
-        }
+			Decomposition d = it->second;
+			ret = PIOc_freedecomp(iosysid, d.ioid);
+			if (ret != PIO_NOERR)
+				ierr = BP2PIO_ERROR;
+			ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, "PIOc_freedecomp failed.");
+		}
 
         ret = PIOc_sync(ncid);
         if (ret != PIO_NOERR)
