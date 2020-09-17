@@ -789,7 +789,7 @@ Decomposition LoadDecomposition(DecompositionMap& decompmap,
 							  const std::vector<int>& wfiles,
 							  int nctype, int iosysid,
 							  int mpirank, int nproc, MPI_Comm comm,
-							  std::string file0)
+							  std::string file0, adios2::ADIOS &adios)
 {
     Decomposition d;
 
@@ -817,6 +817,11 @@ Decomposition LoadDecomposition(DecompositionMap& decompmap,
 		time_step++;
 		if (found_it) {
 			bpReader.Close();
+			std::string bpIO_name = bpIO.Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO.SetParameter("StreamReader","ON");
+			bpIO.SetEngine("BP4");
            	bpReader = bpIO.Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
 			break;
 		}
@@ -832,7 +837,7 @@ Decomposition GetNewDecomposition(DecompositionMap& decompmap,
 							  const std::vector<int>& wfiles,
 							  int nctype, int iosysid,
 							  int mpirank, int nproc, MPI_Comm comm,
-							  std::string file0)
+							  std::string file0, adios2::ADIOS &adios)
 {
     char ss[PIO_MAX_NAME];
     sprintf(ss, "%s_%d", decompname.c_str(), nctype);
@@ -853,7 +858,6 @@ Decomposition GetNewDecomposition(DecompositionMap& decompmap,
         		string v = a2_iter->first;
 				if (0==v.compare(varname)) { /* Found it! */
 					found_it = 1;
-					printf("FOUND IT: %s\n",varname.c_str());
         			d = ProcessOneDecomposition(bpIO, bpReader, ncid, (char*)varname.c_str(), wfiles,
                    				                 iosysid, mpirank, nproc, comm, time_step, nctype);
         			if (d.ioid == BP2PIO_ERROR)
@@ -868,6 +872,11 @@ Decomposition GetNewDecomposition(DecompositionMap& decompmap,
 			time_step++;
 			if (found_it) {
 				bpReader.Close();
+				std::string bpIO_name = bpIO.Name();
+				adios.RemoveIO(bpIO_name);
+            	bpIO = adios.DeclareIO(file0 + std::to_string(rand()));
+				bpIO.SetParameter("StreamReader","ON");
+				bpIO.SetEngine("BP4");
             	bpReader = bpIO.Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
 				break;
 			}
@@ -1720,7 +1729,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 							 	const std::vector<int>& wfiles,
 							 	DecompositionMap& decomp_map,
 							 	int nblocks_per_step, int iosysid,
-								std::string file0, int time_step, 
+								std::string file0, adios2::ADIOS &adios, int time_step, 
 							 	MPI_Comm comm, int mpirank, int nproc, int mem_opt)
 {
     int ierr = BP2PIO_NOERR, err_val = 0, err_cnt = 0;
@@ -1856,7 +1865,8 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 					{
 						sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
 						decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-							    					 ncid, wfiles, NC_NAT, iosysid, mpirank, nproc, comm, file0);
+							    					ncid, wfiles, NC_NAT, iosysid, mpirank, nproc, comm, 
+													file0,adios);
 					}
 					else
 					{
@@ -1883,13 +1893,15 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, std::vector<T> v_v
 							}
 							sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
                             decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-                                                         ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, file0);
+                                                        ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, 
+														file0,adios);
                         }
                         else
                         {
 							sprintf(decompname, "%d", decomp_id);
                             decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-                                                         ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, file0);
+                                                        ncid, wfiles, var.nctype, iosysid, mpirank, nproc, comm, 
+														file0,adios);
                         }
                     } 
 
@@ -1973,7 +1985,7 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
 					  	const std::vector<int>& wfiles,
 					  	DecompositionMap& decomp_map,
 					  	int nblocks_per_step, int iosysid,
-						std::string file0, int time_step,
+						std::string file0, adios2::ADIOS &adios, int time_step,
 					  	MPI_Comm comm, int mpirank, int nproc, int mem_opt)
 {
     std::string v_type = bpIO[0].VariableType(varname);
@@ -1990,7 +2002,7 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
         return adios2_ConvertVariableDarray(&v_base, v_value, \
                                             bpIO, bpReader, varname, ncid, var, \
                                             wfiles, decomp_map, nblocks_per_step, iosysid, \
-                                            file0, time_step, comm, mpirank, nproc, mem_opt); \
+                                            file0, adios, time_step, comm, mpirank, nproc, mem_opt); \
     }
 
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
@@ -2170,8 +2182,14 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 		}
 
 		/* Reopen the file to reset steps */
+		ierr = BP2PIO_NOERR;
 		try {
 			bpReader[0].Close();
+			std::string bpIO_name = bpIO[0].Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO[0] = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO[0].SetParameter("StreamReader","ON");
+			bpIO[0].SetEngine("BP4");
             bpReader[0] = bpIO[0].Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
         } catch (const std::exception &e) {
             err_msg = e.what();
@@ -2235,8 +2253,19 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 		try
         {
 			bpReader[0].Close();
-			bpReader[1].Close();
+			std::string bpIO_name = bpIO[0].Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO[0] = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO[0].SetParameter("StreamReader","ON");
+			bpIO[0].SetEngine("BP4");
             bpReader[0] = bpIO[0].Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
+
+			bpReader[1].Close();
+			bpIO_name = bpIO[1].Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO[1] = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO[1].SetParameter("StreamReader","ON");
+			bpIO[1].SetEngine("BP4");
             bpReader[1] = bpIO[1].Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
         }
         catch (const std::exception &e)
@@ -2310,7 +2339,8 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 								fflush(stdout);
 							}
 							ierr = ConvertVariableDarray(bpIO, bpReader, v, ncid, var, wfiles, decomp_map,
-												n_bp_writers, iosysid, file0, time_step, comm, mpirank, nproc, mem_opt);
+												n_bp_writers, iosysid, file0, adios, time_step, 
+												comm, mpirank, nproc, mem_opt);
 							ERROR_CHECK_SINGLE_THROW(ierr, "ConvertVariableDarray failed.")
 						}
 						else
