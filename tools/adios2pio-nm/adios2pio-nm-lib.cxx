@@ -1161,8 +1161,14 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T> *v_base,
 
     *v_base = bpIO[0].InquireVariable<T>(varname);
 
-    adios2::Dims v_dims = v_base->Shape(0);
-    if (v_dims.size() == 0)
+	string attname = varname + "/__pio__/ndims";
+    std::string atype;
+    AttributeVector adata;
+    int ierr = adios_get_attr_a2(bpIO[0], (char*)attname.c_str(), atype, adata);
+    ERROR_CHECK_SINGLE_THROW(ierr, "adios_get_attr_a2 failed.")
+	int var_ndims = (int) *((int*)adata[0].data());
+
+    if (var_ndims == 0)
     {
         /* Scalar variable */
         TimerStart(write);
@@ -1206,22 +1212,50 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T> *v_base,
             const auto v_blocks = bpReader[0].BlocksInfo(*v_base, (const size_t)0);
             if (mpirank == 0)
             {
+				char start_varname[PIO_MAX_NAME];
+				char count_varname[PIO_MAX_NAME];
+				sprintf(start_varname,"start_id/%s",varname.c_str());
+				sprintf(count_varname,"count_id/%s",varname.c_str());
+				uint64_t pio_var_start[PIO_MAX_DIMS], pio_var_count[PIO_MAX_DIMS];
+
+				int elemsize = adios2_type_size_a2(v_base->Type());
+				assert(elemsize > 0);
+
                 for (size_t ii = 0; ii < v_blocks.size(); ii++)
                 {
                     try
                     {
-                        v_base->SetBlockSelection(ii);
-                        v_base->SetSelection({v_blocks[ii].Start, v_blocks[ii].Count});
-                        std::vector<T> v_value;
-                        bpReader[0].Get(*v_base, v_value, adios2::Mode::Sync);
+						std::vector<uint64_t> v_tmp;
+						adios2::Variable<uint64_t> v_var;
+						v_var = bpIO[0].InquireVariable<uint64_t>(start_varname);
+						v_var.SetBlockSelection(ii);
+						bpReader[0].Get(v_var, v_tmp, adios2::Mode::Sync);
+						memcpy(pio_var_start, v_tmp.data(), sizeof(uint64_t)*var_ndims);
 
-                        for (size_t d = 0; d < v_dims.size(); d++)
-                        {
-                            start[d] = (PIO_Offset) v_blocks[ii].Start[d];
-                            count[d] = (PIO_Offset) v_blocks[ii].Count[d];
-                        }
+						v_var = bpIO[0].InquireVariable<uint64_t>(count_varname);
+						v_var.SetBlockSelection(ii);
+						bpReader[0].Get(v_var, v_tmp, adios2::Mode::Sync);
+						memcpy(pio_var_count, v_tmp.data(), sizeof(uint64_t)*var_ndims);
 
-                        ret = put_vara_nm(ncid, var.nc_varid, var.nctype, v_base->Type(), start, count, v_value.data());
+						uint64_t nelems = 1;
+						for (size_t d = 0; d < var_ndims; d++)
+						{
+							nelems *= pio_var_count[d];
+						}
+						std::vector<char> d(nelems * elemsize);
+						v_base->SetBlockSelection(ii);
+						std::vector<T> v_data;
+						bpReader[0].Get(*v_base, v_data, adios2::Mode::Sync);
+						memcpy(d.data(), v_data.data(), nelems * elemsize);
+						
+						PIO_Offset start[var_ndims], count[var_ndims];
+						for (size_t d = 0; d < var_ndims; d++)
+						{
+							start[d] = pio_var_start[d];
+							count[d] = pio_var_count[d];
+						}
+
+                        ret = put_vara_nm(ncid, var.nc_varid, var.nctype, v_base->Type(), start, count, d.data());
                         if (ret != PIO_NOERR)
                         {
                             cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
@@ -1244,7 +1278,7 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T> *v_base,
                 char temp_buf;
                 for (size_t ii = 0; ii < v_blocks.size(); ii++)
                 {
-                    for (size_t d = 0; d < v_dims.size(); d++)
+                    for (size_t d = 0; d < var_ndims; d++)
                     {
                         start[d] = (PIO_Offset) 0;
                         count[d] = (PIO_Offset) 0;
