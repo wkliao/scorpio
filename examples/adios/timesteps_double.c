@@ -15,7 +15,7 @@
 
 /** The number of possible output netCDF output flavors available to
  * the ParallelIO library. */
-#define NUM_NETCDF_FLAVORS 5
+#define NUM_NETCDF_FLAVORS 3
 
 /** The number of dimensions in the example data. In this example, we
  * are using three-dimensional data. */
@@ -111,8 +111,6 @@ int main(int argc, char **argv)
      * and without using netCDF-4 parallel I/O. */
     int format[NUM_NETCDF_FLAVORS] = {PIO_IOTYPE_PNETCDF,
                                       PIO_IOTYPE_NETCDF,
-                                      PIO_IOTYPE_NETCDF4C,
-                                      PIO_IOTYPE_NETCDF4P,
                                       PIO_IOTYPE_ADIOS};
 
     /** Names for the output files. Two of them (pnetcdf and
@@ -122,8 +120,6 @@ int main(int argc, char **argv)
      * will contain the same contents. */
     char filename[NUM_NETCDF_FLAVORS][NC_MAX_NAME + 1] = {"timesteps_pnetcdf.nc",
                                                           "timesteps_classic.nc",
-                                                          "timesteps_serial4.nc",
-                                                          "timesteps_parallel4.nc",
                                                           "timesteps_adios.nc"};
 
     /** Number of processors that will do IO. In this example we
