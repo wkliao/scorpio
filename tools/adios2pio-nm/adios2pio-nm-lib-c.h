@@ -2,12 +2,13 @@
 #define _ADIOS2PIO_NM_LIB_C_H_
 
 #include <mpi.h>
+#include <pio.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int C_API_ConvertBPToNC(const char *infilepath, const char *outfilename, const char *piotype, int mem_opt, MPI_Comm comm_in);
+extern int C_API_ConvertBPToNC(const char *infilepath, const char *outfilename, const char *piotype, int rearr_type, int mem_opt, MPI_Comm comm_in);
 
 #ifdef __cplusplus
 }

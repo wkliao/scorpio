@@ -1246,6 +1246,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 
         if (xtype != vartype)
             av->adios_type = PIOc_get_adios_type(xtype);
+		av->adios_type_size = adios2_type_size(av->adios_type, NULL);
 
         /* Scalars have to be handled differently. */
         if (av->ndims == 0)
@@ -1364,17 +1365,41 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 }
             }
 
+#define _MERGE_SCB
+#ifdef _MERGE_SCB 
+			/* Create a one-dimensional byte array to combine start, count and buf */
+			size_t av_size = av->ndims*2*sizeof(int64_t);
+			size_t buf_size = 1;
+			for (int d = 0; d < (av->ndims-d_start); d++) {
+				buf_size *= av_count[d];
+			}
+			buf_size *= av->adios_type_size;
+			av_size += buf_size;
+#endif 
+
             /* PIOc_put_var may be called multiple times with different start/count values
              * for a variable. ADIOS should output data for each of those calls not just
              * when the variable is not defined */
             av->adios_varid = adios2_inquire_variable(file->ioH, av->name);
             if (av->adios_varid == NULL)
             {
-                /* av->ndims - d_start --> only the variable dimensions for the data buffer to be written out */
+#ifdef _MERGE_SCB
+ 				/* av->ndims - d_start --> only the variable dimensions for the data buffer to be written out */
+                av->adios_varid = adios2_define_variable(file->ioH, av->name, adios2_type_uint8_t,
+                                                         1, NULL, NULL, &av_size,
+                                                         adios2_constant_dims_false);
+               if (av->adios_varid == NULL)
+                {
+                    GPTLstop("PIO:PIOc_put_vars_tc");
+                    GPTLstop("PIO:PIOc_put_vars_tc_adios");
+                    return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", av->name, pio_get_fname_from_file(file), file->pio_ncid);
+                }
+#else 
+				/* av->ndims - d_start --> only the variable dimensions for the data buffer to be written out */
                 av->adios_varid = adios2_define_variable(file->ioH, av->name, av->adios_type,
                                                          av->ndims - d_start, NULL, NULL, av_count,
                                                          adios2_constant_dims_false);
-                if (av->adios_varid == NULL)
+               if (av->adios_varid == NULL)
                 {
                     GPTLstop("PIO:PIOc_put_vars_tc");
                     GPTLstop("PIO:PIOc_put_vars_tc_adios");
@@ -1412,10 +1437,15 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                         return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", av->name, pio_get_fname_from_file(file), file->pio_ncid);
                     }
                 }
+#endif
             }
             else
             {
+#ifdef _MERGE_SCB
+                adiosErr = adios2_set_selection(av->adios_varid, 1, NULL, &av_size);
+#else
                 adiosErr = adios2_set_selection(av->adios_varid, av->ndims - d_start, NULL, av_count);
+#endif 
                 if (adiosErr != adios2_error_none)
                 {
                     GPTLstop("PIO:PIOc_put_vars_tc");
@@ -1424,6 +1454,26 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 }
             }
 
+#ifdef _MERGE_SCB
+			unsigned char *mem_buffer = (unsigned char*)malloc(av_size*sizeof(unsigned char));
+			if (mem_buffer==NULL) {
+				return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+			}
+			unsigned char *tmp_buf = mem_buffer;
+			memcpy(tmp_buf,pio_var_start,av->ndims*sizeof(int64_t));
+			tmp_buf += (av->ndims*sizeof(int64_t));
+			memcpy(tmp_buf,pio_var_count,av->ndims*sizeof(int64_t));	
+			tmp_buf += (av->ndims*sizeof(int64_t));
+			memcpy(tmp_buf,buf,buf_size); 
+            adiosErr = adios2_put(file->engineH, av->adios_varid, mem_buffer, adios2_mode_sync);
+			free(mem_buffer); mem_buffer = NULL; 
+            if (adiosErr != adios2_error_none)
+            {
+                GPTLstop("PIO:PIOc_put_vars_tc");
+                GPTLstop("PIO:PIOc_put_vars_tc_adios");
+                return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+            }
+#else
             adiosErr = adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
             if (adiosErr != adios2_error_none)
             {
@@ -1447,6 +1497,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 GPTLstop("PIO:PIOc_put_vars_tc_adios");
                 return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
             }
+#endif
 
             char* dimnames[PIO_MAX_DIMS];
             assert(av->ndims <= PIO_MAX_DIMS);
