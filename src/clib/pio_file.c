@@ -429,14 +429,11 @@ int PIOc_closefile(int ncid)
         {
             LOG((2, "ADIOS close file %s", file->filename));
 
-			printf("BEFORE BEGIN_STEP Global filemode: %d\n",file->begin_step_called); fflush(stdout);
 			ADIOS2_BEGIN_STEP(file,NULL);
 
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, "/__pio__/fillmode");
-			printf("BEGIN_STEP Global filemode: %d\n",file->begin_step_called); fflush(stdout);
             if (attributeH == NULL)
             {
-				printf("Writing: Global filemode.\n");
                 attributeH = adios2_define_attribute(file->ioH, "/__pio__/fillmode", adios2_type_int32_t, &file->fillmode);
                 if (attributeH == NULL)
                 {
@@ -467,7 +464,6 @@ int PIOc_closefile(int ncid)
 			}
 			
 			ADIOS2_END_STEP(file,ios);
-			printf("END_STEP filemode: %d\n",file->begin_step_called); fflush(stdout);
 
             adios2_error adiosErr = adios2_close(file->engineH);
             if (adiosErr != adios2_error_none)
@@ -496,6 +492,19 @@ int PIOc_closefile(int ncid)
             file->adios_vars[i].decomp_varid = NULL;
             file->adios_vars[i].frame_varid = NULL;
             file->adios_vars[i].fillval_varid = NULL;
+
+			if (file->adios_vars[i].array_counts != NULL) {
+				free(file->adios_vars[i].array_counts);
+				file->adios_vars[i].array_counts = NULL;
+			}
+			if (file->adios_vars[i].array_disp != NULL) {
+				free(file->adios_vars[i].array_disp);
+				file->adios_vars[i].array_disp = NULL;
+			}
+			file->adios_vars[i].array_counts_size = 0;
+			file->adios_vars[i].array_disp_size = 0;
+			file->adios_vars[i].elem_size = 0;
+			file->adios_vars[i].buffer_count = 0;
         }
 
         file->num_vars = 0;
@@ -508,7 +517,15 @@ int PIOc_closefile(int ncid)
         }
 
         file->num_attrs = 0;
-		printf("***************** ADIOS Converting: %s\n",file->filename);
+
+		if (file->block_myrank==0) {
+			if (file->block_array!=NULL) free(file->block_array);
+			if (file->array_counts!=NULL) free(file->array_counts);
+			if (file->array_disp!=NULL) free(file->array_disp);
+			file->block_array = NULL;
+			file->array_counts = NULL;
+			file->array_disp = NULL;
+		}
 
 #ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
 #ifdef _PNETCDF
@@ -516,8 +533,6 @@ int PIOc_closefile(int ncid)
 #else
         char conv_iotype[] = "netcdf";
 #endif
-
-		printf("<<<<<<<<<<<<<<<<<<<<<<<<<< ADIOS Converting: %s\n",file->filename);
 
         /* Convert XXXX.nc.bp to XXXX.nc */
         len = strlen(file->filename);

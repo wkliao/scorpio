@@ -789,6 +789,7 @@ typedef struct adios_var_desc_t
 
     /** Type converted from NC type to adios type */
     adios2_type adios_type;
+	int adios_type_size;
 
     /** Number of dimensions */
     int ndims;
@@ -808,6 +809,14 @@ typedef struct adios_var_desc_t
     adios2_variable* decomp_varid;
     adios2_variable* frame_varid;
     adios2_variable* fillval_varid;
+
+	/* for merging blocks */
+	int  *array_counts;
+	int  *array_disp;
+	uint64_t array_counts_size, array_disp_size;
+	int buffer_count;
+	int elem_size;
+
 } adios_var_desc_t;
 
 /* Track attributes */
@@ -889,6 +898,21 @@ typedef struct file_desc_t
 
     /* ADIOS: assume all procs are also IO tasks */
     int adios_iomaster;
+	int myrank;
+
+	/* ADIOS: grouping of processes for block merging */
+	MPI_Comm node_comm;
+	int node_myrank, node_nprocs;
+	MPI_Comm block_comm;
+	int block_myrank, block_nprocs;
+	MPI_Comm one_node_comm;
+	int one_node_rank, one_node_nprocs;
+
+	/* Merge buffers */
+    char *block_array;
+	int  *array_counts;
+	int  *array_disp;
+	uint64_t block_array_size, array_counts_size, array_disp_size;
 
     /* Track attributes */
     /** attribute information. Allow PIO_MAX_VARS for now. */
@@ -1481,10 +1505,6 @@ extern "C" {
 		file->begin_step_called = 0; \
 	} \
 }
-
-
-#define ADIOS2_BEGIN_STEP_TEST(file,ios) {} 
-#define ADIOS2_END_STEP_TEST(file,ios) {} 
 
 #ifndef strdup
     char *strdup(const char *str);

@@ -2328,7 +2328,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
             char declare_name[PIO_MAX_NAME];
             snprintf(declare_name, PIO_MAX_NAME, "%s%lu", file->filename, get_adios2_io_cnt());
 
-			file->max_calls = 0; /* 30; */
+			file->max_calls = 40; 
 			file->begin_step_called = 0;
 			file->num_calls = 0;
 			file->current_frame = -1;
@@ -2380,16 +2380,52 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
             	adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "ON"); /* ON for BP4 */
             	if (adiosErr != adios2_error_none)
            	 	{
-                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (CollectiveMetadata=OFF) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (CollectiveMetadata=ON) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
             	}
 
-            	snprintf(file->params, PIO_MAX_NAME, "30Gb");
-				adiosErr = adios2_set_parameter(file->ioH, "MaxBufferSize", file->params);
-				printf("BUFFER: %s\n",file->params); fflush(stdout);
+#if 0
+				adiosErr = adios2_set_parameter(file->ioH, "MaxBufferSize", "10Gb");
 				if (adiosErr != adios2_error_none)
 				{
 				    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (MaxBufferSize) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
 				}
+#endif
+
+#if 0
+				adiosErr = adios2_set_parameter(file->ioH, "NodeLocal", "ON"); /* ON for BP4 */
+            	if (adiosErr != adios2_error_none)
+           	 	{
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (NodeLocal=ON) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            	}
+
+
+				/* Burst Buffer Settings in BP4 */
+				adiosErr = adios2_set_parameter(file->ioH, "BurstBufferPath", "/mnt/bb/tkurc1");
+     			if (adiosErr != adios2_error_none)
+            	{
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (BurstBufferPath) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            	}
+
+				adiosErr = adios2_set_parameter(file->ioH, "BurstBufferVerbose", "1");
+            	if (adiosErr != adios2_error_none)
+            	{
+                	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (BurstBufferVerbose) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+            	}
+
+            	snprintf(file->params, PIO_MAX_NAME, "%ld", (long)(pio_buffer_size_limit*10));
+				adiosErr = adios2_set_parameter(file->ioH, "MaxBufferSize", file->params);
+				if (adiosErr != adios2_error_none)
+				{
+				    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (MaxBufferSize) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+				}
+
+				adiosErr = adios2_set_parameter(file->ioH, "FlushStepsCount", "2");
+				if (adiosErr != adios2_error_none)
+				{
+				    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Setting (ADIOS) parameter (MaxBufferSize) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+				}
+#endif
+
 			}
 			else 
 			{
@@ -2414,9 +2450,59 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
                 file->adios_iomaster = MPI_ROOT;
             else
                 file->adios_iomaster = MPI_PROC_NULL;
+			file->myrank = ios->union_rank;
 
             /* Track attributes */
             file->num_attrs = 0;
+
+			/**** Group processes for block merging ****/
+			MPI_Comm nodeComm;
+		    MPI_Info info;
+		    int nodeNProc, nodeRank;
+		    MPI_Info_create(&info);
+		    MPI_Comm_split_type(ios->union_comm, MPI_COMM_TYPE_SHARED, 0, info, &nodeComm);
+		    MPI_Comm_rank(nodeComm, &nodeRank);
+		    MPI_Comm_size(nodeComm, &nodeNProc);
+			file->node_comm   = nodeComm;
+			file->node_myrank = nodeRank;
+			file->node_nprocs = nodeNProc;
+
+			/*
+			 *  Communicator connecting rank 0 of each node
+			 */
+			MPI_Comm onePerNodeComm;
+			int onePerNodeNProc, onePerNodeRank;
+			int color = (nodeRank ? MPI_UNDEFINED : 0);
+
+			MPI_Comm_split(ios->union_comm, color, 0, &onePerNodeComm);
+			file->one_node_rank = MPI_UNDEFINED;
+		    if (!nodeRank)
+		    {
+		        MPI_Comm_rank(onePerNodeComm, &onePerNodeRank);
+		        MPI_Comm_size(onePerNodeComm, &onePerNodeNProc);
+				file->one_node_comm = onePerNodeComm;
+				file->one_node_rank = onePerNodeRank;	
+				file->one_node_nprocs = onePerNodeNProc;
+		    }
+
+			int io_group_size = ios->num_comptasks/ios->num_iotasks;
+			int io_color = (int) (nodeRank / io_group_size);
+
+			MPI_Comm_split(file->node_comm, io_color, 0, &nodeComm);
+		    MPI_Comm_rank(nodeComm, &nodeRank);
+		    MPI_Comm_size(nodeComm, &nodeNProc);
+
+			file->block_comm   = nodeComm;
+			file->block_myrank = nodeRank;
+			file->block_nprocs = nodeNProc;
+			/**** Group processes for block merging ****/
+
+    		file->block_array  = NULL;
+			file->array_counts = NULL;
+			file->array_disp = NULL;
+			file->block_array_size  = 0;
+			file->array_counts_size = 0; 
+			file->array_disp_size   = 0;
 
 			ADIOS2_BEGIN_STEP(file,ios);
 

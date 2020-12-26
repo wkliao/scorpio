@@ -85,7 +85,7 @@ program pioperformance_rearr
     use_gptl = .true.
   end if
   if(use_gptl) then
-    call gptlinitialize()
+    ! call gptlinitialize()
   else
     call t_initf(PIO_NML_FNAME, LogPrint=.false.,&
       mpicom=MPI_COMM_WORLD, MasterTask=MasterTask)
@@ -116,7 +116,7 @@ program pioperformance_rearr
   enddo
 
   if(use_gptl) then
-    call gptlfinalize()
+    ! call gptlfinalize()
   else
     call t_finalizef()
   end if
@@ -711,7 +711,7 @@ contains
           do j=1,maplen
              if(compmap(j) > 0) then
                ifld(j,nv) = int(compmap(j))
-               dfld(j,nv) = ifld(j,nv)/1000000.0
+               dfld(j,nv) = j*nv ! ifld(j,nv)/1000000.0
                rfld(j,nv) = 1.0E5*ifld(j,nv)
              endif
           enddo

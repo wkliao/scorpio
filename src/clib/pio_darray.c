@@ -669,6 +669,8 @@ static int register_decomp(file_desc_t *file, int ioid)
     return PIO_NOERR;
 }
 
+#define _BLOCK_MERGE 
+
 static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 {
     assert(file != NULL);
@@ -677,46 +679,53 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
     char name[PIO_MAX_NAME];
     snprintf(name, PIO_MAX_NAME, "/__pio__/decomp/%d", ioid);
 
+#ifdef _BLOCK_MERGE
+	char *block_array = NULL;
+	int  *array_counts = NULL;
+	int  *array_disp = NULL;
+	uint64_t array_counts_size, array_disp_size;
+	int inp_count;
+	int buffer_count;
+#endif
+
+	int elem_size = (int)sizeof(int32_t);
     adios2_type type = adios2_type_int32_t;
-    if (sizeof(PIO_Offset) == 8)
+    if (sizeof(PIO_Offset) == 8) {
         type = adios2_type_int64_t;
+		elem_size = (int)sizeof(int64_t);
+	}
 
 	ADIOS2_BEGIN_STEP(file,NULL);
 
     size_t av_count[1];
-    if (iodesc->maplen > 1)
-    {
-        av_count[0] = (size_t)iodesc->maplen;
-
-        adios2_variable *variableH = adios2_inquire_variable(file->ioH, name);
-        if (variableH == NULL)
+	int maplen = (int)(iodesc->maplen);
+	void *mapbuf = iodesc->map; 
+	char need_free_mapbuf = 0;
+	if (iodesc->maplen < 1)
+	{
+		maplen = 2;
+		mapbuf = (long*)malloc(sizeof(long)*2);
+		if (mapbuf == NULL)
         {
-            variableH = adios2_define_variable(file->ioH, name, type,
-                                               1, NULL, NULL, av_count,
-                                               adios2_constant_dims_true);
-            if (variableH == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name, pio_get_fname_from_file(file), file->pio_ncid);
-            }
+           return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                          "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+					      ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(long)));
         }
-
-        adiosErr = adios2_put(file->engineH, variableH, iodesc->map, adios2_mode_sync);
-        if (adiosErr != adios2_error_none)
-        {
-            return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-        }
-    }
-    else if (iodesc->maplen == 1) /* Handle the case where maplen is 1 */
-    {
-        int maplen = iodesc->maplen + 1;
-        void *mapbuf = NULL;
+        ((long*)mapbuf)[0] = 0;
+        ((long*)mapbuf)[1] = 0;
+		need_free_mapbuf = 1;
+	} 
+	else if (iodesc->maplen == 1)
+	{
+    	maplen = iodesc->maplen + 1;
         if (type == adios2_type_int32_t)
         {
             mapbuf = (int*)calloc(maplen, sizeof(int));
             if (mapbuf == NULL)
             {
                 return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
-                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
+                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+								ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
             }
             ((int*)mapbuf)[0] = iodesc->map[0];
             ((int*)mapbuf)[1] = 0;
@@ -727,59 +736,123 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
             if (mapbuf == NULL)
             {
                 return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
-                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(long)));
+                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+								ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(long)));
             }
             ((long*)mapbuf)[0] = iodesc->map[0];
             ((long*)mapbuf)[1] = 0;
         }
+		need_free_mapbuf = 1;
+	}
 
-        av_count[0] = (size_t)maplen;
-        adios2_variable *variableH = adios2_inquire_variable(file->ioH, name);
-        if (variableH == NULL)
-        {
-            variableH = adios2_define_variable(file->ioH, name, type,
-                                               1, NULL, NULL, av_count,
-                                               adios2_constant_dims_true);
-            if (variableH == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name, pio_get_fname_from_file(file), file->pio_ncid);
-            }
-        }
+	av_count[0] = (size_t)maplen;
+#ifdef _BLOCK_MERGE
+	/* Merge buffers */
+	inp_count = maplen;
+	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
 
-        adiosErr = adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
-        if (adiosErr != adios2_error_none)
-        {
-            return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-        }
+	if (file->block_myrank==0) {
+		array_counts = (int*)malloc(file->block_nprocs*sizeof(int));
+		if (array_counts==NULL) {
+            return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                          "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+						   ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
+		}
+		array_counts_size = file->block_nprocs*sizeof(int);
+		array_disp = (int*)malloc(file->block_nprocs*sizeof(int));
+		if (array_disp==NULL) {
+            return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                          "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+						   ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
+		}
+		array_disp_size = file->block_nprocs*sizeof(int);
+		for (int ii=0;ii<file->block_nprocs;ii++) {
+			array_counts[ii] = 0;
+			array_disp[ii]   = 0;
+		}
+	}
+	MPI_Gather(&inp_count,1,MPI_INT,array_counts,1,MPI_INT,0,file->block_comm);
+	if (file->block_myrank==0) {
+		for (int ii=0;ii<file->block_nprocs;ii++) { 
+			array_counts[ii] *= elem_size;
+		}
+		array_disp[0] = 0;
+		for (int ii=1;ii<file->block_nprocs;ii++) {
+			array_disp[ii] = array_disp[ii-1]+array_counts[ii-1];
+		}
+	}
 
-        if (mapbuf != NULL)
-            free(mapbuf);
-    }
-    else /* Handle the case where maplen is less than 1 */
-    {
-        long mapbuf[2];
-        mapbuf[0] = 0;
-        mapbuf[1] = 0;
-        av_count[0] = (size_t)2;
+	av_count[0] = (size_t)inp_count;
+	if (file->block_myrank==0) {
+		av_count[0] = (size_t)buffer_count;
+	}
+	/* Merge buffers */
+#endif
 
-        adios2_variable *variableH = adios2_inquire_variable(file->ioH, name);
-        if (variableH == NULL)
-        {
-            variableH = adios2_define_variable(file->ioH, name, type,
-                                               1, NULL, NULL, av_count,
-                                               adios2_constant_dims_true);
-            if (variableH == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name, pio_get_fname_from_file(file), file->pio_ncid);
-            }
-        }
+	adios2_variable *variableH = adios2_inquire_variable(file->ioH, name);
+	if (variableH == NULL)
+	{
+		variableH = adios2_define_variable(file->ioH, name, type,
+										   1, NULL, NULL, av_count,
+										   adios2_constant_dims_true);
+		if (variableH == NULL)
+		{
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+						name, pio_get_fname_from_file(file), file->pio_ncid);
+		}
+	}
 
-        adiosErr = adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
-        if (adiosErr != adios2_error_none)
-        {
-            return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-        }
-    }
+#ifdef _BLOCK_MERGE
+	/* Merge buffers */
+	if (file->block_myrank==0) {
+		int av_buffer_size = elem_size*buffer_count;
+		block_array = (char*)malloc(av_buffer_size);
+		if (block_array==NULL) {
+            return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
+                          "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
+						   ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
+		}
+	}
+	MPI_Gatherv(mapbuf,elem_size*inp_count,MPI_CHAR,block_array,
+				array_counts,array_disp,MPI_CHAR,0,file->block_comm);
+
+	if (file->block_myrank==0) {
+		adiosErr = adios2_put(file->engineH, variableH, block_array, adios2_mode_sync);
+		if (adiosErr != adios2_error_none)
+		{
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+						name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+		}
+	}
+
+	if (block_array!=NULL) {
+		free(block_array);
+		block_array = NULL;
+	}
+	if (array_counts!=NULL) {
+		free(array_counts);
+		array_counts = NULL;
+	}
+	if (array_disp!=NULL) {
+		free(array_disp);
+		array_disp = NULL;
+	}
+	/* Merge buffers */
+#else
+	adiosErr = adios2_put(file->engineH, variableH, mapbuf, adios2_mode_sync);
+	if (adiosErr != adios2_error_none)
+	{
+		return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+					name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+	}
+#endif 
+
+	if (need_free_mapbuf)
+	{
+		if (mapbuf!=NULL) 
+			free(mapbuf);
+		mapbuf = NULL;
+	}
 
     /* ADIOS: assume all procs are also IO tasks */
     if (file->adios_iomaster == MPI_ROOT)
@@ -793,7 +866,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
             attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_int32_t, &iodesc->piotype);
             if (attributeH == NULL)
             {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+							att_name, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
 
@@ -804,7 +878,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
             attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_int32_t, &iodesc->ndims);
             if (attributeH == NULL)
             {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+							att_name, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
 
@@ -815,7 +890,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
             attributeH = adios2_define_attribute_array(file->ioH, att_name, adios2_type_int32_t, iodesc->dimlen, iodesc->ndims);
             if (attributeH == NULL)
             {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute array (name=%s, size=%d) failed for file (%s, ncid=%d)", att_name, iodesc->ndims, pio_get_fname_from_file(file), file->pio_ncid);
+                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute array (name=%s, size=%d) failed for file (%s, ncid=%d)", 
+							att_name, iodesc->ndims, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
     }
@@ -952,6 +1028,9 @@ void *PIOc_copy_one_element_adios(void *array, io_desc_t *iodesc)
     return temp_buf;
 }
 
+#define WRITE_DECOMP_ID  1
+#define WRITE_FRAME_ID   2
+#define WRITE_FILLVAL_ID 3
 static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                                    io_desc_t *iodesc, PIO_Offset arraylen,
                                    void *array, void *fillvalue)
@@ -962,7 +1041,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     if (varid < 0 || varid >= file->num_vars)
     {
         return pio_err(NULL, file, PIO_EBADID, __FILE__, __LINE__,
-                        "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Invalid variable id, %d (expected >=0 && < number of variables in file, %d), provided", varid, pio_get_fname_from_file(file), file->pio_ncid, varid, file->num_vars);
+                        "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Invalid variable id, %d (expected >=0 && < number of variables in file, %d), provided", 
+						varid, pio_get_fname_from_file(file), file->pio_ncid, varid, file->num_vars);
     }
 
     adios_var_desc_t *av = &(file->adios_vars[varid]);
@@ -977,7 +1057,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         if (temp_buf == NULL)
         {
             return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
-                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * iodesc->piotype_size));
+                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * iodesc->piotype_size));
         }
         array = temp_buf;
     }
@@ -988,29 +1069,101 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         if (temp_buf == NULL)
         {
             return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
-                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * sizeof(int64_t)));
+                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * sizeof(int64_t)));
         }
         array = temp_buf;
     }
 
+	/******************************************/
+	/* Merge buffers from other processes */
+	int inp_count    = (int)arraylen;
+	int buffer_count = inp_count;
+
     if (av->adios_varid == NULL)
     {
-        /* First we need to define the variable now that we know it's decomposition */
-        adios2_type atype = av->adios_type;
-        size_t av_count[1];
-        av_count[0] = (size_t)arraylen;
-        av->adios_varid = adios2_define_variable(file->ioH, av->name, atype,
-                                                 1, NULL, NULL, av_count,
-                                                 adios2_constant_dims_true);
-        if (av->adios_varid == NULL)
-        {
-            return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", av->name, pio_get_fname_from_file(file), file->pio_ncid);
-        }
 
-        if (1 || file->adios_iomaster == MPI_ROOT)
+#ifdef _BLOCK_MERGE 
+		/* Merge buffers */
+		MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
+		av->buffer_count = inp_count;
+		if (file->block_myrank==0) {
+			av->buffer_count = buffer_count; 
+		}
+		av->elem_size = -1;
+		if (av->adios_type==adios2_type_float) {
+			av->elem_size = (int)sizeof(float);
+		} else if (av->adios_type==adios2_type_double) {
+			av->elem_size = (int)sizeof(double);
+		} else if (av->adios_type==adios2_type_int8_t || av->adios_type==adios2_type_uint8_t) {
+			av->elem_size = (int)sizeof(char);
+		} else if (av->adios_type==adios2_type_int16_t || av->adios_type==adios2_type_uint16_t) {
+			av->elem_size = (int)sizeof(int16_t);
+		} else if (av->adios_type==adios2_type_int32_t || av->adios_type==adios2_type_uint32_t) {
+			av->elem_size = (int)sizeof(int32_t);
+		} else if (av->adios_type==adios2_type_int64_t || av->adios_type==adios2_type_uint64_t) {
+			av->elem_size = (int)sizeof(int64_t);
+		}
+
+		if (file->block_myrank==0) {
+			av->array_counts = (int*)malloc(file->block_nprocs*sizeof(int));
+			if (av->array_counts==NULL) {
+            	return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
+                        	"Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * sizeof(int64_t)));
+			}
+			av->array_counts_size = file->block_nprocs*sizeof(int);
+			av->array_disp = (int*)malloc(file->block_nprocs*sizeof(int));
+			if (av->array_disp==NULL) {
+            	return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
+                        	"Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * sizeof(int64_t)));
+			}
+			av->array_disp_size = file->block_nprocs*sizeof(int);
+			for (int ii=0;ii<file->block_nprocs;ii++) {
+				av->array_counts[ii] = 0;
+				av->array_disp[ii]   = 0;
+			}
+		}
+		MPI_Gather(&inp_count,1,MPI_INT,av->array_counts,1,MPI_INT,0,file->block_comm);
+		if (file->block_myrank==0) {
+			for (int ii=0;ii<file->block_nprocs;ii++) { 
+				av->array_counts[ii] *= av->elem_size;
+			}
+			av->array_disp[0] = 0;
+			for (int ii=1;ii<file->block_nprocs;ii++) {
+				av->array_disp[ii] = av->array_disp[ii-1]+av->array_counts[ii-1];
+			}
+		}
+		/* Merge buffers */
+
+       	/* First we need to define the variable now that we know it's decomposition */
+       	adios2_type atype = av->adios_type;
+       	size_t av_count[1];
+       	av_count[0] = (size_t)inp_count;
+		if (file->block_myrank==0) {
+       		av_count[0] = (size_t)buffer_count;
+		}
+#else
+       	/* First we need to define the variable now that we know it's decomposition */
+       	adios2_type atype = av->adios_type;
+       	size_t av_count[1];
+		av_count[0] = arraylen;
+#endif 
+       	av->adios_varid = adios2_define_variable(file->ioH, av->name, atype,
+                                                1, NULL, NULL, av_count,
+                                                adios2_constant_dims_true);
+       	if (av->adios_varid == NULL)
+       	{
+           	return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+						"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+						av->name, pio_get_fname_from_file(file), file->pio_ncid);
+       	}
+
+		/* Different decompositions at different frames */
+		char name_varid[PIO_MAX_NAME];
+        if (file->myrank == WRITE_DECOMP_ID)
         {
-			/* Different decompositions at different frames */
-			char name_varid[PIO_MAX_NAME];
 			snprintf(name_varid, PIO_MAX_NAME, "decomp_id/%s", av->name);
 			av_count[0] = 1;
 			av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1021,10 +1174,15 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 														  adios2_constant_dims_true);
 				if (av->decomp_varid == NULL)
 				{
-					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+							"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 			}
+		}
 
+		if (file->myrank == WRITE_FRAME_ID) 
+		{
 			snprintf(name_varid, PIO_MAX_NAME, "frame_id/%s", av->name);
 			av_count[0] = 1;
 			av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1035,10 +1193,15 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 														 adios2_constant_dims_true);
 				if (av->frame_varid == NULL)
 				{
-					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+							"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 			}
+		}
 
+		if (file->myrank == WRITE_FILLVAL_ID) 
+		{
 			snprintf(name_varid, PIO_MAX_NAME, "fillval_id/%s", av->name);
 			av_count[0] = 1;
 			av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1049,10 +1212,15 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 														   adios2_constant_dims_true);
 				if (av->fillval_varid == NULL)
 				{
-					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", name_varid, pio_get_fname_from_file(file), file->pio_ncid);
+					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+							"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 			}
+		}
 
+		if (file->myrank == 0)
+		{
             /* Some of the codes were moved to pio_nc.c */
             char decompname[PIO_MAX_NAME];
             char att_name[PIO_MAX_NAME];
@@ -1065,7 +1233,9 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                 attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_string, decompname);
                 if (attributeH == NULL)
                 {
-                    return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                    return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+							"Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+							att_name, pio_get_fname_from_file(file), file->pio_ncid);
                 }
             }
 
@@ -1076,7 +1246,9 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                 attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_string, "darray");
                 if (attributeH == NULL)
                 {
-                    return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                    return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+							"Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+							att_name, pio_get_fname_from_file(file), file->pio_ncid);
                 }
             }
         }
@@ -1089,13 +1261,15 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         if (ierr != PIO_NOERR)
         {
             return pio_err(NULL, file, ierr, __FILE__, __LINE__,
-                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Writing the I/O decomposition (ioid=%d) associated with the variable failed", varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
+                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Writing the I/O decomposition (ioid=%d) associated with the variable failed", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
         }
         ierr = register_decomp(file, ioid);
         if (ierr != PIO_NOERR)
         {
             return pio_err(NULL, file, ierr, __FILE__, __LINE__,
-                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Registering the I/O decomposition (ioid=%d) associated with the variable failed", varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
+                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Registering the I/O decomposition (ioid=%d) associated with the variable failed", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
         }
     }
 
@@ -1109,7 +1283,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         if (ierr != PIO_NOERR)
         {
             return pio_err(NULL, file, ierr, __FILE__, __LINE__,
-                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Type conversion for data buffer failed", varid, pio_get_fname_from_file(file), file->pio_ncid);
+                            "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Type conversion for data buffer failed", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid);
         }
 
         if (fillvalue != NULL)
@@ -1118,46 +1293,84 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
             if (ierr != PIO_NOERR)
             {
                 return pio_err(NULL, file, ierr, __FILE__, __LINE__,
-                                "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Type conversion for fill buffer failed", varid, pio_get_fname_from_file(file), file->pio_ncid);
+                                "Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Type conversion for fill buffer failed", 
+								varid, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
 
         buf_needs_free = 1;
     }
 
-    adiosErr = adios2_put(file->engineH, av->adios_varid, databuf, adios2_mode_sync);
+#ifdef _BLOCK_MERGE 
+	if (file->block_myrank==0) {
+		int av_buffer_size = av->elem_size*av->buffer_count;
+		if (file->block_array_size<av_buffer_size) {
+			if (file->block_array!=NULL) {
+				file->block_array = (char*)realloc(file->block_array,av_buffer_size);
+			} else {
+				file->block_array = (char*)malloc(av_buffer_size);
+			}
+			if (file->block_array==NULL) {
+            	return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
+                        	"Writing (ADIOS) variable (varid=%d) to file (%s, ncid=%d) failed. Out of memory allocating %lld bytes for a temporary buffer", 
+							varid, pio_get_fname_from_file(file), file->pio_ncid, (long long) (arraylen * sizeof(int64_t)));
+			}
+			file->block_array_size=av_buffer_size;
+		}
+	}
+	MPI_Gatherv(databuf,av->elem_size*inp_count,MPI_CHAR,file->block_array,
+				av->array_counts,av->array_disp,MPI_CHAR,0,file->block_comm);
+
+	adiosErr = adios2_error_none;
+	if (file->block_myrank==0) 
+	{
+    	adiosErr = adios2_put(file->engineH, av->adios_varid, file->block_array, adios2_mode_sync);
+	}
+#else
+	adiosErr = adios2_put(file->engineH, av->adios_varid, databuf, adios2_mode_sync);
+#endif
     if (adiosErr != adios2_error_none)
     {
-        return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+     	return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+	 			av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
     }
 
-	if (1 || file->adios_iomaster == MPI_ROOT)
+	/* NOTE: PIOc_setframe with different decompositions */
+	/* Different decompositions at different frames and fillvalue */
+	if (fillbuf != NULL) /* Write out user provided fillvalue */
 	{
-		/* NOTE: PIOc_setframe with different decompositions */
-		/* Different decompositions at different frames and fillvalue */
-		if (fillbuf != NULL) /* Write out user provided fillvalue */
+		if (file->myrank==WRITE_FILLVAL_ID) 
 		{
 			adiosErr = adios2_put(file->engineH, av->fillval_varid, fillbuf, adios2_mode_sync);
 			if (adiosErr != adios2_error_none)
 			{
-				return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+				return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+							av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 			}
 		}
-		else
-		{
-			ioid = -ioid;
-		}
+	}
+	else
+	{
+		ioid = -ioid;
+	}
 
+	if (file->myrank==WRITE_DECOMP_ID)
+	{
 		adiosErr = adios2_put(file->engineH, av->decomp_varid, &ioid, adios2_mode_sync);
 		if (adiosErr != adios2_error_none)
 		{
-			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=decomp_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=decomp_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+						av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 		}
+	}
 
+	if (file->myrank==WRITE_FRAME_ID)
+	{
 		adiosErr = adios2_put(file->engineH, av->frame_varid, &(file->varlist[varid].record), adios2_mode_sync);
 		if (adiosErr != adios2_error_none)
 		{
-			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=frame_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=frame_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+						av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 		}
 	}
 
