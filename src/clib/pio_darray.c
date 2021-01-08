@@ -669,7 +669,7 @@ static int register_decomp(file_desc_t *file, int ioid)
     return PIO_NOERR;
 }
 
-#undef _BLOCK_MERGE 
+#define _BLOCK_MERGE 
 
 static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 {
