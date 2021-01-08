@@ -669,7 +669,7 @@ static int register_decomp(file_desc_t *file, int ioid)
     return PIO_NOERR;
 }
 
-#define _BLOCK_MERGE 
+#undef _BLOCK_MERGE 
 
 static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 {
@@ -1028,9 +1028,9 @@ void *PIOc_copy_one_element_adios(void *array, io_desc_t *iodesc)
     return temp_buf;
 }
 
-#define WRITE_DECOMP_ID  1
-#define WRITE_FRAME_ID   2
-#define WRITE_FILLVAL_ID 3
+#define WRITE_DECOMP_ID  0
+#define WRITE_FRAME_ID   0
+#define WRITE_FILLVAL_ID 0
 static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                                    io_desc_t *iodesc, PIO_Offset arraylen,
                                    void *array, void *fillvalue)
