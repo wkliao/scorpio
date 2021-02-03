@@ -32,6 +32,10 @@ ADD_EXECUTABLE(example3 example3.c)
 TARGET_LINK_LIBRARIES(example3 pioc)
 add_dependencies(tests example3)
 
+ADD_EXECUTABLE(example_d2f example_d2f.c)
+TARGET_LINK_LIBRARIES(example_d2f pioc)
+add_dependencies(tests example_d2f)
+
 ADD_EXECUTABLE(timesteps timesteps.c)
 TARGET_LINK_LIBRARIES(timesteps pioc)
 add_dependencies(tests timesteps)
