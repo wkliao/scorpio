@@ -997,10 +997,8 @@ int PIOc_inq_var(int ncid, int varid, char *name, int namelen, nc_type *xtypep, 
         if (name && namelen > 0)
         {
             assert(namelen <= PIO_MAX_NAME + 1);
-            strncpy(name, my_name, namelen);
+        	strncpy(file->varlist[varid].vname, name, PIO_MAX_NAME);
         }
-
-        strncpy(file->varlist[varid].vname, my_name, PIO_MAX_NAME);
 
         return ierr;
     }
