@@ -812,8 +812,8 @@ typedef struct adios_var_desc_t
 	adios2_variable* num_block_writers_varid;
 
 	/* for merging blocks */
-	int    *array_counts;
-	int    *array_disp;
+	int *array_counts;
+	int *array_disp;
 	size_t array_counts_size, array_disp_size;
 	size_t buffer_count;
 	size_t elem_size;
@@ -866,14 +866,10 @@ typedef struct file_desc_t
 
 	/** Check if begin_step has been invoked. It is used to invoke end_step **/
 	int begin_step_called;
-	int num_begin_step_calls;
-	int max_begin_step_calls;
-
-	int num_end_step_calls;
-	int num_merge;
-	int num_not_merge;
-	int num_darray_calls;
-	int max_darray_calls;
+	int num_calls;
+	int max_calls;
+	int num_begin_step;
+	int num_end_step;
 
     /** Handler for ADIOS group (of variables) */
     adios2_io *ioH;
@@ -915,7 +911,7 @@ typedef struct file_desc_t
 	MPI_Comm all_comm;
 
 	/* Merge buffers */
-    char   *block_array;
+    char *block_array;
 	size_t block_array_size;
 	/*
 	int *array_counts;
@@ -1512,7 +1508,7 @@ extern "C" {
 			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "adios2_end_step failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
 		} \
 		file->begin_step_called = 0; \
-		(file->num_end_step_calls)++; \
+		file->num_end_step++; \
 	} \
 }
 

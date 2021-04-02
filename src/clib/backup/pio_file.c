@@ -428,6 +428,8 @@ int PIOc_closefile(int ncid)
         if (file->engineH != NULL)
         {
             LOG((2, "ADIOS close file %s", file->filename));
+			printf("CLOSING FILE ADIOS: %s\n",file->filename);
+			fflush(stdout);
 
 			ADIOS2_BEGIN_STEP(file,NULL);
 
@@ -437,13 +439,11 @@ int PIOc_closefile(int ncid)
                 attributeH = adios2_define_attribute(file->ioH, "/__pio__/fillmode", adios2_type_int32_t, &file->fillmode);
                 if (attributeH == NULL)
                 {
-                    return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-								"Defining (ADIOS) attribute (name=/__pio__/fillmode) failed for file (%s, ncid=%d)", 
-								pio_get_fname_from_file(file), file->pio_ncid);
+                    return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=/__pio__/fillmode) failed for file (%s, ncid=%d)", pio_get_fname_from_file(file), file->pio_ncid);
                 }
             }
 
-			/* This is needed to write out the attribute /__pio__/fillmode */
+			/* THIS HAS TO BE HERE, OTHERWISE ADIOS WILL NOT WRITE OUT THE ATTRIBUTE.... */
 			{
                 adios2_variable *variableH = adios2_inquire_variable(file->ioH, "/__pio__/info/testing");
                 if (variableH == NULL)
@@ -454,18 +454,14 @@ int PIOc_closefile(int ncid)
                                                        adios2_constant_dims_true);
                     if (variableH == NULL)
                     {
-                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", 
-									pio_get_fname_from_file(file));
+                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", pio_get_fname_from_file(file));
                     }
                 }
 
                 adios2_error adiosErr = adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
                 if (adiosErr != adios2_error_none)
                 {
-                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-								"Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", 
-								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
 			}
 			
@@ -474,9 +470,7 @@ int PIOc_closefile(int ncid)
             adios2_error adiosErr = adios2_close(file->engineH);
             if (adiosErr != adios2_error_none)
             {
-                return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-							"Closing (ADIOS) file (%s, ncid=%d) failed (adios2_error=%s)", 
-							pio_get_fname_from_file(file), file->pio_ncid, adios2_error_to_string(adiosErr));
+                return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Closing (ADIOS) file (%s, ncid=%d) failed (adios2_error=%s)", pio_get_fname_from_file(file), file->pio_ncid, adios2_error_to_string(adiosErr));
             }
 
             file->engineH = NULL;
@@ -526,19 +520,19 @@ int PIOc_closefile(int ncid)
 
         file->num_attrs = 0;
 
-		/* Block merging */
 		if (file->block_myrank==0) {
 			if (file->block_array!=NULL) free(file->block_array);
+			/*
+			if (file->array_counts!=NULL) free(file->array_counts);
+			if (file->array_disp!=NULL) free(file->array_disp);
+			*/
 			file->block_array = NULL;
+			/*
+			file->array_counts = NULL;
+			file->array_disp = NULL;
+			*/
 		}
 
-		if (file->myrank==0) {
-			printf("ADIOS: Number of merges: %d not_merges: %d num_end_step: %d\n",
-					file->num_merge,file->num_not_merge,file->num_end_step_calls);
-			fflush(stdout);
-		}
-
-#undef _ADIOS_BP2NC_TEST /* TEST */
 #ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
 #ifdef _PNETCDF
         char conv_iotype[] = "pnetcdf";

@@ -263,19 +263,12 @@ int PIOc_setframe(int ncid, int varid, int frame)
 		}
 		else if (file->current_frame!=frame) 
 		{
-			if (frame==(file->current_frame+1))
+			file->current_frame = frame;
+			(file->num_begin_step_calls)++;
+			if (file->num_begin_step_calls>file->max_begin_step_calls) 
 			{
-				file->current_frame = frame;
-				(file->num_calls)++;
-				if (file->num_calls>file->max_calls) 
-				{
-					ADIOS2_END_STEP(file,ios);
-					file->num_calls = 0;
-				}
-			} 
-			else 
-			{
-				return pio_err(ios, file, PIO_EBADID, __FILE__, __LINE__,"Frame does not increase by 1. frame = (%d), current_frame = (%d)",frame,file->current_frame);
+				ADIOS2_END_STEP(file,ios);
+				file->num_begin_step_calls = 0;
 			}
 		}
 	}

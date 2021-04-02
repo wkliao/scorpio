@@ -660,8 +660,7 @@ static int register_decomp(file_desc_t *file, int ioid)
     if (file->n_written_ioids >= ADIOS_PIO_MAX_DECOMPS)
     {
         return pio_err(NULL, NULL, PIO_EINVAL, __FILE__, __LINE__,
-					"Registering (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). The number of I/O decompositions registered (%d) equals the maximum allowed for the file (%d)", 
-					ioid, pio_get_fname_from_file(file), file->pio_ncid, file->n_written_ioids, ADIOS_PIO_MAX_DECOMPS);
+                        "Registering (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). The number of I/O decompositions registered (%d) equals the maximum allowed for the file (%d)", ioid, pio_get_fname_from_file(file), file->pio_ncid, file->n_written_ioids, ADIOS_PIO_MAX_DECOMPS);
     }
 
     file->written_ioids[file->n_written_ioids] = ioid;
@@ -670,7 +669,7 @@ static int register_decomp(file_desc_t *file, int ioid)
     return PIO_NOERR;
 }
 
-#define _BLOCK_MERGE 
+#undef _BLOCK_MERGE 
 
 static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 {
@@ -798,8 +797,7 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 										   adios2_constant_dims_true);
 		if (variableH == NULL)
 		{
-			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-						"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
 						name, pio_get_fname_from_file(file), file->pio_ncid);
 		}
 	}
@@ -1090,6 +1088,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 #ifdef _BLOCK_MERGE 
 		/* Merge buffers from other processes */
+		/* Merge buffers */
 		size_t buffer_count = inp_count;
 		MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
 		av->buffer_count = inp_count;
@@ -1097,6 +1096,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 			av->buffer_count = buffer_count; 
 		}
        	av_count[0] = (size_t)av->buffer_count; 
+		/* TEST */
+		av_count[0] = (size_t)inp_count;
 
 		av->elem_size = -1;
 		if (av->adios_type==adios2_type_float) {
@@ -1202,7 +1203,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		}
 
 #ifdef _BLOCK_MERGE
-		/* Variable to store the number of writer blocks, in case buffer merging doesn't happen */
+		/* Save the number of writer blocks, in case buffer merging doesn't happen */
 		if (file->block_myrank==0) 
 		{
 			snprintf(name_varid, PIO_MAX_NAME, "num_block_writers/%s", av->name);
@@ -1258,6 +1259,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         }
     }
 
+#if 0 /* TEST */
     /* Check if we need to write the decomposition. Write it */
     if (needs_to_write_decomp(file, ioid))
     {
@@ -1276,6 +1278,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
         }
     }
+#endif
 
     /* E3SM history data special handling: down-conversion from double to float */
     void *databuf = array;
@@ -1318,7 +1321,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 	}
 
 	size_t num_block_writers = file->block_nprocs;
-	int can_merge_buffers = 1;
+	int can_merge_buffers = 0;
+#if 0
 	if (file->block_myrank==0) {
 		size_t av_buffer_size = av->elem_size*av->buffer_count;
 		if (file->block_array_size<av_buffer_size) {
@@ -1337,11 +1341,12 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		}
 
 		/* TEST */
-		double rand_val = (rand()*1.0)/RAND_MAX;
-		if (rand_val >= 1.1) {
+		if ((rand() % 2) == 0) {
 			can_merge_buffers = 0;
 		}
+		can_merge_buffers = 0;
 	}
+#endif
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
 
 	if (can_merge_buffers==1) {
@@ -1367,8 +1372,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 			}
 		}
 		num_block_writers = 1;
-		(file->num_merge)++;
 	} else {
+		/* printf("SINGLE BUFFER: %d var: %s\n",inp_count,av->name); fflush(stdout); */
 		size_t count_val[1];
 		count_val[0] = (size_t)inp_count;
 		adiosErr = adios2_set_selection(av->adios_varid, 1, NULL, count_val);
@@ -1386,7 +1391,6 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 					av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 		}
 		num_block_writers = file->block_nprocs;
-		(file->num_not_merge)++;
 	}
 
 	/* Write the number of block writers */
@@ -1394,25 +1398,18 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		adiosErr = adios2_put(file->engineH, av->num_block_writers_varid, &num_block_writers, adios2_mode_sync);
 	}
 #else
-	{
-		size_t count_val[1];
-		count_val[0] = (size_t)inp_count;
-		adiosErr = adios2_set_selection(av->adios_varid, 1, NULL, count_val);
-		if (adiosErr != adios2_error_none)
-		{
-			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-					"Putting (ADIOS) variable (name=decomp_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
-					av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-		}
-		adiosErr = adios2_put(file->engineH, av->adios_varid, databuf, adios2_mode_sync);
-	}
+	/* TEST
+	adiosErr = adios2_put(file->engineH, av->adios_varid, databuf, adios2_mode_sync);
+	*/
 #endif
+	/*
     if (adiosErr != adios2_error_none)
     {
      	return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
 				"Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
 	 			av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
     }
+	*/
 
 	/* NOTE: PIOc_setframe with different decompositions */
 	/* Different decompositions at different frames and fillvalue */
@@ -1465,21 +1462,13 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     if (temp_buf != NULL)
         free(temp_buf);
 
-#if 0
-	/* Check if any process group cannot merge buffers */
-	int all_can_merge_buffers = 1;
-	MPI_Allreduce(&can_merge_buffers,&all_can_merge_buffers,1,MPI_INT,MPI_MIN,file->all_comm);
-	if (all_can_merge_buffers==0) 
-	{
-		(file->num_darray_calls)++;
-		if (file->num_darray_calls>file->max_darray_calls) 
-		{
-			ADIOS2_END_STEP(file,NULL);
-			file->num_darray_calls = 0;
-			file->num_end_step_calls = 0;
-		}
+	if (file->myrank==0) {
+		printf("VARIABLE: %s frame: %d\n",av->name,file->varlist[varid].record);
+		fflush(stdout);
 	}
-#endif
+
+	/* TEST */
+	MPI_Barrier(file->all_comm);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_write_darray_adios_func");
