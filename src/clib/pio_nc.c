@@ -2557,10 +2557,6 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
         file->adios_vars[file->num_vars].fillval_varid = 0;
 
 		/* block merge */
-		file->adios_vars[file->num_vars].array_counts = NULL;
-		file->adios_vars[file->num_vars].array_disp   = NULL;
-		file->adios_vars[file->num_vars].array_counts_size = 0;
-		file->adios_vars[file->num_vars].array_disp_size = 0;
 		file->adios_vars[file->num_vars].elem_size = 0;
 		file->adios_vars[file->num_vars].buffer_count = 0;
 

@@ -2476,6 +2476,21 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			/* array to be used for merging blocks */
     		file->block_array = NULL;
 			file->block_array_size = 0;
+			file->array_counts = NULL;
+			file->array_disp = NULL;
+			file->array_counts_size = 0;
+			file->array_disp_size = 0;
+			if (0==file->block_myrank) {
+				file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
+				file->array_disp   = (int*)calloc(file->block_nprocs,sizeof(int));
+				if (file->array_counts==NULL || file->array_disp==NULL) {
+            		return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
+                        		"Out of memory allocating %lld bytes for a buffer", 
+								(long long) (file->block_nprocs*sizeof(int))); 
+				}
+				file->array_counts_size = file->block_nprocs*sizeof(int);
+				file->array_disp_size   = file->block_nprocs*sizeof(int);
+			}
 			/* Block merging */
 
             file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);

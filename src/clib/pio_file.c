@@ -501,16 +501,6 @@ int PIOc_closefile(int ncid)
             file->adios_vars[i].frame_varid = NULL;
             file->adios_vars[i].fillval_varid = NULL;
 
-			if (file->adios_vars[i].array_counts != NULL) {
-				free(file->adios_vars[i].array_counts);
-				file->adios_vars[i].array_counts = NULL;
-			}
-			if (file->adios_vars[i].array_disp != NULL) {
-				free(file->adios_vars[i].array_disp);
-				file->adios_vars[i].array_disp = NULL;
-			}
-			file->adios_vars[i].array_counts_size = 0;
-			file->adios_vars[i].array_disp_size = 0;
 			file->adios_vars[i].elem_size = 0;
 			file->adios_vars[i].buffer_count = 0;
         }
@@ -530,6 +520,10 @@ int PIOc_closefile(int ncid)
 		if (file->block_myrank==0) {
 			if (file->block_array!=NULL) free(file->block_array);
 			file->block_array = NULL;
+			if (file->array_counts!=NULL) free(file->array_counts);
+			file->array_counts = NULL;
+			if (file->array_disp!=NULL) free(file->array_disp);
+			file->array_disp = NULL;
 		}
 
 		if (file->myrank==0) {

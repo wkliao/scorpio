@@ -812,9 +812,11 @@ typedef struct adios_var_desc_t
 	adios2_variable* num_block_writers_varid;
 
 	/* for merging blocks */
+	/*
 	int    *array_counts;
 	int    *array_disp;
 	size_t array_counts_size, array_disp_size;
+	*/
 	size_t buffer_count;
 	size_t elem_size;
 
@@ -915,13 +917,11 @@ typedef struct file_desc_t
 	MPI_Comm all_comm;
 
 	/* Merge buffers */
+	int    *array_counts;
+	int    *array_disp;
+	size_t array_counts_size, array_disp_size;
     char   *block_array;
 	size_t block_array_size;
-	/*
-	int *array_counts;
-	int *array_disp;
-	size_t array_counts_size, array_disp_size;
-	*/
 
     /* Track attributes */
     /** attribute information. Allow PIO_MAX_VARS for now. */
