@@ -2558,7 +2558,6 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 
 		/* block merge */
 		file->adios_vars[file->num_vars].elem_size = 0;
-		file->adios_vars[file->num_vars].buffer_count = 0;
 
         file->adios_vars[file->num_vars].gdimids = (int*) malloc(ndims * sizeof(int));
         if (file->adios_vars[file->num_vars].gdimids == NULL)

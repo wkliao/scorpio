@@ -502,7 +502,6 @@ int PIOc_closefile(int ncid)
             file->adios_vars[i].fillval_varid = NULL;
 
 			file->adios_vars[i].elem_size = 0;
-			file->adios_vars[i].buffer_count = 0;
         }
 
         file->num_vars = 0;

@@ -2374,6 +2374,7 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
         }
         ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, err_msg)
 
+		/* Convert variables, but not distributed arrays */
 		time_step = 0;
 		while (bpReader[0].BeginStep()==adios2::StepStatus::OK) 
 		{
@@ -2392,13 +2393,6 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 							cout << "Convert variable: " << v << endl;
 
 						Variable& var = vars_map[v];
-
-						// string attname = string(a2_iter->first) + "/__pio__/ncop";
-						// std::string atype;
-						// AttributeVector adata;
-						// ierr = adios_get_attr_a2(bpIO[0], (char*)attname.c_str(), atype, adata);
-						// ERROR_CHECK_SINGLE_THROW(ierr, "adios_get_attr_a2 failed.")
-						// std::string op(adata[0].data());
 
 						if (var.op == "put_var")
 						{
@@ -2426,7 +2420,75 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 								ERROR_CHECK_SINGLE_THROW(ierr, "ConvertVariablePutVar failed.")
 							}
 						}
-						else if (var.op == "darray")
+					}
+				}
+
+				ret = PIOc_sync(ncid); /* FIXME: flush after each variable until development is done. Remove for efficiency */
+				if (ret != PIO_NOERR)
+					ierr = BP2PIO_ERROR;
+				ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, "PIOc_sync failed.");
+			}
+
+			MPI_Barrier(comm);
+			printf("END TIME STEP: %d\n",time_step); fflush(stdout);
+			MPI_Barrier(comm);
+
+			time_step++;
+			bpReader[0].EndStep();
+		}
+
+		/* Convert distributed arrays */
+		/* Reset time steps */
+		try
+        {
+			bpReader[0].Close();
+			std::string bpIO_name = bpIO[0].Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO[0] = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO[0].SetParameter("StreamReader","ON");
+			bpIO[0].SetEngine("FileStream");
+            bpReader[0] = bpIO[0].Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
+
+			bpReader[1].Close();
+			bpIO_name = bpIO[1].Name();
+			adios.RemoveIO(bpIO_name);
+            bpIO[1] = adios.DeclareIO(file0 + std::to_string(rand()));
+			bpIO[1].SetParameter("StreamReader","ON");
+			bpIO[1].SetEngine("FileStream");
+            bpReader[1] = bpIO[1].Open(file0, adios2::Mode::Read, MPI_COMM_SELF);
+        }
+        catch (const std::exception &e)
+        {
+            err_msg =  e.what();
+            ierr = BP2PIO_ERROR;
+        }
+        catch (...)
+        {
+            err_msg = "Unknown exception.";
+            ierr = BP2PIO_ERROR;
+        }
+        ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, err_msg)
+
+		time_step = 0;
+		while (bpReader[0].BeginStep()==adios2::StepStatus::OK) 
+		{
+        	std::map<std::string, adios2::Params> a2_vi = bpIO[0].AvailableVariables();
+			for (std::map<std::string, adios2::Params>::iterator a2_iter = a2_vi.begin(); a2_iter != a2_vi.end(); ++a2_iter)
+			{
+				string v = a2_iter->first;
+				if (v.find("/__") == string::npos)
+				{
+					if (v.find("decomp_id/") == string::npos &&
+						v.find("frame_id/") == string::npos &&
+						v.find("fillval_id/") == string::npos)
+					{
+						/* For each variable, read with ADIOS then write with PIO */
+						if (!mpirank && debug_out)
+							cout << "Convert variable: " << v << endl;
+
+						Variable& var = vars_map[v];
+
+						if (var.op == "darray")
 						{
 							/* Variable was written with pio_write_darray() with a decomposition */
 							if (debug_out)
@@ -2438,12 +2500,6 @@ int ConvertBPFile(const string &infilepath, const string &outfilename,
 												n_bp_writers, iosysid, file0, adios, time_step, 
 												comm, mpirank, nproc, mem_opt);
 							ERROR_CHECK_SINGLE_THROW(ierr, "ConvertVariableDarray failed.")
-						}
-						else
-						{
-							if (!mpirank && debug_out)
-								cout << "  WARNING: unknown operation " << var.op
-									 << ". Will not process this variable\n";
 						}
 					}
 				}
