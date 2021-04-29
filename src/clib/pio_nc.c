@@ -2370,6 +2370,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
         *idp = file->num_dim_vars;
         ++file->num_dim_vars;
         adios2_error adiosErr = adios2_put(file->engineH, variableH, &len, adios2_mode_sync);
+		file->num_written_blocks += file->num_all_procs;
         if (adiosErr != adios2_error_none)
         {
             return pio_err(ios, file, ierr, __FILE__, __LINE__, "adios2_put failed, error code = %d", adiosErr);
@@ -2390,6 +2391,8 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             file->unlim_dimids[file->num_unlim_dimids - 1] = *idp;
             LOG((1, "pio_def_dim : %d dim is unlimited", *idp));
         }
+
+		adios2_check_end_step(ios,file);
 
         return PIO_NOERR;
     }
@@ -2617,6 +2620,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     }
                 }
             }
+			file->num_written_blocks += 3;
         }
 
         strncpy(file->varlist[*varidp].vname, name, PIO_MAX_NAME);

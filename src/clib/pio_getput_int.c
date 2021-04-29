@@ -170,6 +170,8 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
             }
         }
 
+		adios2_check_end_step(ios,file);
+
 #ifdef TIMING
         GPTLstop("PIO:PIOc_put_att_tc");
 
@@ -1229,6 +1231,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                     return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
                 }
             }
+			(file->num_written_blocks)++;
         }
         else 
         {
@@ -1389,6 +1392,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 			tmp_buf += (av->ndims*sizeof(int64_t));
 			memcpy(tmp_buf,buf,buf_size); 
             adiosErr = adios2_put(file->engineH, av->adios_varid, mem_buffer, adios2_mode_sync);
+			file->num_written_blocks += file->num_all_procs;
 			free(mem_buffer); mem_buffer = NULL; 
             if (adiosErr != adios2_error_none)
             {
@@ -1398,6 +1402,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             }
 #else
             adiosErr = adios2_put(file->engineH, av->adios_varid, buf, adios2_mode_sync);
+			file->num_written_blocks += file->num_all_procs;
             if (adiosErr != adios2_error_none)
             {
                 GPTLstop("PIO:PIOc_put_vars_tc");
@@ -1406,6 +1411,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             }
 
             adiosErr = adios2_put(file->engineH, av->start_varid, pio_var_start, adios2_mode_sync);
+			file->num_written_blocks += file->num_all_procs;
             if (adiosErr != adios2_error_none)
             {
                 GPTLstop("PIO:PIOc_put_vars_tc");
@@ -1414,6 +1420,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
             }
 
             adiosErr = adios2_put(file->engineH, av->count_varid, pio_var_count, adios2_mode_sync);
+			file->num_written_blocks += file->num_all_procs;
             if (adiosErr != adios2_error_none)
             {
                 GPTLstop("PIO:PIOc_put_vars_tc");
@@ -1488,6 +1495,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 }
             }
         }
+
+		adios2_check_end_step(ios,file);
 
         GPTLstop("PIO:PIOc_put_vars_tc");
         GPTLstop("PIO:PIOc_put_vars_tc_adios");

@@ -871,6 +871,15 @@ typedef struct file_desc_t
 	int num_darray_calls;
 	int max_darray_calls;
 
+	/* 
+	 * Used to call adios2_end_step to avoid buffer overflow in MPI_Gatherv 
+	 * during ADIOS metadata write operation. 
+	 *
+	 * if num_written_blocks*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD, call adios2_end_step
+	 */
+	unsigned int num_written_blocks;
+	unsigned int num_all_procs;
+
     /** Handler for ADIOS group (of variables) */
     adios2_io *ioH;
 
@@ -911,9 +920,9 @@ typedef struct file_desc_t
 	MPI_Comm all_comm;
 
 	/* Merge buffers */
-	unsigned int *array_counts;
+	int *array_counts;
 	int array_counts_size;
-	unsigned int *array_disp;
+	int *array_disp;
 	int array_disp_size;
     char *block_array;
 	unsigned long block_array_size;
@@ -1482,6 +1491,8 @@ extern "C" {
 #ifdef _ADIOS2
     adios2_type PIOc_get_adios_type(nc_type xtype);
     int adios2_type_size(adios2_type type, const void *var);
+	int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file);
+    const char *adios2_error_to_string(adios2_error error);
 
 #define ADIOS2_BEGIN_STEP(file,ios) \
 { \
@@ -1491,7 +1502,9 @@ extern "C" {
 		adios2_error adiosStepErr = adios2_begin_step(file->engineH,adios2_step_mode_append,100.0,&step_status); \
 		if (adiosStepErr != adios2_error_none) \
 		{ \
-			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "adios2_begin_step failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, \
+					"adios2_begin_step failed (adios2_error=%s) for file (%s)", \
+					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
 		} \
 		file->begin_step_called = 1; \
 	} \
@@ -1504,17 +1517,20 @@ extern "C" {
 		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
 		if (adiosStepErr != adios2_error_none) \
 		{ \
-			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "adios2_end_step failed (adios2_error=%s) for file (%s)", adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, \
+					"adios2_end_step failed (adios2_error=%s) for file (%s)", \
+					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
 		} \
 		file->begin_step_called = 0; \
 		(file->num_end_step_calls)++; \
 	} \
 }
 
+/*
 #ifndef strdup
     char *strdup(const char *str);
 #endif
-    const char *adios2_error_to_string(adios2_error error);
+*/
 #endif
 
 #if defined(__cplusplus)

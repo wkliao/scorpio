@@ -269,6 +269,7 @@ int PIOc_setframe(int ncid, int varid, int frame)
 			{
 				ADIOS2_END_STEP(file,ios);
 				file->num_begin_step_calls = 0;
+				file->num_written_blocks = 0;
 			}
 		}
 	}

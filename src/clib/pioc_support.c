@@ -100,6 +100,7 @@ int remove_directory(const char *path)
 
     return r;
 }
+
 #endif
 
 /**
@@ -2398,6 +2399,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			file->max_darray_calls = 10000;
 			file->num_darray_calls = 0;
 
+			file->num_written_blocks = 0;
+			file->num_all_procs = ios->num_comptasks;
+
 			/* Collect some statistics for debugging purposes */
 			file->num_end_step_calls = 0;
 			file->num_merge = 0;
@@ -2481,15 +2485,15 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			file->array_counts_size = 0;
 			file->array_disp_size = 0;
 			if (file->block_myrank==0) {
-				file->array_counts = (unsigned int*)calloc(file->block_nprocs,sizeof(unsigned int));
-				file->array_disp   = (unsigned int*)calloc(file->block_nprocs,sizeof(unsigned int));
+				file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
+				file->array_disp   = (int*)calloc(file->block_nprocs,sizeof(int));
 				if (file->array_counts==NULL || file->array_disp==NULL) {
             		return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
                         		"Out of memory allocating %lld bytes for a buffer", 
-								(long long) (file->block_nprocs*sizeof(unsigned int))); 
+								(long long) (file->block_nprocs*sizeof(int))); 
 				}
-				file->array_counts_size = file->block_nprocs*sizeof(unsigned int);
-				file->array_disp_size   = file->block_nprocs*sizeof(unsigned int);
+				file->array_counts_size = file->block_nprocs*sizeof(int);
+				file->array_disp_size   = file->block_nprocs*sizeof(int);
 			}
 			/* Block merging */
 
@@ -2528,6 +2532,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
 			}
+			(file->num_written_blocks)++;
 
 			/* Write the number of processes in block merges */
 			if (file->block_myrank==0) 
@@ -2554,6 +2559,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
             }
+			file->num_written_blocks += file->num_all_procs;
         }
     }
 #endif
@@ -3906,6 +3912,7 @@ adios2_type PIOc_get_adios_type(nc_type xtype)
     return t;
 }
 
+/*
 #ifndef strdup
 char *strdup(const char *str)
 {
@@ -3919,6 +3926,7 @@ char *strdup(const char *str)
     return dup;
 }
 #endif
+*/
 
 const char *adios2_error_to_string(adios2_error error)
 {
@@ -3937,6 +3945,18 @@ const char *adios2_error_to_string(adios2_error error)
         default:
             return "UNKNOWN adios2_error";
     }
+}
+
+#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
+#define BLOCK_METADATA_SIZE 70
+int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file)
+{
+	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
+	{
+		ADIOS2_END_STEP(file,ios);
+		file->num_begin_step_calls = 0;
+		file->num_written_blocks = 0;
+	}
 }
 
 #endif /* _ADIOS2 */
