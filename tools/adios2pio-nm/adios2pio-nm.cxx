@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 	*/
 
 	std::string fullpath = "/gpfs/alpine/csc303/proj-shared/tkurc1/work/replay_tool_end_step/build.v270/tests/performance/"; 
-	infilepath  = fullpath + "pioperf-rearr-1-ncomptasks-1344-niotasks-0032-stride-0042-iotype-5-nframes-960-nvars-575.nc.bp"; 
+	infilepath  = fullpath + "pioperf-rearr-1-ncomptasks-1344-niotasks-0192-stride-0007-iotype-5-nframes-960-nvars-575.nc.bp"; 
 	outfilename = fullpath + "output.nc";
 	piotype = "pnetcdf";
 
@@ -121,11 +121,13 @@ int main(int argc, char *argv[])
         return ret;
     }
 
+#if 0
 #ifdef TIMING
     /* Initialize the GPTL timing library. */
     if ((ret = GPTLinitialize()))
         return ret;
 #endif
+#endif 
 
     SetDebugOutput(debug_lvl);
     MPI_Barrier(comm_in);
@@ -139,11 +141,13 @@ int main(int argc, char *argv[])
     }
     MPI_Barrier(comm_in);
 
+#if 0
 #ifdef TIMING
     /* Finalize the GPTL timing library. */
     if ((ret = GPTLfinalize()))
         return ret;
 #endif
+#endif 
 
     MPI_Finalize();
 
