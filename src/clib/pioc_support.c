@@ -2385,7 +2385,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 						adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
            	}
 
-
 			/* Call adios end step in PIOc_setframe(), if num_begin_step_calls>max_begin_step_calls */ 
 			file->max_begin_step_calls = MAX_BEGIN_STEP_CALLS; 
 			file->num_begin_step_calls = 0;

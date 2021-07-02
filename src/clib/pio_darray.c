@@ -707,23 +707,18 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 
 	ADIOS2_BEGIN_STEP(file,NULL);
 
-    size_t av_count[1];
+    size_t av_count;
 	int maplen = (int)(iodesc->maplen);
 	void *mapbuf = iodesc->map; 
-	char need_free_mapbuf = 0;
+	char need_to_free_mapbuf = 0;
 	if (iodesc->maplen < 1)
 	{
 		maplen = 2;
 		mapbuf = (long*)calloc(2,sizeof(long));
-		if (mapbuf == NULL)
-        {
-           return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
-                          "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
-					      ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(long)));
-        }
+		assert(mapbuf!=NULL);
         ((long*)mapbuf)[0] = 0;
         ((long*)mapbuf)[1] = 0;
-		need_free_mapbuf = 1;
+		need_to_free_mapbuf = 1;
 	} 
 	else if (iodesc->maplen == 1)
 	{
@@ -731,31 +726,20 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
         if (type == adios2_type_int32_t)
         {
             mapbuf = (int*)calloc(maplen, sizeof(int));
-            if (mapbuf == NULL)
-            {
-                return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
-                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
-								ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(int)));
-            }
+			assert(mapbuf!=NULL);
             ((int*)mapbuf)[0] = iodesc->map[0];
             ((int*)mapbuf)[1] = 0;
         }
         else
         {
             mapbuf = (long*)calloc(maplen, sizeof(long));
-            if (mapbuf == NULL)
-            {
-                return pio_err(NULL, NULL, PIO_ENOMEM, __FILE__, __LINE__,
-                                "Writing (ADIOS) I/O decomposition (id = %d) failed for file (%s, ncid=%d). Out of memory allocating %lld bytes for map buffer", 
-								ioid, pio_get_fname_from_file(file), file->pio_ncid, (long long)(maplen * sizeof(long)));
-            }
+			assert(mapbuf!=NULL);
             ((long*)mapbuf)[0] = iodesc->map[0];
             ((long*)mapbuf)[1] = 0;
         }
-		need_free_mapbuf = 1;
+		need_to_free_mapbuf = 1;
 	}
 
-	av_count[0] = (size_t)maplen;
 	inp_count = buffer_count = maplen;
 	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
 	memset(file->array_counts,0,(size_t)(file->array_counts_size));
@@ -772,16 +756,16 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	}
 
 	if (file->block_myrank==0) {
-		av_count[0] = (size_t)buffer_count;
+		av_count = (size_t)buffer_count;
 	} else {
-		av_count[0] = (size_t)inp_count;
+		av_count = (size_t)inp_count;
 	}
 
 	adios2_variable *variableH = adios2_inquire_variable(file->ioH, name);
 	if (variableH == NULL)
 	{
 		variableH = adios2_define_variable(file->ioH, name, type,
-										   1, NULL, NULL, av_count,
+										   1, NULL, NULL, &av_count,
 										   adios2_constant_dims_true);
 		if (variableH == NULL)
 		{
@@ -797,12 +781,12 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	{
 		char name_varid[PIO_MAX_NAME];
 		snprintf(name_varid, PIO_MAX_NAME, "num_decomp_block_writers/%s", name);
-		av_count[0] = 1;
+		av_count = 1;
 		num_decomp_block_writers_varid = adios2_inquire_variable(file->ioH, name_varid);
 		if (num_decomp_block_writers_varid == NULL)
 		{
 			num_decomp_block_writers_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-													   1, NULL, NULL, av_count,
+													   1, NULL, NULL, &av_count,
 													   adios2_constant_dims_true);
 			if (num_decomp_block_writers_varid == NULL)
 			{
@@ -873,7 +857,7 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 		total_num_block_writers++;
 	}
 
-	if (need_free_mapbuf)
+	if (need_to_free_mapbuf)
 	{
 		if (mapbuf!=NULL) 
 			free(mapbuf);
@@ -1115,7 +1099,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         }
         array = temp_buf;
     }
-    else if (arraylen == 0) /* Handle the case where there is zero array element */
+    else if (arraylen < 1) /* Handle the case where there are zero array elements */
     {
         arraylen = 2;
         temp_buf = (int64_t*)calloc(arraylen, sizeof(int64_t));
@@ -1128,18 +1112,17 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         array = temp_buf;
     }
 
-
 	unsigned int inp_count    = arraylen;
 	unsigned int buffer_count = arraylen;
 	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
     if (av->adios_varid == NULL)
     {
        	adios2_type atype = av->adios_type;
-       	size_t av_count[1];
-		av_count[0] = inp_count;
-
+       	size_t av_count;
 		if (file->block_myrank==0) {
-       		av_count[0] = (size_t)buffer_count; 
+       		av_count = (size_t)buffer_count; 
+		} else {
+			av_count = (size_t)inp_count;
 		}
 
 		av->elem_size = -1;
@@ -1163,7 +1146,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
        	/* Define the variable */
        	av->adios_varid = adios2_define_variable(file->ioH, av->name, atype,
-                                                1, NULL, NULL, av_count,
+                                                1, NULL, NULL, &av_count,
                                                 adios2_constant_dims_false);
        	if (av->adios_varid == NULL)
        	{
@@ -1177,12 +1160,12 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         if (file->myrank == WRITE_DECOMP_ID)
         {
 			snprintf(name_varid, PIO_MAX_NAME, "decomp_id/%s", av->name);
-			av_count[0] = av->max_buffer_cnt;
+			av_count = av->max_buffer_cnt;
 			av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->decomp_varid == NULL)
 			{
 				av->decomp_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-														  1, NULL, NULL, av_count,
+														  1, NULL, NULL, &av_count,
 														  adios2_constant_dims_false);
 				if (av->decomp_varid == NULL)
 				{
@@ -1191,6 +1174,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 				av->decomp_buffer = (int32_t*)calloc(av->max_buffer_cnt,sizeof(int32_t));
+				assert(av->decomp_buffer!=NULL);
 				av->decomp_cnt = 0;
 			}
 		}
@@ -1198,12 +1182,12 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		if (file->myrank == WRITE_FRAME_ID) 
 		{
 			snprintf(name_varid, PIO_MAX_NAME, "frame_id/%s", av->name);
-			av_count[0] = av->max_buffer_cnt;
+			av_count = av->max_buffer_cnt;
 			av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->frame_varid == NULL)
 			{
 				av->frame_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-														 1, NULL, NULL, av_count,
+														 1, NULL, NULL, &av_count,
 														 adios2_constant_dims_false);
 				if (av->frame_varid == NULL)
 				{
@@ -1212,6 +1196,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 				av->frame_buffer = (int32_t*)calloc(av->max_buffer_cnt,sizeof(int32_t));
+				assert(av->frame_buffer!=NULL);
 				av->frame_cnt = 0;
 			}
 		}
@@ -1219,12 +1204,12 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		if (file->myrank == WRITE_FILLVAL_ID) 
 		{
 			snprintf(name_varid, PIO_MAX_NAME, "fillval_id/%s", av->name);
-			av_count[0] = av->max_buffer_cnt;
+			av_count = av->max_buffer_cnt;
 			av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->fillval_varid == NULL)
 			{
 				av->fillval_varid = adios2_define_variable(file->ioH, name_varid, atype,
-														   1, NULL, NULL, av_count,
+														   1, NULL, NULL, &av_count,
 														   adios2_constant_dims_false);
 				if (av->fillval_varid == NULL)
 				{
@@ -1232,8 +1217,9 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
 							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
-				av->fillval_size = adios2_type_size(atype, NULL);
+				av->fillval_size   = adios2_type_size(atype, NULL);
 				av->fillval_buffer = (char*)calloc(av->max_buffer_cnt,sizeof(char)*av->fillval_size);
+				assert(av->fillval_buffer!=NULL);
 				av->fillval_cnt = 0;
 			}
 		}
@@ -1242,12 +1228,12 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		if (file->block_myrank==0) 
 		{
 			snprintf(name_varid, PIO_MAX_NAME, "num_data_block_writers/%s", av->name);
-			av_count[0] = 1;
+			av_count = av->max_buffer_cnt;
 			av->num_block_writers_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->num_block_writers_varid == NULL)
 			{
 				av->num_block_writers_varid = adios2_define_variable(file->ioH, name_varid, adios2_type_int32_t,
-														   1, NULL, NULL, av_count,
+														   1, NULL, NULL, &av_count,
 														   adios2_constant_dims_false);
 				if (av->num_block_writers_varid == NULL)
 				{
@@ -1256,6 +1242,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 				av->num_wb_buffer = (int32_t*)calloc(av->max_buffer_cnt,sizeof(int32_t));
+				assert(av->num_wb_buffer!=NULL);
 				av->num_wb_cnt = 0;
 			}
 		}
@@ -1318,7 +1305,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     /* E3SM history data special handling: down-conversion from double to float */
     void *databuf = array;
     void *fillbuf = fillvalue;
-    int buf_needs_free = 0;
+    int need_to_free_databuf = 0;
     if (iodesc->piotype != av->nc_type)
     {
         databuf = PIOc_convert_buffer_adios(file, iodesc, av, array, arraylen, &ierr);
@@ -1339,8 +1326,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 								varid, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
-
-        buf_needs_free = 1;
+        need_to_free_databuf = 1;
     }
 
 	memset(file->array_counts,0,file->array_counts_size);
@@ -1365,10 +1351,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 			} else {
 				file->block_array = (char*)calloc(av_buffer_size,sizeof(char));
 			}
-			if (file->block_array!=NULL) {
-				can_merge_buffers = 1;
-				file->block_array_size = av_buffer_size;
-			} else {
+			file->block_array_size = av_buffer_size;
+			if (file->block_array==NULL) {
 				can_merge_buffers = 0;
 				file->block_array_size = 0;
 			}
@@ -1380,6 +1364,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 			can_merge_buffers = 0;
 		}
 		can_merge_buffers = 0;
+		/* TEST */
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
 
@@ -1448,47 +1433,28 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 	/* NOTE: PIOc_setframe with different decompositions */
 	/* Different decompositions at different frames and fillvalue */
-	if (fillbuf != NULL) /* Write out user provided fillvalue */
-	{
-		if (file->myrank==WRITE_FILLVAL_ID) 
-		{
-			if (av->fillval_cnt>=av->max_buffer_cnt) {
-				size_t count_val = (size_t)av->fillval_cnt;
-				adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
-				adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
-				if (adiosErr != adios2_error_none)
-				{
-					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
-								av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-				}
-				total_num_block_writers++;
-				av->fillval_cnt = 0;
-			} 
-			memcpy(av->fillval_buffer+(av->fillval_cnt*av->fillval_size),(char*)fillbuf,av->fillval_size);
-			(av->fillval_cnt)++;
-		}
-	}
-	else
-	{
-		if (file->myrank==WRITE_FILLVAL_ID) 
-		{
-		    char dummy_fill[64];	
-			if (av->fillval_cnt>=av->max_buffer_cnt) {
-				size_t count_val = (size_t)av->fillval_cnt;
-				adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
-				adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
-				if (adiosErr != adios2_error_none)
-				{
-					return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
-								av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
-				}
-				total_num_block_writers++;
-				av->fillval_cnt = 0;
-			}
-			memcpy(av->fillval_buffer+(av->fillval_cnt*av->fillval_size),(char*)dummy_fill,av->fillval_size);
-			(av->fillval_cnt)++;
-		}
+	char dummy_fill[128];
+	char *tmp_fillbuf = fillbuf;
+	if (tmp_fillbuf==NULL) {
+		tmp_fillbuf = &dummy_fill[0];
 		ioid = -ioid;
+	}
+	if (file->myrank==WRITE_FILLVAL_ID) 
+	{
+		if (av->fillval_cnt>=av->max_buffer_cnt) {
+			size_t count_val = (size_t)av->fillval_cnt;
+			adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
+			adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
+			if (adiosErr != adios2_error_none)
+			{
+				return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Putting (ADIOS) variable (name=fillval_id/%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
+							av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
+			}
+			total_num_block_writers++;
+			av->fillval_cnt = 0;
+		} 
+		memcpy(av->fillval_buffer+(av->fillval_cnt*av->fillval_size),(char*)tmp_fillbuf,av->fillval_size);
+		(av->fillval_cnt)++;
 	}
 
 	if (file->myrank==WRITE_DECOMP_ID)
@@ -1527,7 +1493,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		(av->frame_cnt)++;
 	}
 
-    if (buf_needs_free)
+    if (need_to_free_databuf)
     {
         if (databuf != NULL)
             free(databuf);

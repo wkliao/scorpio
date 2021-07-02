@@ -1494,7 +1494,6 @@ int PIOc_inq_att(int ncid, int varid, const char *name, nc_type *xtypep,
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
     {
-        /* LOG((2, "ADIOS missing %s:%s", __FILE__, __func__)); */
         /* Track attributes */
         ierr = PIO_ENOTATT;
         for (int i = 0; i < file->num_attrs; i++)
@@ -2360,7 +2359,8 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
                                                adios2_constant_dims_false);
             if (variableH == NULL)
             {
-                return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", dimname, pio_get_fname_from_file(file), file->pio_ncid);
+                return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
+					dimname, pio_get_fname_from_file(file), file->pio_ncid);
             }
         }
 
@@ -2385,7 +2385,8 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             {
                 const char *dname = (name) ? name : "UNKNOWN";
                 return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,
-                            "Defining dimension %s in file %s (ncid=%d) failed. Out of memory allocating %lld bytes to cache unlimited dimension ids", dname, pio_get_fname_from_file(file), ncid, (unsigned long long) (file->num_unlim_dimids * sizeof(int)));
+                            "Defining dimension %s in file %s (ncid=%d) failed. Out of memory allocating %lld bytes to cache unlimited dimension ids", 
+							dname, pio_get_fname_from_file(file), ncid, (unsigned long long) (file->num_unlim_dimids * sizeof(int)));
             }
 
             file->unlim_dimids[file->num_unlim_dimids - 1] = *idp;
@@ -2578,7 +2579,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
         {
             const char *vname = (name) ? name : "UNKNOWN";
             return pio_err(ios, file, PIO_ENOMEM, __FILE__, __LINE__,
-                            "Defining variable %s in file %s (ncid=%d) using ADIOS iotype failed. Out of memory allocating %lld bytes for global dimensions", vname, pio_get_fname_from_file(file), ncid, (unsigned long long) (ndims * sizeof(int)));
+                            "Defining variable %s in file %s (ncid=%d) using ADIOS iotype failed. Out of memory allocating %lld bytes for global dimensions", 
+							vname, pio_get_fname_from_file(file), ncid, (unsigned long long) (ndims * sizeof(int)));
         }
         memcpy(file->adios_vars[file->num_vars].gdimids, dimidsp, ndims * sizeof(int));
         *varidp = file->num_vars;
@@ -2597,7 +2599,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_int32_t, &av->ndims);
                     if (attributeH == NULL)
                     {
-                        return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                        return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+								att_name, pio_get_fname_from_file(file), file->pio_ncid);
                     }
                 }
 
@@ -2608,7 +2611,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     attributeH = adios2_define_attribute(file->ioH, att_name, adios2_type_int32_t, &av->nc_type);
                     if (attributeH == NULL)
                     {
-                        return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", att_name, pio_get_fname_from_file(file), file->pio_ncid);
+                        return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute (name=%s) failed for file (%s, ncid=%d)", 
+								att_name, pio_get_fname_from_file(file), file->pio_ncid);
                     }
                 }
 
@@ -2626,7 +2630,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                         attributeH = adios2_define_attribute_array(file->ioH, att_name, adios2_type_string, dimnames, av->ndims);
                         if (attributeH == NULL)
                         {
-                            return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute array (name=%s, size=%d) failed for file (%s, ncid=%d)", att_name, av->ndims, pio_get_fname_from_file(file), file->pio_ncid);
+                            return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, "Defining (ADIOS) attribute array (name=%s, size=%d) failed for file (%s, ncid=%d)", 
+									att_name, av->ndims, pio_get_fname_from_file(file), file->pio_ncid);
                         }
                     }
                 }

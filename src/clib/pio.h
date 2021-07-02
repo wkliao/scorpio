@@ -46,8 +46,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <adios2_c.h>
-#define _ADIOS_ALL_PROCS 1 /* ADIOS: assume all procs are also IO tasks */
-#define ADIOS_PIO_MAX_DECOMPS 200 /* Maximum number of decomps */
+#define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
 #endif
@@ -814,7 +813,7 @@ typedef struct adios_var_desc_t
 	/* to buffer decomp id, frame id, fill value, and writer blocks */
 	int32_t *decomp_buffer;
 	int32_t *frame_buffer;
-	char *fillval_buffer;
+	char    *fillval_buffer;
 	int32_t fillval_size;
 	int32_t *num_wb_buffer;
 	int32_t decomp_cnt, frame_cnt, fillval_cnt, num_wb_cnt;
@@ -874,6 +873,7 @@ typedef struct file_desc_t
 	int num_begin_step_calls;
 	int max_begin_step_calls;
 
+	/* keep counts for debugging and statistics purposes */
 	int num_end_step_calls;
 	int num_merge;
 	int num_not_merge;
@@ -917,6 +917,7 @@ typedef struct file_desc_t
     int adios_iomaster;
 	int myrank;
 
+	/* Merging distributed array blocks to reduce I/O overhead */
 	/* ADIOS: grouping of processes for block merging */
 	MPI_Comm node_comm;
 	int node_myrank, node_nprocs;
@@ -926,7 +927,7 @@ typedef struct file_desc_t
 	int one_node_rank, one_node_nprocs;
 	MPI_Comm all_comm;
 
-	/* Merge buffers */
+	/* Buffers for merging distributed array blocks */
 	int *array_counts;
 	int array_counts_size;
 	int *array_disp;
@@ -935,7 +936,6 @@ typedef struct file_desc_t
 	unsigned long block_array_size;
 
     /* Track attributes */
-    /** attribute information. Allow PIO_MAX_VARS for now. */
     struct adios_att_desc_t adios_attrs[PIO_MAX_ATTRS];
     int num_attrs;
 
