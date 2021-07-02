@@ -2240,6 +2240,7 @@ int ConvertVariableTimedPutVar(adios2::IO &bpIO, adios2::Engine &bpReader,
 
 template <class T>
 int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base, 
+								std::vector<T> v_value,
 							 	IOVector &bpIO, 
 								EngineVector &bpReader, 
 								std::string varname,
@@ -2254,70 +2255,30 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 								int mpirank, 
 								int nproc, 
 								int mem_opt, 
-								std::vector<int> &block_procs,
 								std::vector<int> &local_proc_blocks)
 {
     int ierr = BP2PIO_NOERR, err_val = 0, err_cnt = 0;
     int ret = PIO_NOERR;
 
 	/* Different decompositions at different frames */
+    char decomp_varname[PIO_MAX_NAME];
+    char frame_varname[PIO_MAX_NAME];
+    char fillval_varname[PIO_MAX_NAME];
+    sprintf(decomp_varname, "decomp_id/%s", varname.c_str());
+    sprintf(frame_varname, "frame_id/%s", varname.c_str());
+    sprintf(fillval_varname, "fillval_id/%s", varname.c_str());
     int  decomp_id, frame_id, fillval_exist;
-    static char decompname[PIO_MAX_NAME];
-    static char fillval_id[PIO_MAX_NAME];
-
-	*v_base = bpIO[0].InquireVariable<T>(varname);
-	int elemsize = adios2_type_size_a2(v_base->Type());
-	assert(elemsize > 0);
+    char decompname[PIO_MAX_NAME];
+    char fillval_id[PIO_MAX_NAME];
 
     /* Calculate how many records/steps we have for this variable */
     /* Compute the number of time steps */
 	int nsteps = 0;
-	int32_t *decomp_buffer = NULL;
-	int32_t *frame_buffer = NULL;
-	char *fillval_buffer = NULL;
 	try
 	{
-		/* get number of application steps in adios step */
-		adios2::Variable<int> f_var = bpIO[0].InquireVariable<int>("frame_id/"+varname);
+		adios2::Variable<int32_t> f_var = bpIO[0].InquireVariable<int32_t>(frame_varname);
 		const auto vb_blocks = bpReader[0].BlocksInfo(f_var, time_step);
-		for (int i=0;i<vb_blocks.size();i++) {
-			nsteps += vb_blocks[i].Count[0];
-		}
-
-		/* read frame_id buffer */
-		frame_buffer  = (int32_t*)calloc(nsteps,sizeof(int32_t));
-		int tmp_idx = 0;
-		for (int i=0;i<vb_blocks.size();i++) {
-			f_var.SetBlockSelection(i);
-			bpReader[0].Get(f_var, frame_buffer+tmp_idx, adios2::Mode::Sync);
-			tmp_idx += vb_blocks[i].Count[0];
-		}
-
-		/* read decomp_id buffer */
-		adios2::Variable<int> d_var = bpIO[0].InquireVariable<int>("decomp_id/"+varname);
-		const auto db_blocks = bpReader[0].BlocksInfo(d_var, time_step);
-		decomp_buffer = (int32_t*)calloc(nsteps,sizeof(int32_t));
-		tmp_idx = 0;
-		for (int i=0;i<db_blocks.size();i++) {
-			d_var.SetBlockSelection(i);
-			bpReader[0].Get(d_var, decomp_buffer+tmp_idx, adios2::Mode::Sync);
-			tmp_idx += db_blocks[i].Count[0];
-		}
-
-		/* read fillval_id buffer */
-		adios2::Variable<T> fill_var = bpIO[0].InquireVariable<T>("fillval_id/"+varname);
-		const auto fb_blocks = bpReader[0].BlocksInfo(fill_var, time_step);
-		fillval_buffer = (char*)calloc(nsteps,sizeof(T));
-		tmp_idx = 0;
-		std::vector<T> fb_tmp;
-		int fb_tmp_size = 0;
-		for (int i=0;i<fb_blocks.size();i++) {
-			fill_var.SetBlockSelection(i);
-			bpReader[0].Get(fill_var, fb_tmp, adios2::Mode::Sync);
-			fb_tmp_size = fb_tmp.size()*sizeof(T);
-		 	memcpy(fillval_buffer+tmp_idx, fb_tmp.data(), fb_tmp_size);
-			tmp_idx += fb_tmp_size;
-		}
+		nsteps = (int)vb_blocks.size();
 	}
 	catch (const std::exception &e)
 	{
@@ -2330,177 +2291,179 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 	}
 
 	/* Find the number of merge_blocks info per time step */
-	int num_merge_blocks_per_step = block_procs.size();
-	int *__merge_blocks;
-	adios2::Variable<int> blk_var = bpIO[0].InquireVariable<int>("num_data_block_writers/"+varname);
-	const auto mb_blocks = bpReader[0].BlocksInfo(blk_var, time_step);
-	int mb_cnt = 0;
-	for (int i=0;i<mb_blocks.size();i++) {
-		mb_cnt += mb_blocks[i].Count[0];
-	}
-	__merge_blocks = (int*)calloc(mb_cnt,sizeof(int));
-	if (__merge_blocks==NULL) {
-		return BP2PIO_ERROR;
+	int num_merge_blocks_per_step = 0;
+	std::vector<int> merge_blocks;
+	adios2::Variable<int> tmp_base = bpIO[0].InquireVariable<int>("num_data_block_writers/"+varname);
+	{
+		const auto v_blocks = bpReader[0].BlocksInfo(tmp_base, time_step);
+		num_merge_blocks_per_step = v_blocks.size()/nsteps;
+		merge_blocks.resize(num_merge_blocks_per_step);
 	}
 
-	int mb_ptr = 0;
-	int mb_sel = 0;
-	int read_cnt = 0;
-	std::vector<int> mb_tmp;
-	while (mb_ptr<mb_cnt) {
-		read_cnt = 0;
-		for (int i=0;i<num_merge_blocks_per_step;i++) {
-			blk_var.SetBlockSelection(mb_sel++); 
-			bpReader[0].Get(blk_var, mb_tmp, adios2::Mode::Sync);
-			for (int j=0;j<mb_tmp.size();j++) {
-				__merge_blocks[j*num_merge_blocks_per_step+i+mb_ptr] = mb_tmp[j];
-			}
-			read_cnt += mb_tmp.size();
-		}
-		mb_ptr += read_cnt;
+	if (mpirank==0) {
+		printf("DARRAY: var: %s num_merge_blocks: %d nsteps: %d time_step: %d\n",
+				varname.c_str(),num_merge_blocks_per_step,nsteps,time_step);
+		fflush(stdout);
 	}
-	int *merge_blocks = __merge_blocks;
 
-	/* Allocate space for reading array data */
-	const auto vb_blocks = bpReader[0].BlocksInfo(*v_base, time_step);
-	uint64_t nelems = 0;
-	int start_idx = 0;
-	int local_proc_blocks_0 = local_proc_blocks[0];
-	/* get block merge status of the distributed array */
-	start_idx = 0;
-	for (int i = 0; i<num_merge_blocks_per_step; i++) {
-		/* Skip merge_blocks until block belonging to this process */
-		if (i<local_proc_blocks_0) 
-			start_idx += merge_blocks[i];
-	}
-	for (int i = 0; i<local_proc_blocks.size(); i++) {
-		for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
-			nelems += vb_blocks[start_idx].Count[0];
-			start_idx++;
-		}
-	}
-	int64_t t_data_size = (nelems+1);
-	T *t_data = (T*)malloc(sizeof(T)*t_data_size);
-	if (t_data==NULL) {
-		return BP2PIO_ERROR;
-	}
 
 	int start_merge_blocks_id = 0;
 	int start_data_blocks_id  = 0;
-	uint64_t offset = 0;
-	int blockid = 0;
-	int sum_blocks = 0;
-	int start_block = 0;
+	*v_base = bpIO[0].InquireVariable<T>(varname);
+	int elemsize = adios2_type_size_a2(v_base->Type());
+	assert(elemsize > 0);
+
+	uint64_t nelems = 0;
+	std::vector<char> d_data;
+	{
+		/* get block merge status of the distributed array */
+		std::vector<int> vd_value;
+		int vd_value_int;
+		for (int i = 0; i<num_merge_blocks_per_step; i++) {
+			tmp_base.SetBlockSelection(i+start_merge_blocks_id);
+			bpReader[0].Get(tmp_base, &vd_value_int, adios2::Mode::Sync);
+			merge_blocks[i] = (int)vd_value_int; // [0];
+		}
+		const auto vb_blocks = bpReader[0].BlocksInfo(*v_base, time_step);
+		/* Allocate +1 to prevent d_data.data() from returning NULL. Otherwise, read/write operations fail */
+		/* nelems may be 0, when some processes do not have any data */
+   		size_t blockid = 0;
+		int start_idx;
+		int start_block = 0;
+		/* Skip merge_blocks until this process' block */
+		for (int i = 0; i<local_proc_blocks[0]; i++) {
+			start_block += merge_blocks[i];
+		}
+		start_idx = start_block;
+		for (int i = 0; i<local_proc_blocks.size(); i++) {
+			for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
+				blockid = start_idx+start_data_blocks_id;
+				nelems += vb_blocks[blockid].Count[0];
+				start_idx++;
+			}
+		}
+		// d_data.resize((nelems + 1) * elemsize);
+	}
+	start_merge_blocks_id = 0;
+	start_data_blocks_id  = 0;
+
+	T *t_data = (T*)malloc(sizeof(T)*(nelems+1));
+	int64_t t_data_size  = (nelems+1);
+	const auto vb_blocks = bpReader[0].BlocksInfo(*v_base, time_step);
+	std::vector<int> vd_value;
+	adios2::Variable<int32_t> v_var;
+	int vd_value_int;
     for (int ts = 0; ts < nsteps; ++ts)
     {
         try
         {
 			/* get block merge status of the distributed array */
-			start_block = 0;
-			sum_blocks  = 0;
 			for (int i = 0; i<num_merge_blocks_per_step; i++) {
-				/* Skip merge_blocks until block belonging to this process */
-				if (i<local_proc_blocks_0)
-					start_block += merge_blocks[i];
-
-				/* skip blocks to the next block for this process */
-				sum_blocks += merge_blocks[i];
+				tmp_base.SetBlockSelection(i+start_merge_blocks_id);
+				bpReader[0].Get(tmp_base, &vd_value_int, adios2::Mode::Sync);
+				merge_blocks[i] = 0;
+				// merge_blocks[i] = (int)vd_value[0];
 			}
+			start_merge_blocks_id += num_merge_blocks_per_step;
 
             nelems = 0;
-			start_idx = start_block;
-			for (int i = 0; i<local_proc_blocks.size(); i++) {
-				for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
-					nelems += vb_blocks[start_idx+start_data_blocks_id].Count[0];
-					start_idx++;
-				}
-			}
-			if ((nelems+1)>t_data_size) {
-				t_data_size = nelems+1;
-				t_data = (T*)realloc(t_data,sizeof(T)*t_data_size);	
-			}
-
-			/* read in the data array */
-			offset = 0;
-			start_idx = start_block;
-			for (int i = 0; i<local_proc_blocks.size(); i++) {
-				for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
-					blockid = start_idx+start_data_blocks_id;
-					v_base->SetBlockSelection(blockid);
-					bpReader[0].Get(*v_base, t_data+offset, adios2::Mode::Sync);
-					offset += (vb_blocks[blockid].Count[0]);
-					start_idx++;
-				}
-			}
-
-			/* skip merge blocks to the next step */
-			start_merge_blocks_id += num_merge_blocks_per_step;
-			merge_blocks = __merge_blocks+start_merge_blocks_id;
-
-			/* skip blocks to the next block for this process */
-			start_data_blocks_id += sum_blocks;
-			
-			decomp_id = decomp_buffer[ts];
-			frame_id  = frame_buffer[ts];
-
-			/* Fix for NUM_FRAMES */
-			if (!var.is_timed && frame_id >= 0)
-			 	var.is_timed = true;
-
-			if (decomp_id > 0)
 			{
-				memcpy(fillval_id,&fillval_buffer[ts],sizeof(T));
-		 		fillval_exist = 1;
-		 	}
-		 	else
-		 	{
-		 		decomp_id = -decomp_id;
-		 		fillval_exist = 0;
-		 	}
+				/* Allocate +1 to prevent d_data.data() from returning NULL. Otherwise, read/write operations fail */
+				/* nelems may be 0, when some processes do not have any data */
+    			size_t blockid = 0;
+				int start_idx;
+				int start_block = 0;
+				/* Skip merge_blocks until this process' block */
+				for (int i = 0; i<local_proc_blocks[0]; i++) {
+					start_block += merge_blocks[i];
+				}
+				start_idx = start_block;
+				for (int i = 0; i<local_proc_blocks.size(); i++) {
+					for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
+						blockid = start_idx+start_data_blocks_id;
+						nelems += vb_blocks[blockid].Count[0];
+						start_idx++;
+					}
+				}
+				/*
+				if (((nelems + 1) * elemsize)>d_data.size()) {
+					d_data.resize((nelems + 1) * elemsize);
+				}
+				*/
+				if ((nelems+1)>t_data_size) {
+					t_data = (T*)realloc(t_data,sizeof(T)*(nelems+1));	
+					t_data_size = (nelems+1);
+				}
+
+				/* read in the data array */
+				uint64_t offset = 0;
+				start_idx = start_block;
+				for (int i = 0; i<local_proc_blocks.size(); i++) {
+					for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
+						blockid = start_idx+start_data_blocks_id;
+						v_base->SetBlockSelection(blockid);
+						/*
+						bpReader[0].Get(*v_base, v_value, adios2::Mode::Sync);
+						memcpy(d_data.data() + offset, v_value.data(), v_value.size()*elemsize);
+						offset += (vb_blocks[blockid].Count[0] * elemsize);
+						*/
+						// bpReader[0].Get(*v_base, t_data+offset, adios2::Mode::Sync);
+						offset += (vb_blocks[blockid].Count[0]);
+						start_idx++;
+					}
+				}
+				/* skip blocks to the next block for this process */
+				int sum_blocks = 0;
+				for (int i = 0; i<merge_blocks.size(); i++) {
+					sum_blocks += merge_blocks[i];
+				}
+				start_data_blocks_id += sum_blocks;
+					
+				// std::vector<int32_t> v_tmp;
+				v_var = bpIO[0].InquireVariable<int32_t>(decomp_varname);
+				v_var.SetBlockSelection(ts);
+				// bpReader[0].Get(v_var, &decomp_id, adios2::Mode::Sync);
+				/* memcpy(&decomp_id, v_tmp.data(), sizeof(int32_t)); */
+	
+				v_var = bpIO[0].InquireVariable<int32_t>(frame_varname);
+				v_var.SetBlockSelection(ts);
+				// bpReader[0].Get(v_var, &frame_id, adios2::Mode::Sync);
+				/* memcpy(&frame_id, v_tmp.data(), sizeof(int32_t)); */
 
 #if 0
-			Decomposition decomp;
-			if (mem_opt) 
-			{
-				sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
-				decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-										   ncid, NC_NAT, iosysid, mpirank, nproc, comm, 
-										   file0, adios, local_proc_blocks);
-			}
-			else
-			{
-				sprintf(decompname, "%d", decomp_id);
-				decomp = decomp_map[decompname];
-			}
+				/* Fix for NUM_FRAMES */
+				if (!var.is_timed && frame_id >= 0)
+					var.is_timed = true;
 
-			if (decomp.ioid == BP2PIO_ERROR)
-			{
-				ierr = BP2PIO_ERROR;
-				break;
-			}
-					
-			if (decomp.piotype != var.nctype)
-			{
-			   /* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
-			   if (mem_opt)
-			   {
-					ret = PIOc_freedecomp(iosysid, decomp.ioid);
-					if (ret != PIO_NOERR)
-					{
-						ierr = BP2PIO_ERROR;
-						break;
-					}
+				if (decomp_id > 0)
+				{
+					std::vector<T> v1_tmp;
+					adios2::Variable<T> v1_var = bpIO[0].InquireVariable<T>(fillval_varname);
+					v1_var.SetBlockSelection(ts);
+					// bpReader[0].Get(v1_var, v1_tmp, adios2::Mode::Sync);
+					// memcpy(fillval_id, v1_tmp.data(), v1_tmp.size()*sizeof(T));
+					fillval_exist = 1;
+				}
+				else
+				{
+					decomp_id = -decomp_id;
+					fillval_exist = 0;
+				}
+#endif 
+
+#if 0
+				Decomposition decomp;
+				if (mem_opt) 
+				{
 					sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
 					decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-												ncid, var.nctype, iosysid, mpirank, nproc, comm, 
-												file0,adios,local_proc_blocks);
+						    				   ncid, NC_NAT, iosysid, mpirank, nproc, comm, 
+											   file0, adios, local_proc_blocks);
 				}
 				else
 				{
 					sprintf(decompname, "%d", decomp_id);
-					decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
-												ncid, var.nctype, iosysid, mpirank, nproc, comm, 
-												file0,adios,local_proc_blocks);
+					decomp = decomp_map[decompname];
 				}
 
 				if (decomp.ioid == BP2PIO_ERROR)
@@ -2508,61 +2471,92 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 					ierr = BP2PIO_ERROR;
 					break;
 				}
-			}
+						
+				if (decomp.piotype != var.nctype)
+				{
+				   /* Type conversion may happened at writing. Now we make a new decomposition for this nctype */
+				   if (mem_opt)
+				   {
+						ret = PIOc_freedecomp(iosysid, decomp.ioid);
+						if (ret != PIO_NOERR)
+						{
+							ierr = BP2PIO_ERROR;
+							break;
+						}
+						sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
+						decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
+													ncid, var.nctype, iosysid, mpirank, nproc, comm, 
+													file0,adios,local_proc_blocks);
+					}
+					else
+					{
+						sprintf(decompname, "%d", decomp_id);
+						decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
+													ncid, var.nctype, iosysid, mpirank, nproc, comm, 
+													file0,adios,local_proc_blocks);
+					}
 
-			if (frame_id < 0)
-				frame_id = 0;
+					if (decomp.ioid == BP2PIO_ERROR)
+					{
+						ierr = BP2PIO_ERROR;
+						break;
+					}
+				}
 
-			/* Different decompositions at different frames */
-			/* Note: this variable can have an unlimited or limited time dimension */
-			if (var.is_timed)
-			{
-				ret = PIOc_setframe(ncid, var.nc_varid, frame_id);
+				if (frame_id < 0)
+					frame_id = 0;
+
+				/* Different decompositions at different frames */
+				/* Note: this variable can have an unlimited or limited time dimension */
+				if (var.is_timed)
+				{
+					ret = PIOc_setframe(ncid, var.nc_varid, frame_id);
+					if (ret != PIO_NOERR)
+					{
+						ierr = BP2PIO_ERROR;
+						break;
+					}
+				}
+#endif 
+
+#if 0 /* TEST */
+				if (fillval_exist)
+				{
+					ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
+											d_data.data(), fillval_id);
+				}
+				else
+				{
+					ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
+											d_data.data(), NULL);
+				}
+
 				if (ret != PIO_NOERR)
 				{
 					ierr = BP2PIO_ERROR;
 					break;
 				}
-			}
-#endif 
-
-#if 0 
-			if (fillval_exist)
-			{
-				ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
-										d_data.data(), fillval_id);
-			}
-			else
-			{
-				ret = PIOc_write_darray(ncid, var.nc_varid, decomp.ioid, (PIO_Offset)nelems,
-										d_data.data(), NULL);
-			}
-
-			if (ret != PIO_NOERR)
-			{
-				ierr = BP2PIO_ERROR;
-				break;
-			}
 #endif 
 
 #if 0
-			if (mem_opt)
-			{
-				ret = PIOc_sync(ncid);
-				if (ret != PIO_NOERR)
+				if (mem_opt)
 				{
-					ierr = BP2PIO_ERROR;
-					break;
-				}
+					ret = PIOc_sync(ncid);
+					if (ret != PIO_NOERR)
+					{
+						ierr = BP2PIO_ERROR;
+						break;
+					}
 
-				ret = PIOc_freedecomp(iosysid, decomp.ioid);
-				if (ret != PIO_NOERR)
-				{
-					ierr = BP2PIO_ERROR;
-					break;
+					ret = PIOc_freedecomp(iosysid, decomp.ioid);
+					if (ret != PIO_NOERR)
+					{
+						ierr = BP2PIO_ERROR;
+						break;
+					}
 				}
-			}
 #endif 
+			}
 		}
 		catch (const std::exception &e)
 		{
@@ -2576,18 +2570,17 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 			break;
 		}
 	}
-
-	if (__merge_blocks!=NULL) {
-		free(__merge_blocks);
-		__merge_blocks = NULL;
-	}
-
 	if (t_data!=NULL) {
 		free(t_data);
 		t_data = NULL;
 	}
+	if (ierr!=BP2PIO_NOERR)
+		return ierr;
+		/*
+    ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
+	*/
 	
-    return ierr;
+    return BP2PIO_NOERR;
 }
 
 int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
@@ -2596,9 +2589,7 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
 					  	DecompositionMap& decomp_map,
 					  	int iosysid,
 						std::string file0, adios2::ADIOS &adios, int time_step,
-					  	MPI_Comm comm, int mpirank, int nproc, int mem_opt, 
-						std::vector<int> &block_procs,
-						std::vector<int> &local_proc_blocks)
+					  	MPI_Comm comm, int mpirank, int nproc, int mem_opt, std::vector<int> &local_proc_blocks)
 {
     std::string v_type = bpIO[0].VariableType(varname);
     if (v_type.empty())
@@ -2610,11 +2601,11 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
     else if (v_type == adios2::GetType<T>()) \
     { \
         adios2::Variable<T> v_base; \
-        return adios2_ConvertVariableDarray(&v_base, \
+        std::vector<T> v_value; \
+        return adios2_ConvertVariableDarray(&v_base, v_value, \
                                             bpIO, bpReader, varname, ncid, var, \
                                             decomp_map, iosysid, \
-                                            file0, adios, time_step, comm, mpirank, nproc, mem_opt, \
-											block_procs, local_proc_blocks); \
+                                            file0, adios, time_step, comm, mpirank, nproc, mem_opt, local_proc_blocks); \
     }
 
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
@@ -3039,10 +3030,10 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 							t11 = MPI_Wtime();
 							ierr = ConvertVariableDarray(bpIO, bpReader, v, ncid, var, decomp_map,
 												iosysid, file0, adios_new, time_step, 
-												comm, mpirank, nproc, mem_opt, block_procs, local_proc_blocks);
+												comm, mpirank, nproc, mem_opt, local_proc_blocks);
 							t22 = MPI_Wtime();
 							if (mpirank==0) {
-								printf("DARRAY %s TIME: %lf\n",v.c_str(),t22-t11);
+								printf("DARRAY TIME: %lf\n",t22-t11);
 								fflush(stdout);
 							}
 						}

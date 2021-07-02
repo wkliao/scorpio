@@ -811,6 +811,15 @@ typedef struct adios_var_desc_t
     adios2_variable* fillval_varid;
 	adios2_variable* num_block_writers_varid;
 
+	/* to buffer decomp id, frame id, fill value, and writer blocks */
+	int32_t *decomp_buffer;
+	int32_t *frame_buffer;
+	char *fillval_buffer;
+	int32_t fillval_size;
+	int32_t *num_wb_buffer;
+	int32_t decomp_cnt, frame_cnt, fillval_cnt, num_wb_cnt;
+	int32_t max_buffer_cnt;
+
 	/* for merging blocks */
 	size_t elem_size;
 
@@ -868,8 +877,6 @@ typedef struct file_desc_t
 	int num_end_step_calls;
 	int num_merge;
 	int num_not_merge;
-	int num_darray_calls;
-	int max_darray_calls;
 
 	/* 
 	 * Used to call adios2_end_step to avoid buffer overflow in MPI_Gatherv 
@@ -1489,8 +1496,16 @@ extern "C" {
                            const PIO_Offset *stride, const PIO_Offset *imap, long *buf);
 
 #ifdef _ADIOS2
+
+#define MAX_BEGIN_STEP_CALLS   100 
+#define MAX_ADIOS_BUFFER_COUNT 500
+
+#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
+#define BLOCK_METADATA_SIZE 70
+
     adios2_type PIOc_get_adios_type(nc_type xtype);
     int adios2_type_size(adios2_type type, const void *var);
+	int adios2_flush_tracking_data(file_desc_t *file);
 	int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file);
     const char *adios2_error_to_string(adios2_error error);
 
@@ -1512,6 +1527,7 @@ extern "C" {
 
 #define ADIOS2_END_STEP(file,ios) \
 { \
+    adios2_flush_tracking_data(file); \
 	if (1==file->begin_step_called) \
 	{ \
 		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
@@ -1526,11 +1542,6 @@ extern "C" {
 	} \
 }
 
-/*
-#ifndef strdup
-    char *strdup(const char *str);
-#endif
-*/
 #endif
 
 #if defined(__cplusplus)

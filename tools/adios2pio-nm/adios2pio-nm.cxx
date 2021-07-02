@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
                             piotype, mem_opt, debug_lvl);
 	*/
 
-	std::string fullpath = "/gpfs/alpine/csc303/proj-shared/tkurc1/work/replay_tool_end_step/build.v270/tests/performance/"; 
+	std::string fullpath = "/gpfs/alpine/csc303/proj-shared/tkurc1/work/replay_tool_end_step/build.v271/tests/performance/"; 
 	infilepath  = fullpath + "pioperf-rearr-1-ncomptasks-1344-niotasks-0192-stride-0007-iotype-5-nframes-960-nvars-575.nc.bp"; 
 	outfilename = fullpath + "output.nc";
 	piotype = "pnetcdf";

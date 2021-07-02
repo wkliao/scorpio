@@ -2554,10 +2554,21 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 		file->adios_vars[file->num_vars].adios_type_size = adios2_type_size(file->adios_vars[file->num_vars].adios_type, NULL); 
         file->adios_vars[file->num_vars].nattrs = 0;
         file->adios_vars[file->num_vars].ndims = ndims;
-        file->adios_vars[file->num_vars].adios_varid = 0;
-        file->adios_vars[file->num_vars].decomp_varid = 0;
-        file->adios_vars[file->num_vars].frame_varid = 0;
-        file->adios_vars[file->num_vars].fillval_varid = 0;
+        file->adios_vars[file->num_vars].adios_varid = NULL;
+        file->adios_vars[file->num_vars].decomp_varid = NULL;
+        file->adios_vars[file->num_vars].frame_varid = NULL;
+        file->adios_vars[file->num_vars].fillval_varid = NULL;
+
+		file->adios_vars[file->num_vars].decomp_buffer = NULL;
+		file->adios_vars[file->num_vars].frame_buffer  = NULL;
+		file->adios_vars[file->num_vars].fillval_buffer = NULL;
+		file->adios_vars[file->num_vars].fillval_size = file->adios_vars[file->num_vars].adios_type_size;
+		file->adios_vars[file->num_vars].decomp_cnt = 0;
+		file->adios_vars[file->num_vars].frame_cnt = 0;
+		file->adios_vars[file->num_vars].fillval_cnt = 0;
+		file->adios_vars[file->num_vars].num_wb_buffer = NULL;
+		file->adios_vars[file->num_vars].num_wb_cnt = 0;
+		file->adios_vars[file->num_vars].max_buffer_cnt = MAX_ADIOS_BUFFER_COUNT; 
 
 		/* block merge */
 		file->adios_vars[file->num_vars].elem_size = 0;

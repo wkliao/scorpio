@@ -468,7 +468,7 @@ int PIOc_closefile(int ncid)
 								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
 			}
-			
+
 			ADIOS2_END_STEP(file,ios);
 
             adios2_error adiosErr = adios2_close(file->engineH);
@@ -500,6 +500,29 @@ int PIOc_closefile(int ncid)
             file->adios_vars[i].decomp_varid = NULL;
             file->adios_vars[i].frame_varid = NULL;
             file->adios_vars[i].fillval_varid = NULL;
+
+			if (file->adios_vars[i].fillval_buffer!=NULL) {
+				free(file->adios_vars[i].fillval_buffer);
+				file->adios_vars[i].fillval_buffer = NULL;
+				file->adios_vars[i].fillval_cnt = 0;
+			}
+			if (file->adios_vars[i].decomp_buffer!=NULL) {
+				free(file->adios_vars[i].decomp_buffer);
+				file->adios_vars[i].decomp_buffer = NULL;
+				file->adios_vars[i].decomp_cnt = 0;
+			}
+			if (file->adios_vars[i].frame_buffer!=NULL) {
+				free(file->adios_vars[i].frame_buffer);
+				file->adios_vars[i].frame_buffer = NULL;
+				file->adios_vars[i].frame_cnt = 0;
+			}
+			if (file->adios_vars[i].num_wb_buffer!=NULL) {
+				free(file->adios_vars[i].num_wb_buffer);
+				file->adios_vars[i].num_wb_buffer = NULL;
+				file->adios_vars[i].num_wb_cnt = 0;
+			}
+
+			file->adios_vars[i].elem_size = 0;
 
 			file->adios_vars[i].elem_size = 0;
         }

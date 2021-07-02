@@ -2387,17 +2387,10 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
 
 			/* Call adios end step in PIOc_setframe(), if num_begin_step_calls>max_begin_step_calls */ 
-			file->max_begin_step_calls = 100; 
+			file->max_begin_step_calls = MAX_BEGIN_STEP_CALLS; 
 			file->num_begin_step_calls = 0;
 			file->current_frame = -1;
 			file->begin_step_called = 0;
-
-			/* 	
-			 	Call adios end step in PIOc_write_darray_adios(), if num_darray_calls>max_darray_calls.
-				It is done to avoid issues in metadata generation when block merges do not happen. 
-			*/
-			file->max_darray_calls = 10000;
-			file->num_darray_calls = 0;
 
 			file->num_written_blocks = 0;
 			file->num_all_procs = ios->num_comptasks;
@@ -3947,8 +3940,42 @@ const char *adios2_error_to_string(adios2_error error)
     }
 }
 
-#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
-#define BLOCK_METADATA_SIZE 70
+int adios2_flush_tracking_data(file_desc_t *file)
+{
+	adios2_error adiosErr = adios2_error_none;
+	for (int i=0;i<file->num_vars;i++) {
+		adios_var_desc_t *av = &(file->adios_vars[i]);
+		if (av->decomp_cnt>0) {
+			size_t count_val = (size_t)av->decomp_cnt;
+			adiosErr = adios2_set_selection(av->decomp_varid, 1, NULL, &count_val);
+			adiosErr = adios2_put(file->engineH, av->decomp_varid, av->decomp_buffer, adios2_mode_sync);
+			av->decomp_cnt = 0;
+		}
+
+		if (av->frame_cnt>0) {
+			size_t count_val = (size_t)av->frame_cnt;
+			adiosErr = adios2_set_selection(av->frame_varid, 1, NULL, &count_val);
+			adiosErr = adios2_put(file->engineH, av->frame_varid, av->frame_buffer, adios2_mode_sync);
+			av->frame_cnt = 0;
+		}
+
+		if (av->fillval_cnt>0) {
+			size_t count_val = (size_t)av->fillval_cnt;
+			adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
+			adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
+			av->fillval_cnt = 0;
+		}
+
+		if (av->num_wb_cnt>0) {
+			size_t count_val = (size_t)av->num_wb_cnt;
+			adiosErr = adios2_set_selection(av->num_block_writers_varid, 1, NULL, &count_val);
+			adiosErr = adios2_put(file->engineH, av->num_block_writers_varid, av->num_wb_buffer, adios2_mode_sync);
+			av->num_wb_cnt = 0;
+		}
+	}
+	return 0;
+}
+
 int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file)
 {
 	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
