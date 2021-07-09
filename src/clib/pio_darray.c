@@ -693,10 +693,6 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 					      ioid, pio_get_fname_from_file(file), file->pio_ncid);
 		}
 	}
-	unsigned int inp_count = 0;
-	unsigned int buffer_count = 0;
-	int can_merge_buffers = 1;
-	int total_num_block_writers = 0;
 
 	int elem_size = (int)sizeof(int32_t);
     adios2_type type = adios2_type_int32_t;
@@ -740,7 +736,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 		need_to_free_mapbuf = 1;
 	}
 
-	inp_count = buffer_count = maplen;
+	unsigned int inp_count = (unsigned int)maplen;
+	unsigned int buffer_count = (unsigned int)maplen;
 	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
 	memset(file->array_counts,0,(size_t)(file->array_counts_size));
 	MPI_Gather(&inp_count,1,MPI_INT,file->array_counts,1,MPI_INT,0,file->block_comm);
@@ -753,9 +750,6 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 		for (int ii=1;ii<file->block_nprocs;ii++) {
 			file->array_disp[ii] = file->array_disp[ii-1]+file->array_counts[ii-1];
 		}
-	}
-
-	if (file->block_myrank==0) {
 		av_count = (size_t)buffer_count;
 	} else {
 		av_count = (size_t)inp_count;
@@ -797,7 +791,7 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 		}
 	}
 
-	can_merge_buffers = 1;
+	int can_merge_buffers = 1;
 	if (file->block_myrank==0) {
 		size_t av_buffer_size = elem_size*buffer_count;
 		if (file->block_array_size<av_buffer_size) {
@@ -806,17 +800,17 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 			} else {
 				file->block_array = (char*)calloc(av_buffer_size,sizeof(char));
 			}
-			if (file->block_array!=NULL) {
-				can_merge_buffers = 1;
-				file->block_array_size = av_buffer_size;
-			} else {
+			file->block_array_size = av_buffer_size;
+			if (file->block_array==NULL) {
 				can_merge_buffers = 0;
 				file->block_array_size = 0;
 			}
 		}
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
+
 	size_t num_decomp_block_writers = file->block_nprocs;
+	int total_num_block_writers = 0;
 	if (can_merge_buffers)
 	{
 		MPI_Gatherv(mapbuf,elem_size*inp_count,MPI_CHAR,file->block_array,
@@ -1076,7 +1070,6 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							varid, pio_get_fname_from_file(file), file->pio_ncid);
 		}
 	}
-	int total_num_block_writers = 0;
 
 	int WRITE_DECOMP_ID  = file->num_all_procs-1;
 	int WRITE_FRAME_ID   = (WRITE_DECOMP_ID*2)/3;
@@ -1112,8 +1105,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         array = temp_buf;
     }
 
-	unsigned int inp_count    = arraylen;
-	unsigned int buffer_count = arraylen;
+	unsigned int inp_count    = (unsigned int) arraylen;
+	unsigned int buffer_count = (unsigned int) arraylen;
 	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
     if (av->adios_varid == NULL)
     {
@@ -1368,6 +1361,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
 
+	int total_num_block_writers = 0;
 	if (can_merge_buffers==1) {
 		MPI_Gatherv(databuf,av->elem_size*inp_count,MPI_CHAR,file->block_array,
 					file->array_counts,file->array_disp,MPI_CHAR,0,file->block_comm);

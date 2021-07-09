@@ -47,6 +47,10 @@
 #include <unistd.h>
 #include <adios2_c.h>
 #define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
+#define MAX_BEGIN_STEP_CALLS   100 
+#define MAX_ADIOS_BUFFER_COUNT 500
+#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
+#define BLOCK_METADATA_SIZE 70
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
 #endif
@@ -781,7 +785,7 @@ typedef struct wmulti_buffer
 typedef struct adios_var_desc_t
 {
     /** Variable name */
-    char * name;
+    char *name;
 
     /** NC type give at def_var time */
     int nc_type;
@@ -794,7 +798,7 @@ typedef struct adios_var_desc_t
     int ndims;
 
     /** Global dims (dim var ids) */
-    int * gdimids;
+    int *gdimids;
 
     /** Number of attributes defined for this variable */
     int nattrs;
@@ -802,13 +806,13 @@ typedef struct adios_var_desc_t
     /** ADIOS varID, if it has already been defined.
      * We avoid defining again when writing multiple records over time
      */
-    adios2_variable* adios_varid; // 0: undefined yet
+    adios2_variable *adios_varid; // 0: undefined yet
 
     /* to handle PIOc_setframe with different decompositions */
-    adios2_variable* decomp_varid;
-    adios2_variable* frame_varid;
-    adios2_variable* fillval_varid;
-	adios2_variable* num_block_writers_varid;
+    adios2_variable *decomp_varid;
+    adios2_variable *frame_varid;
+    adios2_variable *fillval_varid;
+	adios2_variable *num_block_writers_varid;
 
 	/* to buffer decomp id, frame id, fill value, and writer blocks */
 	int32_t *decomp_buffer;
@@ -821,7 +825,6 @@ typedef struct adios_var_desc_t
 
 	/* for merging blocks */
 	size_t elem_size;
-
 } adios_var_desc_t;
 
 /* Track attributes */
@@ -1496,19 +1499,18 @@ extern "C" {
                            const PIO_Offset *stride, const PIO_Offset *imap, long *buf);
 
 #ifdef _ADIOS2
-
-#define MAX_BEGIN_STEP_CALLS   100 
-#define MAX_ADIOS_BUFFER_COUNT 500
-
-#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
-#define BLOCK_METADATA_SIZE 70
-
     adios2_type PIOc_get_adios_type(nc_type xtype);
     int adios2_type_size(adios2_type type, const void *var);
 	int adios2_flush_tracking_data(file_desc_t *file);
 	int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file);
     const char *adios2_error_to_string(adios2_error error);
+#endif
 
+#if defined(__cplusplus)
+}
+#endif
+
+#ifdef _ADIOS2
 #define ADIOS2_BEGIN_STEP(file,ios) \
 { \
 	if (0==file->begin_step_called) \
@@ -1541,11 +1543,6 @@ extern "C" {
 		(file->num_end_step_calls)++; \
 	} \
 }
-
-#endif
-
-#if defined(__cplusplus)
-}
-#endif
+#endif 
 
 #endif  // _PIO_H_
