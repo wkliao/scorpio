@@ -353,7 +353,7 @@ std::vector<int> AssignWriteRanks(int n_bp_writers, MPI_Comm comm, int mpirank, 
     return blocks;
 }
 
-int ProcessGlobalFillmode(adios2::IO &bpIO, int ncid, MPI_Comm comm, std::map<std::string, char> &processed_attrs)
+int ProcessGlobalFillmode(adios2::IO &bpIO, int ncid, MPI_Comm comm, int mpirank, std::map<std::string, char> &processed_attrs)
 {
     std::string atype;
     AttributeVector fillmode;
@@ -362,12 +362,18 @@ int ProcessGlobalFillmode(adios2::IO &bpIO, int ncid, MPI_Comm comm, std::map<st
 
     ierr = adios_get_attr_a2(bpIO, (char*)"/__pio__/fillmode", atype, fillmode);
 	if (ierr != BP2PIO_NOERR)
+	{
 		return BP2PIO_ERROR;
-	processed_attrs["/__pio__/fillmode"] = 1;
+	}
 
-    ret = PIOc_set_fill(ncid, *((int*)fillmode[0].data()), NULL);
-    if (ret != PIO_NOERR)
-        return BP2PIO_ERROR;
+    if (processed_attrs.find("/__pio__/fillmode") == processed_attrs.end()) {
+		processed_attrs["/__pio__/fillmode"] = 1;
+		if (mpirank==0) {
+    		ret = PIOc_set_fill(ncid, *((int*)fillmode[0].data()), NULL);
+    		if (ret != PIO_NOERR)
+        		return BP2PIO_ERROR;
+		}
+	}
 
     return BP2PIO_NOERR;
 }
@@ -466,10 +472,8 @@ int ProcessGlobalAttributes_Test(adios2::IO &bpIO, adios2::Engine &bpReader,
 	{
 		std::string a = a2_tmp_iter->first;
 		if (a.find("/__pio__/decomp") != string::npos) {
-			printf("NAME_FOUND: %s\n",a.c_str()); fflush(stdout);
 			processed_attrs[a] = 1;
 		} else if (processed_attrs.find(a) == processed_attrs.end()) {
-			printf("NAME_NEW: %s\n",a.c_str()); fflush(stdout);
 			total_cnt++;
 		}
 	}
@@ -661,12 +665,6 @@ int ProcessGlobalAttributes_Test(adios2::IO &bpIO, adios2::Engine &bpReader,
 
 		t_all += (MPI_Wtime()-t11);
     }
-
-#if 0
-	printf("ATTRIBUTE TIME: nattrs: %d %d all_cnt %d empty_cnt %d check_cnt: %d exec_cnt %d adios %lf %lf %lf pioc %lf all %lf\n",
-			nattrs,num_attrs,all_cnt,empty_cnt,check_cnt_1,exec_cnt,t_total,t_total2,t_total3,t_pioc,t_all); 
-	fflush(stdout);
-#endif 
 
     return BP2PIO_NOERR;
 }
@@ -1986,7 +1984,8 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 								int nproc, 
 								int mem_opt, 
 								std::vector<int> &block_procs,
-								std::vector<int> &local_proc_blocks)
+								std::vector<int> &local_proc_blocks,
+								std::vector<std::vector<int> > &block_list)
 {
     int ierr = BP2PIO_NOERR, err_val = 0, err_cnt = 0;
     int ret = PIO_NOERR;
@@ -2060,6 +2059,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		return BP2PIO_ERROR;
 	}
 
+#if 0
 	/* Find the number of merge_blocks info per time step */
 	int num_merge_blocks_per_step = block_procs.size();
 	int *__merge_blocks;
@@ -2091,23 +2091,65 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		mb_ptr += read_cnt;
 	}
 	int *merge_blocks = __merge_blocks;
+#endif 
 
-	/* Allocate space for reading array data */
+	/* Find block locations for each writer in each block for all time steps */
+	std::vector<std::vector<int> > writer_block_id;
+	int num_procs = 0;
+	for (int i=0;i<block_procs.size();i++) {
+		num_procs += block_procs[i];
+	}
+	writer_block_id.resize(num_procs);
+	for (int i=0;i<writer_block_id.size();i++) {
+		writer_block_id[i].resize(nsteps);
+		for (int j=0;j<writer_block_id[i].size();j++) {
+			writer_block_id[i][j] = -1; /* nothing written out by proc i at time step j */
+		}
+	}
+	adios2::Variable<int> blk_var = bpIO[0].InquireVariable<int>("num_data_block_writers/"+varname);
+	const auto mb_blocks = bpReader[0].BlocksInfo(blk_var, time_step);
+	std::vector<int> block_writer_cnt;
+	for (int i=0;i<block_list.size();i++) {
+		blk_var.SetBlockSelection(i); 
+		bpReader[0].Get(blk_var, block_writer_cnt, adios2::Mode::Sync);
+		for (int j=0;j<block_writer_cnt.size();j++) {
+			for (int k=0;k<block_writer_cnt[j];k++) {
+				int writer_id = block_list[i][k];
+				writer_block_id[writer_id][j] = 1;  /* block written out by writer_id at time step j */
+			}
+		}
+	}
+	int block_sum = -1;
+	for (int i=0;i<writer_block_id.size();i++) {
+		for (int j=0;j<writer_block_id[i].size();j++) {
+			if (writer_block_id[i][j]>=0) {
+				writer_block_id[i][j] += block_sum;
+				block_sum = writer_block_id[i][j];
+			}
+		}
+	}
+	for (int i=0;i<local_proc_blocks.size();i++) {
+		int local_proc_id = local_proc_blocks[i];
+        for (int j=0;j<block_list[local_proc_id].size();j++) {
+            int writer_id   = block_list[local_proc_id][j];
+			for (int k=0;k<nsteps;k++) {
+            	int bp_block_id = writer_block_id[writer_id][k]; 
+			}
+        }
+    }
+
+
+	/* Allocate space for data buffer */
 	const auto vb_blocks = bpReader[0].BlocksInfo(*v_base, time_step);
 	uint64_t nelems = 0;
-	int start_idx = 0;
-	int local_proc_blocks_0 = local_proc_blocks[0];
-	/* get block merge status of the distributed array */
-	start_idx = 0;
-	for (int i = 0; i<num_merge_blocks_per_step; i++) {
-		/* Skip merge_blocks until block belonging to this process */
-		if (i<local_proc_blocks_0) 
-			start_idx += merge_blocks[i];
-	}
-	for (int i = 0; i<local_proc_blocks.size(); i++) {
-		for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
-			nelems += vb_blocks[start_idx].Count[0];
-			start_idx++;
+	for (int i=0;i<local_proc_blocks.size();i++) {
+		int local_proc_id = local_proc_blocks[i];
+		for (int j=0;j<block_list[local_proc_id].size();j++) {
+			int writer_id   = block_list[local_proc_id][j];
+			int bp_block_id = writer_block_id[writer_id][0]; /* time step 0 */
+			if (bp_block_id>=0) {
+				nelems += vb_blocks[bp_block_id].Count[0];
+			}
 		}
 	}
 	int64_t t_data_size = (nelems+1);
@@ -2126,24 +2168,16 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
     {
         try
         {
-			/* get block merge status of the distributed array */
-			start_block = 0;
-			sum_blocks  = 0;
-			for (int i = 0; i<num_merge_blocks_per_step; i++) {
-				/* Skip merge_blocks until block belonging to this process */
-				if (i<local_proc_blocks_0)
-					start_block += merge_blocks[i];
 
-				/* skip blocks to the next block for this process */
-				sum_blocks += merge_blocks[i];
-			}
-
-            nelems = 0;
-			start_idx = start_block;
-			for (int i = 0; i<local_proc_blocks.size(); i++) {
-				for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
-					nelems += vb_blocks[start_idx+start_data_blocks_id].Count[0];
-					start_idx++;
+			nelems = 0;
+			for (int i=0;i<local_proc_blocks.size();i++) {
+				int local_proc_id = local_proc_blocks[i];
+				for (int j=0;j<block_list[local_proc_id].size();j++) {
+					int writer_id   = block_list[local_proc_id][j];
+					int bp_block_id = writer_block_id[writer_id][ts]; /* time step ts */
+					if (bp_block_id>=0) {
+						nelems += vb_blocks[bp_block_id].Count[0];
+					}
 				}
 			}
 			if ((nelems+1)>t_data_size) {
@@ -2153,6 +2187,18 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 
 			/* read in the data array */
 			offset = 0;
+			for (int i=0;i<local_proc_blocks.size();i++) {
+				int local_proc_id = local_proc_blocks[i];
+				for (int j=0;j<block_list[local_proc_id].size();j++) {
+					int writer_id   = block_list[local_proc_id][j];
+					blockid = writer_block_id[writer_id][ts]; /* time step ts */
+					v_base->SetBlockSelection(blockid);
+					bpReader[0].Get(*v_base, t_data+offset, adios2::Mode::Sync);
+					offset += (vb_blocks[blockid].Count[0]);
+				}
+			}
+
+#if 0
 			start_idx = start_block;
 			for (int i = 0; i<local_proc_blocks.size(); i++) {
 				for (int j=0; j<merge_blocks[local_proc_blocks[i]]; j++) {
@@ -2170,6 +2216,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 
 			/* skip blocks to the next block for this process */
 			start_data_blocks_id += sum_blocks;
+#endif 
 			
 			decomp_id = decomp_buffer[ts];
 			frame_id  = frame_buffer[ts];
@@ -2302,10 +2349,12 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		}
 	}
 
+#if 0
 	if (__merge_blocks!=NULL) {
 		free(__merge_blocks);
 		__merge_blocks = NULL;
 	}
+#endif 
 
 	if (t_data!=NULL) {
 		free(t_data);
@@ -2323,7 +2372,8 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
 						std::string file0, adios2::ADIOS &adios, int time_step,
 					  	MPI_Comm comm, int mpirank, int nproc, int mem_opt, 
 						std::vector<int> &block_procs,
-						std::vector<int> &local_proc_blocks)
+						std::vector<int> &local_proc_blocks,
+						std::vector<std::vector<int> > &block_list)
 {
     std::string v_type = bpIO[0].VariableType(varname);
     if (v_type.empty())
@@ -2339,7 +2389,7 @@ int ConvertVariableDarray(IOVector &bpIO, EngineVector &bpReader,
                                             bpIO, bpReader, varname, ncid, var, \
                                             decomp_map, iosysid, \
                                             file0, adios, time_step, comm, mpirank, nproc, mem_opt, \
-											block_procs, local_proc_blocks); \
+											block_procs, local_proc_blocks, block_list); \
     }
 
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
@@ -2611,13 +2661,20 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 				block_procs[ii] = (int)v_value[0];
 			}
 		}
+
+		std::vector<std::vector<int> > block_list;
+		adios2::Variable<int> blockList = bpIO[0].InquireVariable<int>("/__pio__/info/block_list");
+        if (blockProcs) {
+            const auto v_blocks = bpReader[0].BlocksInfo(blockList, time_step);
+			block_list.resize(v_blocks.size());
+            for (int ii=0;ii<v_blocks.size();ii++) {
+                blockList.SetBlockSelection(ii);
+                bpReader[0].Get(blockList, block_list[ii], adios2::Mode::Sync);
+            }
+        }
+
 		bpReader[0].EndStep();
 		t_loop += (MPI_Wtime()-t1_loop);
-
-		if (mpirank==0) {
-			printf("INITIAL: %lf\n",t_loop);
-			fflush(stdout);
-		}
 
 		int io_proc = GroupIOProcesses(w_comm, w_nproc, w_mpirank, block_procs, &comm, &mpirank, &nproc);
 
@@ -2680,33 +2737,38 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
     	std::map<std::string, char> processed_attrs;
 		time_step = 0;
 		double t11, t22;
-		int var_defined = 0;
+		int new_var_defined = 0;
 		while (bpReader[0].BeginStep()==adios2::StepStatus::OK) 
 		{
-			t1  = MPI_Wtime();
-			t11 = MPI_Wtime();
-        	ierr = ProcessGlobalFillmode(bpIO[0], ncid, comm, processed_attrs);	
+        	ierr = ProcessGlobalFillmode(bpIO[0], ncid, comm, mpirank, processed_attrs);	
+			bpReader[0].EndStep();
+			time_step++;
+		}
+		ierr = ResetAdiosSteps(adios_new, bpIO[0], bpReader[0], file0, err_msg);
 
+		time_step = 0;
+		while (bpReader[0].BeginStep()==adios2::StepStatus::OK) 
+		{
         	/* Process dimensions */
-        	ProcessDimensions(bpIO[0], bpReader[0], ncid, comm, mpirank, nproc, dimension_map,var_defined);
+        	ProcessDimensions(bpIO[0], bpReader[0], ncid, comm, mpirank, nproc, dimension_map,new_var_defined);
 
         	/* Process decompositions */
            	ProcessDecompositions(bpIO[0], bpReader[0], ncid, iosysid, comm, mpirank, nproc, time_step, 
 								decomp_map, local_proc_blocks);
 
+
         	/* For each variable, define a variable with PIO */
         	ProcessVariableDefinitions(bpIO[0], bpReader[0], ncid, dimension_map, comm, mpirank, nproc, vars_map, 
-									var_processed_set, processed_attrs,var_defined);
+									var_processed_set, processed_attrs,new_var_defined);
 
         	/* Process the global attributes */
-        	ierr = ProcessGlobalAttributes(bpIO[0], bpReader[0], ncid, dimension_map, vars_map, comm, processed_attrs, var_att_map,var_defined);
-			t22 = MPI_Wtime();
+        	ierr = ProcessGlobalAttributes(bpIO[0], bpReader[0], ncid, dimension_map, vars_map, comm, processed_attrs, var_att_map,new_var_defined);
 
-			if (var_defined==1) {
+			if (new_var_defined==1) {
         		ret = PIOc_enddef(ncid);
         		if (ret != PIO_NOERR)
             		ierr = BP2PIO_ERROR;
-				var_defined = 0;
+				new_var_defined = 0;
 			}
 
 			/* Write out variables */
@@ -2723,6 +2785,7 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 							cout << "Convert variable: " << v << endl;
 
 						Variable& var = vars_map[v];
+
 						if (var.op == "put_var")
 						{
 							if (mpirank==0) {
@@ -2763,7 +2826,7 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 							t11 = MPI_Wtime();
 							ierr = ConvertVariableDarray(bpIO, bpReader, v, ncid, var, decomp_map,
 												iosysid, file0, adios_new, time_step, 
-												comm, mpirank, nproc, mem_opt, block_procs, local_proc_blocks);
+												comm, mpirank, nproc, mem_opt, block_procs, local_proc_blocks, block_list);
 							t22 = MPI_Wtime();
 						}
 					}

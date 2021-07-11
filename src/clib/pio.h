@@ -47,9 +47,9 @@
 #include <unistd.h>
 #include <adios2_c.h>
 #define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
-#define MAX_BEGIN_STEP_CALLS   100 
+#define MAX_BEGIN_STEP_CALLS   100
 #define MAX_ADIOS_BUFFER_COUNT 500
-#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9))
+#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9)) 
 #define BLOCK_METADATA_SIZE 70
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
@@ -926,6 +926,7 @@ typedef struct file_desc_t
 	int node_myrank, node_nprocs;
 	MPI_Comm block_comm;
 	int block_myrank, block_nprocs;
+	int *block_list;
 	MPI_Comm one_node_comm;
 	int one_node_rank, one_node_nprocs;
 	MPI_Comm all_comm;
@@ -1504,6 +1505,9 @@ extern "C" {
 	int adios2_flush_tracking_data(file_desc_t *file);
 	int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file);
     const char *adios2_error_to_string(adios2_error error);
+#ifndef strdup
+    char *strdup(const char *str);
+#endif
 #endif
 
 #if defined(__cplusplus)
@@ -1529,9 +1533,9 @@ extern "C" {
 
 #define ADIOS2_END_STEP(file,ios) \
 { \
-    adios2_flush_tracking_data(file); \
 	if (1==file->begin_step_called) \
 	{ \
+    	adios2_flush_tracking_data(file); \
 		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
 		if (adiosStepErr != adios2_error_none) \
 		{ \

@@ -111,16 +111,37 @@ int main(int argc, char* argv[])
 
         /* This writes 1st frame, expected values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] */
         PIOc_setframe(ncid, varid, 0);
+		for (int ii=0;ii<elements_per_pe;ii++) {
+			printf("BUFFER1: %d proc: %d\n",buffer1[ii],my_rank);
+		}
+		fflush(stdout);
+		MPI_Barrier(MPI_COMM_WORLD);
         PIOc_write_darray(ncid, varid, wr_iodesc, elements_per_pe, buffer1, NULL);
+		sleep(1);
 
         /* This writes 2nd frame, expected values: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112] */
         PIOc_setframe(ncid, varid, 1);
+		for (int ii=0;ii<elements_per_pe;ii++) {
+			printf("BUFFER2: %d proc: %d\n",buffer2[ii],my_rank);
+		}
+		fflush(stdout);
+		MPI_Barrier(MPI_COMM_WORLD);
         PIOc_write_darray(ncid, varid, wr_iodesc, elements_per_pe, buffer2, NULL);
+		sleep(1);
 
         /* This writes 3rd frame, expected values: [201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212] */
         PIOc_setframe(ncid, varid, 2);
+		for (int ii=0;ii<elements_per_pe;ii++) {
+			printf("BUFFER3: %d proc: %d\n",buffer3[ii],my_rank);
+		}
+		fflush(stdout);
+		MPI_Barrier(MPI_COMM_WORLD);
         PIOc_write_darray(ncid, varid, wr_iodesc, elements_per_pe, buffer3, NULL);
+		sleep(1);
         PIOc_closefile(ncid);
+		printf("DONE\n\n\n\n");
+		fflush(stdout);
+		sleep(2);
     }
 
     free(buffer1);
