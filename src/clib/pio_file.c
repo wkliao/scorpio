@@ -524,7 +524,6 @@ int PIOc_closefile(int ncid)
 
 			file->adios_vars[i].elem_size = 0;
         }
-
         file->num_vars = 0;
 
         /* Track attributes */
@@ -533,7 +532,6 @@ int PIOc_closefile(int ncid)
             free(file->adios_attrs[i].att_name);
             file->adios_attrs[i].att_name = NULL;
         }
-
         file->num_attrs = 0;
 
 		/* Block merging */
@@ -593,6 +591,9 @@ int PIOc_closefile(int ncid)
 #ifdef TIMING
         GPTLstop("PIO:PIOc_closefile");
 #endif
+
+		printf("I AM RETURNING FROM close file.\n");
+		fflush(stdout);
 
         return PIO_NOERR;
     }

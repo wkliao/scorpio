@@ -2393,7 +2393,9 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
             LOG((1, "pio_def_dim : %d dim is unlimited", *idp));
         }
 
+		/*
 		adios2_check_end_step(ios,file);
+		*/
 
         return PIO_NOERR;
     }

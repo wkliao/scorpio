@@ -48,8 +48,8 @@
 #include <adios2_c.h>
 #define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
 #define MAX_BEGIN_STEP_CALLS   100
-#define MAX_ADIOS_BUFFER_COUNT 500
-#define END_STEP_THRESHOLD  ((unsigned long)(1024*1024*1024*1.9)) 
+#define MAX_ADIOS_BUFFER_COUNT 500 
+#define END_STEP_THRESHOLD ((unsigned long)(1024*1024*1024*1.9)) 
 #define BLOCK_METADATA_SIZE 70
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
@@ -890,6 +890,10 @@ typedef struct file_desc_t
 	unsigned int num_written_blocks;
 	unsigned int num_all_procs;
 
+	int WRITE_DECOMP_ID;
+    int WRITE_FRAME_ID;
+    int WRITE_FILLVAL_ID; 
+
     /** Handler for ADIOS group (of variables) */
     adios2_io *ioH;
 
@@ -1533,9 +1537,9 @@ extern "C" {
 
 #define ADIOS2_END_STEP(file,ios) \
 { \
+    adios2_flush_tracking_data(file); \
 	if (1==file->begin_step_called) \
 	{ \
-    	adios2_flush_tracking_data(file); \
 		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
 		if (adiosStepErr != adios2_error_none) \
 		{ \

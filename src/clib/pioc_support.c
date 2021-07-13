@@ -2346,21 +2346,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 					adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
             }
 
-            int num_adios_iotasks; // Set MPI Aggregate params
-            if (ios->num_comptasks != ios->num_iotasks)
-            {
-                num_adios_iotasks = ios->num_iotasks;
-            }
-            else
-            {
-                num_adios_iotasks = ios->num_comptasks / 16;
-                if (num_adios_iotasks == 0)
-                    num_adios_iotasks = ios->num_comptasks;
-            }
-
-			num_adios_iotasks = ios->num_comptasks; /* Don't use aggregator node with block merging */
-
-            snprintf(file->params, PIO_MAX_NAME, "%d", num_adios_iotasks); 
+            /* Don't use MPI aggregator with block merging */ 
+            snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_comptasks)); 
             adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
             if (adiosErr != adios2_error_none)
             {
@@ -2392,7 +2379,12 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			file->begin_step_called = 0;
 
 			file->num_written_blocks = 0;
-			file->num_all_procs = ios->num_comptasks;
+			file->num_all_procs = ios->num_uniontasks;
+			
+			/* Writers for specific variables in pio_write_darray */
+			file->WRITE_DECOMP_ID  = file->num_all_procs-1;
+			file->WRITE_FRAME_ID   = (file->WRITE_DECOMP_ID*2)/3;
+			file->WRITE_FILLVAL_ID = file->WRITE_DECOMP_ID/3;
 
 			/* Collect some statistics for debugging purposes */
 			file->num_end_step_calls = 0;
@@ -2403,18 +2395,17 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
             file->num_dim_vars = 0;
             file->num_vars = 0;
+            file->num_attrs = 0;
             file->num_gattrs = 0;
             file->fillmode = NC_NOFILL;
             file->n_written_ioids = 0;
 
+			/* Set communicator for all adios processes, process rank, and I/O master node */
 			file->adios_iomaster = (ios->union_rank == 0) ? MPI_ROOT : MPI_PROC_NULL;
-			file->myrank = ios->union_rank;
 			file->all_comm = ios->union_comm;
+			file->myrank = ios->union_rank;
 
-            /* Track attributes */
-            file->num_attrs = 0;
-
-			/* Block merging */
+			/* BEGIN: Initialize for block merging in pio_write_darray */
 			/**** Group processes for block merging ****/
 			MPI_Comm nodeComm;
 		    MPI_Info info;
@@ -2466,7 +2457,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			MPI_Gather(&(file->myrank),1,MPI_INT,file->block_list,1,MPI_INT,0,file->block_comm);
 			/**** Group processes for block merging ****/
 
-			if (0==file->block_myrank) {	
+			if (file->block_myrank==0) {	
 				adiosErr = adios2_set_parameter(file->ioH, "InitialBufferSize", "1Gb");
 				if (adiosErr != adios2_error_none)
 				{
@@ -2480,8 +2471,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     		file->block_array = NULL;
 			file->block_array_size = 0;
 			file->array_counts = NULL;
-			file->array_disp = NULL;
 			file->array_counts_size = 0;
+			file->array_disp = NULL;
 			file->array_disp_size = 0;
 			if (file->block_myrank==0) {
 				file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
@@ -2494,7 +2485,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				file->array_counts_size = file->block_nprocs*sizeof(int);
 				file->array_disp_size   = file->block_nprocs*sizeof(int);
 			}
-			/* Block merging */
+			/* END: Initialize for block merging in pio_write_darray */
 
             file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);
             if (file->engineH == NULL)
@@ -2587,7 +2578,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 					file->block_list = NULL;
 				}
             }
-			file->num_written_blocks += file->num_all_procs;
+			file->num_written_blocks += 2;
         }
     }
 #endif
@@ -3979,31 +3970,40 @@ int adios2_flush_tracking_data(file_desc_t *file)
 	for (int i=0;i<file->num_vars;i++) {
 		adios_var_desc_t *av = &(file->adios_vars[i]);
 		if (av->decomp_cnt>0) {
-			size_t count_val = (size_t)av->decomp_cnt;
-			adiosErr = adios2_set_selection(av->decomp_varid, 1, NULL, &count_val);
-			adiosErr = adios2_put(file->engineH, av->decomp_varid, av->decomp_buffer, adios2_mode_sync);
-			av->decomp_cnt = 0;
+			printf("DECOMP CNT: %d\n",av->decomp_cnt);
+			if (file->myrank==file->WRITE_DECOMP_ID) {
+				size_t count_val = (size_t)av->decomp_cnt;
+				adiosErr = adios2_set_selection(av->decomp_varid, 1, NULL, &count_val);
+				adiosErr = adios2_put(file->engineH, av->decomp_varid, av->decomp_buffer, adios2_mode_sync);
+				av->decomp_cnt = 0;
+			}
 		}
 
 		if (av->frame_cnt>0) {
-			size_t count_val = (size_t)av->frame_cnt;
-			adiosErr = adios2_set_selection(av->frame_varid, 1, NULL, &count_val);
-			adiosErr = adios2_put(file->engineH, av->frame_varid, av->frame_buffer, adios2_mode_sync);
-			av->frame_cnt = 0;
+			if (file->myrank==file->WRITE_FRAME_ID) {
+				size_t count_val = (size_t)av->frame_cnt;
+				adiosErr = adios2_set_selection(av->frame_varid, 1, NULL, &count_val);
+				adiosErr = adios2_put(file->engineH, av->frame_varid, av->frame_buffer, adios2_mode_sync);
+				av->frame_cnt = 0;
+			}
 		}
 
 		if (av->fillval_cnt>0) {
-			size_t count_val = (size_t)av->fillval_cnt;
-			adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
-			adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
-			av->fillval_cnt = 0;
+			if (file->myrank==file->WRITE_FILLVAL_ID) {
+				size_t count_val = (size_t)av->fillval_cnt;
+				adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
+				adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
+				av->fillval_cnt = 0;
+			}
 		}
 
 		if (av->num_wb_cnt>0) {
-			size_t count_val = (size_t)av->num_wb_cnt;
-			adiosErr = adios2_set_selection(av->num_block_writers_varid, 1, NULL, &count_val);
-			adiosErr = adios2_put(file->engineH, av->num_block_writers_varid, av->num_wb_buffer, adios2_mode_sync);
-			av->num_wb_cnt = 0;
+			if (file->block_myrank==0) {
+				size_t count_val = (size_t)av->num_wb_cnt;
+				adiosErr = adios2_set_selection(av->num_block_writers_varid, 1, NULL, &count_val);
+				adiosErr = adios2_put(file->engineH, av->num_block_writers_varid, av->num_wb_buffer, adios2_mode_sync);
+				av->num_wb_cnt = 0;
+			}
 		}
 	}
 	return 0;
@@ -4013,6 +4013,7 @@ int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file)
 {
 	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
 	{
+		printf("WRITING DATA....\n");
 		ADIOS2_END_STEP(file,ios);
 		file->num_begin_step_calls = 0;
 		file->num_written_blocks = 0;
