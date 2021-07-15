@@ -774,7 +774,7 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	if (file->block_myrank==0) 
 	{
 		char name_varid[PIO_MAX_NAME];
-		snprintf(name_varid, PIO_MAX_NAME, "num_decomp_block_writers/%s", name);
+		snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/num_decomp_block_writers/%d", ioid);
 		av_count = 1;
 		num_decomp_block_writers_varid = adios2_inquire_variable(file->ioH, name_varid);
 		if (num_decomp_block_writers_varid == NULL)
@@ -1076,7 +1076,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 	}
 
 	ADIOS2_BEGIN_STEP(file,NULL);
-    
+
 	adios_var_desc_t *av = &(file->adios_vars[varid]);
 
     void *temp_buf = NULL;
@@ -1138,7 +1138,9 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		}
 
        	/* Define the variable */
-       	av->adios_varid = adios2_define_variable(file->ioH, av->name, atype,
+		char vname[PIO_MAX_NAME];
+		snprintf(vname,PIO_MAX_NAME,"/__pio__/var/%s",av->name);
+       	av->adios_varid = adios2_define_variable(file->ioH, vname, atype,
                                                 1, NULL, NULL, &av_count,
                                                 adios2_constant_dims_false);
        	if (av->adios_varid == NULL)
@@ -1152,7 +1154,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		char name_varid[PIO_MAX_NAME];
         if (file->myrank == file->WRITE_DECOMP_ID)
         {
-			snprintf(name_varid, PIO_MAX_NAME, "decomp_id/%s", av->name);
+			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/decomp_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->decomp_varid == NULL)
@@ -1174,7 +1176,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 		if (file->myrank == file->WRITE_FRAME_ID) 
 		{
-			snprintf(name_varid, PIO_MAX_NAME, "frame_id/%s", av->name);
+			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/frame_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->frame_varid == NULL)
@@ -1196,7 +1198,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 		if (file->myrank == file->WRITE_FILLVAL_ID) 
 		{
-			snprintf(name_varid, PIO_MAX_NAME, "fillval_id/%s", av->name);
+			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/fillval_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->fillval_varid == NULL)
@@ -1220,7 +1222,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		/* Variable to store the number of writer blocks, in case buffer merging doesn't happen */
 		if (file->block_myrank==0) 
 		{
-			snprintf(name_varid, PIO_MAX_NAME, "num_data_block_writers/%s", av->name);
+			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/num_data_block_writers/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->num_block_writers_varid = adios2_inquire_variable(file->ioH, name_varid);
 			if (av->num_block_writers_varid == NULL)
@@ -1247,7 +1249,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
             char att_name[PIO_MAX_NAME];
 
             snprintf(decompname, PIO_MAX_NAME, "%d", ioid);
-            snprintf(att_name, PIO_MAX_NAME, "%s/__pio__/decomp", av->name);
+            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/decomp", av->name);
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
             if (attributeH == NULL)
             {
@@ -1260,7 +1262,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                 }
             }
 
-            snprintf(att_name, PIO_MAX_NAME, "%s/__pio__/ncop", av->name);
+            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ncop", av->name);
             attributeH = adios2_inquire_attribute(file->ioH, att_name);
             if (attributeH == NULL)
             {
@@ -1430,10 +1432,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 	/* NOTE: PIOc_setframe with different decompositions */
 	/* Different decompositions at different frames and fillvalue */
-	char dummy_fill[128];
 	char *tmp_fillbuf = fillbuf;
+	int free_tmp_fillbuf = 0;
 	if (tmp_fillbuf==NULL) {
-		tmp_fillbuf = &dummy_fill[0];
+		tmp_fillbuf = (char*)calloc(av->fillval_size,sizeof(char));
+		free_tmp_fillbuf = 1;	
 		ioid = -ioid;
 	}
 	if (file->myrank==file->WRITE_FILLVAL_ID) 
@@ -1502,10 +1505,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
             free(fillbuf);
     }
 
+	if (free_tmp_fillbuf) 
+		free(tmp_fillbuf);
+
     if (temp_buf != NULL)
         free(temp_buf);
-
-	ADIOS2_END_STEP(file,NULL);
 
 	int sum_num_block_writers = 0;
 	MPI_Allreduce(&total_num_block_writers,&sum_num_block_writers,1,MPI_INT,MPI_SUM,file->all_comm);

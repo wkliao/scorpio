@@ -254,15 +254,15 @@ static int sync_file(int ncid)
                         "Syncing file (ncid=%d) failed. Invalid file id. Unable to find internal structure associated with the file id", ncid);
     }
 
+    ios = file->iosystem;
+
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
 	{
-		ADIOS2_END_STEP(file,ios);
+		/* ADIOS2_END_STEP(file,ios); */
         return PIO_NOERR;
 	}
 #endif
-
-    ios = file->iosystem;
 
     /* Flush data buffers on computational tasks. */
     if (!ios->async || !ios->ioproc)
@@ -455,7 +455,7 @@ int PIOc_closefile(int ncid)
                     if (variableH == NULL)
                     {
                         return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", 
+									"Defining (ADIOS) variable (name=/__pio__/info/testing) failed for file (%s)", 
 									pio_get_fname_from_file(file));
                     }
                 }
@@ -464,7 +464,7 @@ int PIOc_closefile(int ncid)
                 if (adiosErr != adios2_error_none)
                 {
                     return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-								"Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", 
+								"Putting (ADIOS) variable (name=/__pio__/info/testing) failed (adios2_error=%s) for file (%s)", 
 								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
 			}
@@ -562,10 +562,11 @@ int PIOc_closefile(int ncid)
         assert(len > 6 && len <= PIO_MAX_NAME);
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
-		printf("ADIOS Converting: %s\n",file->filename);
         LOG((1, "CONVERTING: %s", file->filename));
+		printf("Converting file: %s\n",file->filename);
         MPI_Barrier(ios->union_comm);
         ierr = C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 0, ios->union_comm);
+		printf("DONE Converting file: %s\n",file->filename);
         MPI_Barrier(ios->union_comm);
         LOG((1, "DONE CONVERTING: %s", file->filename));
         if (ierr != PIO_NOERR)
@@ -591,9 +592,6 @@ int PIOc_closefile(int ncid)
 #ifdef TIMING
         GPTLstop("PIO:PIOc_closefile");
 #endif
-
-		printf("I AM RETURNING FROM close file.\n");
-		fflush(stdout);
 
         return PIO_NOERR;
     }

@@ -2288,7 +2288,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
         /* Append .bp to output file for ADIOS output */
         int len = strlen(filename);
-        file->filename = malloc(len + 4);
+        file->filename = (char*)calloc(len + 8,sizeof(char));
         if (file->filename == NULL)
         {
             return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__,
@@ -2299,7 +2299,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
         char filefolder[PIO_MAX_NAME];
         assert(len + 8 <= PIO_MAX_NAME);
-        snprintf(filefolder, len + 8, "%s.bp.dir", filename);
+        snprintf(filefolder, len + 4, "%s.bp", filename);
 
         ierr = PIO_NOERR;
         if (file->mode & PIO_NOCLOBBER) /* Check adios file/folder exists */
@@ -2310,7 +2310,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         }
         else
         {
-            /* Delete directory filename.bp.dir if it exists */
+            /* Delete directory filename.bp if it exists */
             if (ios->union_rank == 0)
             {
                 struct stat sd;
@@ -2347,7 +2347,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
             }
 
             /* Don't use MPI aggregator with block merging */ 
-            snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_comptasks)); 
+            snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_uniontasks)); 
             adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
             if (adiosErr != adios2_error_none)
             {
@@ -2377,15 +2377,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			file->num_begin_step_calls = 0;
 			file->current_frame = -1;
 			file->begin_step_called = 0;
-
 			file->num_written_blocks = 0;
-			file->num_all_procs = ios->num_uniontasks;
 			
-			/* Writers for specific variables in pio_write_darray */
-			file->WRITE_DECOMP_ID  = file->num_all_procs-1;
-			file->WRITE_FRAME_ID   = (file->WRITE_DECOMP_ID*2)/3;
-			file->WRITE_FILLVAL_ID = file->WRITE_DECOMP_ID/3;
-
 			/* Collect some statistics for debugging purposes */
 			file->num_end_step_calls = 0;
 			file->num_merge = 0;
@@ -2404,6 +2397,12 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 			file->adios_iomaster = (ios->union_rank == 0) ? MPI_ROOT : MPI_PROC_NULL;
 			file->all_comm = ios->union_comm;
 			file->myrank = ios->union_rank;
+			file->num_all_procs = ios->num_uniontasks;
+
+			/* Writers for specific variables in pio_write_darray */
+			file->WRITE_DECOMP_ID  = file->num_all_procs-1; 
+			file->WRITE_FRAME_ID   = (file->WRITE_DECOMP_ID*2)/3; 
+			file->WRITE_FILLVAL_ID = file->WRITE_DECOMP_ID/3; 
 
 			/* BEGIN: Initialize for block merging in pio_write_darray */
 			/**** Group processes for block merging ****/
@@ -2467,7 +2466,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 				}
 			}
 
-			/* array to be used for merging blocks */
+			/* Arrays to be used for merging blocks */
     		file->block_array = NULL;
 			file->block_array_size = 0;
 			file->array_counts = NULL;
@@ -3970,7 +3969,6 @@ int adios2_flush_tracking_data(file_desc_t *file)
 	for (int i=0;i<file->num_vars;i++) {
 		adios_var_desc_t *av = &(file->adios_vars[i]);
 		if (av->decomp_cnt>0) {
-			printf("DECOMP CNT: %d\n",av->decomp_cnt);
 			if (file->myrank==file->WRITE_DECOMP_ID) {
 				size_t count_val = (size_t)av->decomp_cnt;
 				adiosErr = adios2_set_selection(av->decomp_varid, 1, NULL, &count_val);
@@ -4013,7 +4011,6 @@ int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file)
 {
 	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
 	{
-		printf("WRITING DATA....\n");
 		ADIOS2_END_STEP(file,ios);
 		file->num_begin_step_calls = 0;
 		file->num_written_blocks = 0;

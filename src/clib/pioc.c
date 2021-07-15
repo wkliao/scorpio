@@ -268,8 +268,6 @@ int PIOc_setframe(int ncid, int varid, int frame)
 			if (file->num_begin_step_calls>file->max_begin_step_calls) 
 			{
 				ADIOS2_END_STEP(file,ios);
-				file->num_begin_step_calls = 0;
-				file->num_written_blocks = 0;
 			}
 		}
 	}
@@ -1377,7 +1375,6 @@ int PIOc_finalize(int iosysid)
         {
             return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Finalizing ADIOS failed (adios2_error=%s) on iosystem (%d)", adios2_error_to_string(adiosErr), iosysid);
         }
-
         ios->adiosH = NULL;
     }
 #endif

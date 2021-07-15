@@ -988,19 +988,12 @@ int PIOc_inq_var(int ncid, int varid, char *name, int namelen, nc_type *xtypep, 
             if (nattsp)
                 *nattsp = file->adios_vars[varid].nattrs;
 
+            strncpy(file->varlist[varid].vname, file->adios_vars[varid].name, PIO_MAX_NAME);
+
             ierr = PIO_NOERR;
         }
         else
             ierr = PIO_EBADID;
-
-        /* Copied and modified from MPI_Bcast lines */
-        if (name && namelen > 0)
-        {
-            assert(namelen <= PIO_MAX_NAME + 1);
-            strncpy(name, my_name, namelen);
-        }
-
-        strncpy(file->varlist[varid].vname, my_name, PIO_MAX_NAME);
 
         return ierr;
     }
@@ -2594,7 +2587,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             if (file->adios_iomaster == MPI_ROOT)
             {
                 char att_name[PIO_MAX_NAME];
-                snprintf(att_name, PIO_MAX_NAME, "%s/__pio__/ndims", av->name);
+                snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ndims", av->name);
                 adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
                 if (attributeH == NULL)
                 {
@@ -2606,7 +2599,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     }
                 }
 
-                snprintf(att_name, PIO_MAX_NAME, "%s/__pio__/nctype", av->name);
+                snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/nctype", av->name);
                 attributeH = adios2_inquire_attribute(file->ioH, att_name);
                 if (attributeH == NULL)
                 {
@@ -2625,7 +2618,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
                     for (int i = 0; i < av->ndims; i++)
                         dimnames[i] = file->dim_names[av->gdimids[i]];
 
-                    snprintf(att_name, PIO_MAX_NAME, "%s/__pio__/dims", av->name);
+                    snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/dims", av->name);
                     attributeH = adios2_inquire_attribute(file->ioH, att_name);
                     if (attributeH == NULL)
                     {
@@ -2642,6 +2635,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
         }
 
         strncpy(file->varlist[*varidp].vname, name, PIO_MAX_NAME);
+        file->varlist[*varidp].pio_type = xtype;
         if (file->num_unlim_dimids > 0)
         {
             int is_rec_var = 0;
@@ -2739,6 +2733,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
             check_mpi(NULL, file, mpierr, __FILE__, __LINE__);
 
     strncpy(file->varlist[*varidp].vname, name, PIO_MAX_NAME);
+    file->varlist[*varidp].pio_type = xtype;
     if(file->num_unlim_dimids > 0)
     {
         int is_rec_var = 0;

@@ -1549,6 +1549,8 @@ extern "C" {
 		} \
 		file->begin_step_called = 0; \
 		(file->num_end_step_calls)++; \
+		file->num_begin_step_calls = 0; \
+		file->num_written_blocks = 0; \
 	} \
 }
 #endif 
