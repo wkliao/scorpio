@@ -248,13 +248,11 @@ int PIOc_setframe(int ncid, int varid, int frame)
      * used by the write_darray functions. */
     file->varlist[varid].record = frame;
 
-#ifdef _ADIOS2 /* TAHSIN: timing */
-    if (file->iotype == PIO_IOTYPE_ADIOS)
-        GPTLstart("PIO:PIOc_setframe_adios"); /* TAHSIN: start */
-#endif
-
 	/* Add end_step here. Check for frame value of the ncid. */
 #ifdef _ADIOS2
+#ifdef TIMING
+	GPTLstart("PIO:PIOc_setframe_adios"); 
+#endif 
     if (file->iotype == PIO_IOTYPE_ADIOS)
 	{
 		if (file->current_frame<0)
@@ -271,15 +269,13 @@ int PIOc_setframe(int ncid, int varid, int frame)
 			}
 		}
 	}
+#ifdef TIMING
+	GPTLstop("PIO:PIOc_setframe_adios"); 
+#endif 
 #endif 
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_setframe");
-
-#ifdef _ADIOS2 /* TAHSIN: timing */
-    if (file->iotype == PIO_IOTYPE_ADIOS)
-        GPTLstop("PIO:PIOc_setframe_adios"); /* TAHSIN: start */
-#endif
 #endif
 
     return PIO_NOERR;

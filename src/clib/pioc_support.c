@@ -56,9 +56,7 @@ int remove_directory(const char *path)
     if (d)
     {
         struct dirent *p;
-
         r = 0;
-
         while (!r && (p = readdir(d)))
         {
             int r2 = -1;
@@ -71,13 +69,10 @@ int remove_directory(const char *path)
 
             len = path_len + strlen(p->d_name) + 2;
             buf = malloc(len);
-
             if (buf)
             {
                 struct stat statbuf;
-
                 snprintf(buf, len, "%s/%s", path, p->d_name);
-
                 if (!stat(buf, &statbuf))
                 {
                     if (S_ISDIR(statbuf.st_mode))
@@ -85,20 +80,159 @@ int remove_directory(const char *path)
                     else
                         r2 = unlink(buf);
                 }
-
                 free(buf);
             }
-
             r = r2;
         }
-
         closedir(d);
     }
-
     if (!r)
         r = rmdir(path);
 
     return r;
+}
+
+int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
+{
+	/**** Group processes for block merging ****/
+	MPI_Comm nodeComm;
+	MPI_Info info;
+	int nodeNProc, nodeRank;
+	MPI_Info_create(&info);
+	MPI_Comm_split_type(ios->union_comm, MPI_COMM_TYPE_SHARED, 0, info, &nodeComm);
+	MPI_Comm_rank(nodeComm, &nodeRank);
+	MPI_Comm_size(nodeComm, &nodeNProc);
+	file->node_comm   = nodeComm;
+	file->node_myrank = nodeRank;
+	file->node_nprocs = nodeNProc;
+
+	/* Communicator connecting rank 0 of each node */
+	MPI_Comm onePerNodeComm;
+	int onePerNodeNProc, onePerNodeRank;
+	int color = (nodeRank ? MPI_UNDEFINED : 0);
+	MPI_Comm_split(ios->union_comm, color, 0, &onePerNodeComm);
+	file->one_node_rank = MPI_UNDEFINED;
+	if (!nodeRank)
+	{
+		MPI_Comm_rank(onePerNodeComm, &onePerNodeRank);
+		MPI_Comm_size(onePerNodeComm, &onePerNodeNProc);
+		file->one_node_comm   = onePerNodeComm;
+		file->one_node_rank   = onePerNodeRank;	
+		file->one_node_nprocs = onePerNodeNProc;
+	}
+
+	/* Group processes on the same node */
+	int io_group_size = ios->num_comptasks/ios->num_iotasks;
+	if (io_group_size==0) io_group_size = ios->num_comptasks;
+	int io_color = (int) (nodeRank / io_group_size);
+
+	MPI_Comm nodeBlockComm;
+	int nodeBlockNProc, nodeBlockRank;
+	MPI_Comm_split(file->node_comm, io_color, 0, &nodeBlockComm);
+	MPI_Comm_rank(nodeBlockComm, &nodeBlockRank);
+	MPI_Comm_size(nodeBlockComm, &nodeBlockNProc);
+
+	file->block_comm   = nodeBlockComm;
+	file->block_myrank = nodeBlockRank;
+	file->block_nprocs = nodeBlockNProc;
+
+	/* gather the list of processes in each block group */
+	file->block_list = NULL;
+	if (file->block_myrank==0) {
+		file->block_list = (int*)calloc(file->block_nprocs,sizeof(int));
+		assert(file->block_list!=NULL);
+	}
+	MPI_Gather(&(file->myrank),1,MPI_INT,file->block_list,1,MPI_INT,0,file->block_comm);
+	/**** Group processes for block merging ****/
+
+	if (file->block_myrank==0) {	
+		adios2_error adiosErr = adios2_set_parameter(file->ioH, "InitialBufferSize", "1Gb");
+		if (adiosErr != adios2_error_none)
+		{
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+						"Setting (ADIOS) parameter (InitialBufferSize) failed (adios2_error=%s) for file (%s)", 
+						adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+		}
+	}
+
+	/* Arrays to be used for merging blocks */
+	file->block_array = NULL;
+	file->block_array_size = 0;
+	file->array_counts = NULL;
+	file->array_counts_size = 0;
+	file->array_disp = NULL;
+	file->array_disp_size = 0;
+	if (file->block_myrank==0) {
+		file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
+		file->array_disp   = (int*)calloc(file->block_nprocs,sizeof(int));
+		if (file->array_counts==NULL || file->array_disp==NULL) {
+			return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
+						"Out of memory allocating %lld bytes for a buffer", 
+						(long long) (file->block_nprocs*sizeof(int))); 
+		}
+		file->array_counts_size = file->block_nprocs*sizeof(int);
+		file->array_disp_size   = file->block_nprocs*sizeof(int);
+	}
+
+	return PIO_NOERR;
+}
+
+int initialize_adios_parameters(iosystem_desc_t *ios, file_desc_t *file)
+{
+	/* Don't use MPI aggregator with block merging */ 
+	snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_uniontasks)); 
+	adios2_error adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
+	if (adiosErr != adios2_error_none)
+	{
+		return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+			"Setting (ADIOS) parameter (substreams=%s) failed (adios2_error=%s) for file (%s)", 
+			file->params, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+	}
+
+	adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "ON"); /* ON for BP4 */
+	if (adiosErr != adios2_error_none)
+	{
+		return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+				"Setting (ADIOS) parameter (CollectiveMetadata=ON) failed (adios2_error=%s) for file (%s)", 
+				adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+	}
+
+	adiosErr = adios2_set_parameter(file->ioH, "StatsLevel", "0");
+	if (adiosErr != adios2_error_none)
+	{
+		return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+				"Setting (ADIOS) parameter (StatsLevel=0) failed (adios2_error=%s) for file (%s)", 
+				adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+	}
+
+	/* Call adios end step in PIOc_setframe(), if num_begin_step_calls>max_begin_step_calls */ 
+	file->max_begin_step_calls = MAX_BEGIN_STEP_CALLS; 
+	file->num_begin_step_calls = 0;
+	file->current_frame = -1;
+	file->begin_step_called = 0;
+	file->num_written_blocks = 0;
+	
+	memset(file->dim_names, 0, sizeof(file->dim_names));
+
+	file->num_dim_vars = 0;
+	file->num_vars = 0;
+	file->num_attrs = 0;
+	file->num_gattrs = 0;
+	file->fillmode = NC_NOFILL;
+	file->n_written_ioids = 0;
+
+	/* Set communicator for all adios processes, process rank, and I/O master node */
+	file->adios_iomaster = (ios->union_rank == 0) ? MPI_ROOT : MPI_PROC_NULL;
+	file->all_comm = ios->union_comm;
+	file->myrank = ios->union_rank;
+	file->num_all_procs = ios->num_uniontasks;
+
+	/* Writers for specific variables in pio_write_darray */
+	file->WRITE_DECOMP_ID  = file->num_all_procs-1; 
+	file->WRITE_FRAME_ID   = (file->WRITE_DECOMP_ID*2)/3; 
+	file->WRITE_FILLVAL_ID = file->WRITE_DECOMP_ID/3; 
+
+	return PIO_NOERR;
 }
 
 #endif
@@ -2192,9 +2326,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
 #ifdef TIMING
     GPTLstart("PIO:PIOc_createfile_int");
-#ifdef _ADIOS2 /* TAHSIN: timing */
+#ifdef _ADIOS2 
     if (*iotype == PIO_IOTYPE_ADIOS)
-        GPTLstart("PIO:PIOc_createfile_int_adios"); /* TAHSIN: start */
+        GPTLstart("PIO:PIOc_createfile_int_adios"); 
 #endif
 #endif
     /* Get the IO system info from the iosysid. */
@@ -2288,7 +2422,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
         /* Append .bp to output file for ADIOS output */
         int len = strlen(filename);
-        file->filename = (char*)calloc(len + 8,sizeof(char));
+        file->filename = (char*)calloc(len + 5,sizeof(char));
         if (file->filename == NULL)
         {
             return pio_err(ios, NULL, PIO_ENOMEM, __FILE__, __LINE__,
@@ -2298,7 +2432,7 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         snprintf(file->filename, len + 4, "%s.bp", filename);
 
         char filefolder[PIO_MAX_NAME];
-        assert(len + 8 <= PIO_MAX_NAME);
+        assert(len + 5 <= PIO_MAX_NAME);
         snprintf(filefolder, len + 4, "%s.bp", filename);
 
         ierr = PIO_NOERR;
@@ -2346,145 +2480,15 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 					adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
             }
 
-            /* Don't use MPI aggregator with block merging */ 
-            snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_uniontasks)); 
-            adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
-            if (adiosErr != adios2_error_none)
-            {
-                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-					"Setting (ADIOS) parameter (substreams=%s) failed (adios2_error=%s) for file (%s)", 
-					file->params, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-            }
+			/* Initialize adios I/O related parameters */
+			ierr = initialize_adios_parameters(ios, file);
+			if (ierr != PIO_NOERR)
+				return ierr;
 
-           	adiosErr = adios2_set_parameter(file->ioH, "CollectiveMetadata", "ON"); /* ON for BP4 */
-           	if (adiosErr != adios2_error_none)
-           	{
-               	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-						"Setting (ADIOS) parameter (CollectiveMetadata=ON) failed (adios2_error=%s) for file (%s)", 
-						adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-           	}
-
-			adiosErr = adios2_set_parameter(file->ioH, "StatsLevel", "0");
-			if (adiosErr != adios2_error_none)
-           	{
-               	return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-						"Setting (ADIOS) parameter (StatsLevel=0) failed (adios2_error=%s) for file (%s)", 
-						adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-           	}
-
-			/* Call adios end step in PIOc_setframe(), if num_begin_step_calls>max_begin_step_calls */ 
-			file->max_begin_step_calls = MAX_BEGIN_STEP_CALLS; 
-			file->num_begin_step_calls = 0;
-			file->current_frame = -1;
-			file->begin_step_called = 0;
-			file->num_written_blocks = 0;
-			
-			/* Collect some statistics for debugging purposes */
-			file->num_end_step_calls = 0;
-			file->num_merge = 0;
-			file->num_not_merge = 0;
-
-            memset(file->dim_names, 0, sizeof(file->dim_names));
-
-            file->num_dim_vars = 0;
-            file->num_vars = 0;
-            file->num_attrs = 0;
-            file->num_gattrs = 0;
-            file->fillmode = NC_NOFILL;
-            file->n_written_ioids = 0;
-
-			/* Set communicator for all adios processes, process rank, and I/O master node */
-			file->adios_iomaster = (ios->union_rank == 0) ? MPI_ROOT : MPI_PROC_NULL;
-			file->all_comm = ios->union_comm;
-			file->myrank = ios->union_rank;
-			file->num_all_procs = ios->num_uniontasks;
-
-			/* Writers for specific variables in pio_write_darray */
-			file->WRITE_DECOMP_ID  = file->num_all_procs-1; 
-			file->WRITE_FRAME_ID   = (file->WRITE_DECOMP_ID*2)/3; 
-			file->WRITE_FILLVAL_ID = file->WRITE_DECOMP_ID/3; 
-
-			/* BEGIN: Initialize for block merging in pio_write_darray */
-			/**** Group processes for block merging ****/
-			MPI_Comm nodeComm;
-		    MPI_Info info;
-		    int nodeNProc, nodeRank;
-		    MPI_Info_create(&info);
-		    MPI_Comm_split_type(ios->union_comm, MPI_COMM_TYPE_SHARED, 0, info, &nodeComm);
-		    MPI_Comm_rank(nodeComm, &nodeRank);
-		    MPI_Comm_size(nodeComm, &nodeNProc);
-			file->node_comm   = nodeComm;
-			file->node_myrank = nodeRank;
-			file->node_nprocs = nodeNProc;
-
-			/* Communicator connecting rank 0 of each node */
-			MPI_Comm onePerNodeComm;
-			int onePerNodeNProc, onePerNodeRank;
-			int color = (nodeRank ? MPI_UNDEFINED : 0);
-			MPI_Comm_split(ios->union_comm, color, 0, &onePerNodeComm);
-			file->one_node_rank = MPI_UNDEFINED;
-		    if (!nodeRank)
-		    {
-		        MPI_Comm_rank(onePerNodeComm, &onePerNodeRank);
-		        MPI_Comm_size(onePerNodeComm, &onePerNodeNProc);
-				file->one_node_comm   = onePerNodeComm;
-				file->one_node_rank   = onePerNodeRank;	
-				file->one_node_nprocs = onePerNodeNProc;
-		    }
-
-			/* Group processes on the same node */
-			int io_group_size = ios->num_comptasks/ios->num_iotasks;
-			if (io_group_size==0) io_group_size = ios->num_comptasks;
-			int io_color = (int) (nodeRank / io_group_size);
-
-			MPI_Comm nodeBlockComm;
-			int nodeBlockNProc, nodeBlockRank;
-			MPI_Comm_split(file->node_comm, io_color, 0, &nodeBlockComm);
-		    MPI_Comm_rank(nodeBlockComm, &nodeBlockRank);
-		    MPI_Comm_size(nodeBlockComm, &nodeBlockNProc);
-
-			file->block_comm   = nodeBlockComm;
-			file->block_myrank = nodeBlockRank;
-			file->block_nprocs = nodeBlockNProc;
-	
-			/* gather the list of processes in each block group */
-			file->block_list = NULL;
-			if (file->block_myrank==0) {
-				file->block_list = (int*)calloc(file->block_nprocs,sizeof(int));
-				assert(file->block_list!=NULL);
-			}
-			MPI_Gather(&(file->myrank),1,MPI_INT,file->block_list,1,MPI_INT,0,file->block_comm);
-			/**** Group processes for block merging ****/
-
-			if (file->block_myrank==0) {	
-				adiosErr = adios2_set_parameter(file->ioH, "InitialBufferSize", "1Gb");
-				if (adiosErr != adios2_error_none)
-				{
-					return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-								"Setting (ADIOS) parameter (InitialBufferSize) failed (adios2_error=%s) for file (%s)", 
-								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-				}
-			}
-
-			/* Arrays to be used for merging blocks */
-    		file->block_array = NULL;
-			file->block_array_size = 0;
-			file->array_counts = NULL;
-			file->array_counts_size = 0;
-			file->array_disp = NULL;
-			file->array_disp_size = 0;
-			if (file->block_myrank==0) {
-				file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
-				file->array_disp   = (int*)calloc(file->block_nprocs,sizeof(int));
-				if (file->array_counts==NULL || file->array_disp==NULL) {
-            		return pio_err(NULL, file, PIO_ENOMEM, __FILE__, __LINE__,
-                        		"Out of memory allocating %lld bytes for a buffer", 
-								(long long) (file->block_nprocs*sizeof(int))); 
-				}
-				file->array_counts_size = file->block_nprocs*sizeof(int);
-				file->array_disp_size   = file->block_nprocs*sizeof(int);
-			}
-			/* END: Initialize for block merging in pio_write_darray */
+			/* Initialize for block merging in pio_write_darray */
+			ierr= initialize_for_block_merging(ios, file);
+			if (ierr != PIO_NOERR)
+				return ierr;
 
             file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);
             if (file->engineH == NULL)
@@ -2572,10 +2576,6 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 									"Putting (ADIOS) variable (name=/__pio__/info/block_list) failed (adios2_error=%s) for file (%s)", 
 									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
                 }
-				if (file->block_list!=NULL) {
-					free(file->block_list);
-					file->block_list = NULL;
-				}
             }
 			file->num_written_blocks += 2;
         }
@@ -2744,9 +2744,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
     /* If there was an error, free the memory we allocated and handle error. */
     if(ierr != PIO_NOERR){
 #ifdef _ADIOS2
-#ifdef TIMING /* TAHSIN: timing */
+#ifdef TIMING 
         if (file->iotype == PIO_IOTYPE_ADIOS)
-            GPTLstop("PIO:PIOc_createfile_int_adios"); /* TAHSIN: stop */
+            GPTLstop("PIO:PIOc_createfile_int_adios"); 
 #endif
         free(file->filename);
 #endif
@@ -2784,9 +2784,9 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_createfile_int");
-#ifdef _ADIOS2 /* TAHSIN: timing */
+#ifdef _ADIOS2 
     if (file->iotype == PIO_IOTYPE_ADIOS)
-        GPTLstop("PIO:PIOc_createfile_int_adios"); /* TAHSIN: stop */
+        GPTLstop("PIO:PIOc_createfile_int_adios"); 
 #endif
 #endif
 
@@ -4007,8 +4007,11 @@ int adios2_flush_tracking_data(file_desc_t *file)
 	return 0;
 }
 
-int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file)
+int adios2_check_end_step(iosystem_desc_t *ios, file_desc_t *file)
 {
+	int total_num_written_blocks;
+	MPI_Allreduce(&(file->num_written_blocks),&total_num_written_blocks,1,MPI_INT,MPI_SUM,file->all_comm);
+	file->num_written_blocks = total_num_written_blocks;
 	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
 	{
 		ADIOS2_END_STEP(file,ios);

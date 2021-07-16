@@ -876,11 +876,6 @@ typedef struct file_desc_t
 	int num_begin_step_calls;
 	int max_begin_step_calls;
 
-	/* keep counts for debugging and statistics purposes */
-	int num_end_step_calls;
-	int num_merge;
-	int num_not_merge;
-
 	/* 
 	 * Used to call adios2_end_step to avoid buffer overflow in MPI_Gatherv 
 	 * during ADIOS metadata write operation. 
@@ -1548,7 +1543,6 @@ extern "C" {
 					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
 		} \
 		file->begin_step_called = 0; \
-		(file->num_end_step_calls)++; \
 		file->num_begin_step_calls = 0; \
 		file->num_written_blocks = 0; \
 	} \

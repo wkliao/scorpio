@@ -213,55 +213,6 @@ int adios_get_attr_a2(adios2::IO &bpIO, char *aname, std::string &atype, Attribu
     return BP2PIO_NOERR;
 }
 
-/* Timer functions to separate time for read (ADIOS) and write (PIO) */
-#ifdef ADIOS_TIMING
-static double time_read, time_write;
-static double time_temp_read, time_temp_write;
-
-void TimerInitialize_nm()
-{
-    time_read = 0.0;
-    time_write = 0.0;
-}
-
-#define TimerStart(x) { time_temp_##x = MPI_Wtime(); }
-#define TimerStop(x) { time_##x += (MPI_Wtime() - time_temp_##x); }
-
-void TimerReport_nm(MPI_Comm comm)
-{
-    int nproc, rank;
-    double tr_sum, tr_max;
-    double tw_sum, tw_max;
-    MPI_Comm_size(comm, &nproc);
-    MPI_Comm_rank(comm, &rank);
-    MPI_Reduce(&time_read, &tr_max, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
-    MPI_Reduce(&time_read, &tr_sum, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
-    MPI_Reduce(&time_write, &tw_max, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
-    MPI_Reduce(&time_write, &tw_sum, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
-
-    if (!rank && debug_out)
-    {
-        cout << "Timing information:     Max     Sum of all\n";
-        cout.precision(2);
-        cout << "ADIOS read time   = " << std::fixed << std::setw(8) << tr_max << "s "
-             << std::setw(8) << tr_sum << "s\n";
-        cout << "PIO  write time   = " << std::fixed << std::setw(8) << tw_max << "s "
-             << std::setw(8) << tw_sum << "s\n";
-    }
-}
-
-void TimerFinalize_nm() {}
-#else
-void TimerInitialize_nm() {}
-
-#define TimerStart(x) {}
-#define TimerStop(x) {}
-
-void TimerReport_nm(MPI_Comm comm) {}
-
-void TimerFinalize_nm() {}
-#endif
-
 void SetDebugOutput(int val) { debug_out = val; }
 
 struct Dimension
@@ -360,17 +311,15 @@ int ProcessGlobalFillmode(adios2::IO &bpIO, int ncid, MPI_Comm comm, int mpirank
     int ierr;
 	char *att_name = (char*)"/__pio__/fillmode";
 
-   	ierr = adios_get_attr_a2(bpIO, att_name, atype, fillmode);
-	if (ierr != BP2PIO_NOERR)
-	{
-		return BP2PIO_ERROR;
-	}
-
 	if (processed_attrs.find(att_name) == processed_attrs.end()) {
+   		ierr = adios_get_attr_a2(bpIO, att_name, atype, fillmode);
+		if (ierr != BP2PIO_NOERR) 
+			return BP2PIO_ERROR;
+
 		processed_attrs[att_name] = 1;
    		ierr = PIOc_set_fill(ncid, *((int*)fillmode[0].data()), NULL);
    		if (ierr != PIO_NOERR)
-       		return BP2PIO_ERROR;
+   			return BP2PIO_ERROR;
 	}
 
     return BP2PIO_NOERR;
@@ -543,7 +492,7 @@ int ProcessGlobalAttributes(adios2::IO &bpIO, adios2::Engine &bpReader,
 				}
 			}
 		} 
-		else if (a.find("pio_global/") != string::npos) /* check if it is a global attribute */
+		else if (a.find("/__pio__/global/") != string::npos) /* check if it is a global attribute */
 		{
         	char *attr_namelist = (char*)a.c_str();
 			if (debug_out)
@@ -551,7 +500,7 @@ int ProcessGlobalAttributes(adios2::IO &bpIO, adios2::Engine &bpReader,
 
 			std::string atype = bpIO.AttributeType(attr_namelist);
 			nc_type piotype   = PIOc_get_nctype_from_adios_type(atype);
-			char *attname     = attr_namelist + strlen("pio_global/");
+			char *attname     = attr_namelist + strlen("/__pio__/global/");
 
 			if (debug_out)
 				cout << "        define PIO attribute: " << attname << ""
@@ -581,227 +530,6 @@ int ProcessGlobalAttributes(adios2::IO &bpIO, adios2::Engine &bpReader,
 			fflush(stdout);
 			return BP2PIO_ERROR;
 		}
-    }
-
-    return BP2PIO_NOERR;
-}
-
-
-int ProcessGlobalAttributes_old(adios2::IO &bpIO, adios2::Engine &bpReader, 
-							int ncid, 
-							DimensionMap& dimension_map,
-                            VariableMap& vars_map, 
-							MPI_Comm comm,
-    						std::map<std::string, char> &processed_attrs,
-    						std::map<std::string, int> &var_att_map, int &var_defined)
-{
-    if (debug_out)
-        cout << "Process Global Attributes: \n";
-
-    int ierr = BP2PIO_NOERR, err_val = 0, err_cnt = 0;
-    int ret  = PIO_NOERR;
-    std::string delimiter = "/";
-
-    std::map<std::string, adios2::Params> a2_attr = bpIO.AvailableAttributes();
-    size_t nattrs = a2_attr.size();
-
-    std::map<std::string, adios2::Params>::iterator a2_iter = a2_attr.begin();
-
-	double t1, t2, t_total;
-	t_total = 0;
-
-	int total_cnt = 0;
-	for (std::map<std::string, adios2::Params>::iterator a2_tmp_iter = a2_attr.begin(); a2_tmp_iter!=a2_attr.end(); a2_tmp_iter++) 
-	{
-		std::string a = a2_tmp_iter->first;
-		if (a.find("/__pio__/decomp") != string::npos) {
-			processed_attrs[a] = 1;
-		} else if (processed_attrs.find(a) == processed_attrs.end()) {
-			total_cnt++;
-		}
-	}
-
-    while (total_cnt > 0)
-    {
-        std::string a = a2_iter->first;
-        if (++a2_iter == a2_attr.end())
-            a2_iter = a2_attr.begin();
-        char *attr_namelist = (char*)a.c_str();
-        std::string token = a.substr(0, a.find(delimiter));
-
-        if (token == "") /* Not a variable with attributes */
-        {
-            processed_attrs[a] = 1;
-            total_cnt--;
-        }
-        else if (processed_attrs.find(a) == processed_attrs.end())
-        {
-			/* check if it is a global attribute */
-            if (a.find("pio_global/") != string::npos)
-            {
-                if (debug_out)
-                    cout << " GLOBAL Attribute: " << attr_namelist << endl;
-
-				t1 = MPI_Wtime();
-                std::string atype = bpIO.AttributeType(attr_namelist);
-                nc_type piotype   = PIOc_get_nctype_from_adios_type(atype);
-				t_total += MPI_Wtime()-t1;
-                char *attname     = attr_namelist + strlen("pio_global/");
-
-                if (debug_out)
-                    cout << "        define PIO attribute: " << attname << ""
-                         << "  type=" << piotype << endl;
-
-                AttributeVector adata;
-				t1 = MPI_Wtime();
-                ierr = adios_get_attr_a2(bpIO, attr_namelist, atype, adata);
-				t_total += MPI_Wtime()-t1;
-				if (ierr!=BP2PIO_NOERR)
-					return ierr;
-					/*
-                ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-				*/
-
-				PIOc_redef(ncid);
-                if (atype == adios2::GetType<std::string>())
-                {
-                    ret = PIOc_put_att(ncid, PIO_GLOBAL, attname, piotype, adata[0].size() - 1, adata[0].data());
-                }
-                else
-                {
-                    ret = PIOc_put_att(ncid, PIO_GLOBAL, attname, piotype, 1, adata[0].data());
-                }
-				PIOc_enddef(ncid);
-                if (ret != PIO_NOERR)
-                    return BP2PIO_ERROR;
-
-                processed_attrs[a] = 1;
-                total_cnt--;
-            }
-            else
-            {
-                if (debug_out)
-                    cout << "    Attribute: " << attr_namelist << endl;
-
-                if (vars_map.find(token) == vars_map.end())
-                {
-                    if (var_att_map.find(token) == var_att_map.end())
-                    {
-                        // First encounter
-                        std::string atype;
-                        AttributeVector adata;
-                        string attname = "/__pio__/var/" + token + "/nctype";
-                        processed_attrs[attname] = 1;
-                        total_cnt--;
-						t1 = MPI_Wtime();
-                        ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
-						t_total += MPI_Wtime()-t1;
-						if (ierr!=BP2PIO_NOERR)
-							return ierr;
-							/*
-                        ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-						*/
-
-                        int nctype = *((int*)adata[0].data());
-
-                        attname = "/__pio__/var/" + token + "/ndims";
-                        processed_attrs[attname] = 1;
-                        total_cnt--;
-						t1 = MPI_Wtime();
-                        ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
-						t_total += MPI_Wtime()-t1;
-						if (ierr!=BP2PIO_NOERR)
-							return ierr;
-							/*
-                        ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-						*/
-
-                        int ndims = *((int*)adata[0].data());
-
-                        int dimids[PIO_MAX_DIMS];
-                        if (ndims)
-                        {
-                            attname = "/__pio__/var/" + token + "/dims";
-                            processed_attrs[attname] = 1;
-                            total_cnt--;
-							t1 = MPI_Wtime();
-                            ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
-							t_total += MPI_Wtime()-t1;
-							if (ierr!=BP2PIO_NOERR)
-								return ierr;
-								/*
-                            ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-							*/
-
-                            for (int d = 0; d < ndims; d++)
-                                dimids[d] = dimension_map[adata[d].data()].dimid;
-                        }
-                        else
-                        {
-                            ierr = BP2PIO_NOERR;
-							if (ierr!=BP2PIO_NOERR)
-								return ierr;
-								/*
-                            ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-							*/
-                        }
-
-                        int varid = 0;
-						PIOc_redef(ncid);
-                        ret = PIOc_def_var(ncid, token.c_str(), nctype, ndims, dimids, &varid);
-						PIOc_enddef(ncid);
-						var_defined = 1;
-                        if (ret != PIO_NOERR)
-                            return BP2PIO_ERROR;
-                        var_att_map[token] = varid;
-                    }
-                    else
-                    {
-                        if (processed_attrs.find(a) == processed_attrs.end())
-                        {
-                            processed_attrs[a] = 1;
-                            total_cnt--;
-							t1 = MPI_Wtime();
-                            std::string atype = bpIO.AttributeType(a.c_str());
-                            nc_type piotype = PIOc_get_nctype_from_adios_type(atype);
-							t_total += MPI_Wtime()-t1;
-                            char *attname = ((char*)a.c_str()) + token.length() + 1;
-                            AttributeVector adata;
-							t1 = MPI_Wtime();
-                            ierr = adios_get_attr_a2(bpIO, (char*)a.c_str(), atype, adata);
-							t_total += MPI_Wtime()-t1;
-							if (ierr!=BP2PIO_NOERR)
-								return ierr;
-								/*
-                            ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-							*/
-
-							PIOc_redef(ncid);
-                            if (atype == adios2::GetType<std::string>())
-                            {
-                                ret = PIOc_put_att(ncid, var_att_map[token], attname, piotype, adata[0].size() - 1, adata[0].data());
-                            }
-                            else
-                            {
-                                ret = PIOc_put_att(ncid, var_att_map[token], attname, piotype, 1, adata[0].data());
-                            }
-							PIOc_enddef(ncid);
-                            if (ret != PIO_NOERR)
-                                return BP2PIO_ERROR;
-                        }
-                        else
-                        {
-                            ierr = BP2PIO_NOERR;
-							if (ierr!=BP2PIO_NOERR)
-								return ierr;
-								/*
-                            ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-							*/
-                        }
-                    }
-                }
-            }
-        }
     }
 
     return BP2PIO_NOERR;
@@ -1561,7 +1289,6 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
     {
         /* An N-dimensional array that needs no rearrangement.
          * put_vara_nm() needs all processes participate */
-        TimerStart(write);
 
         /* E3SM writes this array from I/O processor 0 */
         // PIOc_put_var may have been called multiple times with different start/count values
@@ -1645,8 +1372,6 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
 				return BP2PIO_ERROR;
 			}
 		}
-
-        TimerStop(write);
     }
 
     return BP2PIO_NOERR;
@@ -1713,7 +1438,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
 			{
 				start[0] = ts+var.start_time_step;
 				count[0] = 1;
-				ret = PIOc_put_vara(ncid, var.nc_varid, start, count, v_mins.data());
+				ret = PIOc_put_vara(ncid, var.nc_varid, start, count, (const void*)&v_mins[ts]);
 				if (ret != PIO_NOERR)
 				{
 					cout << "ERROR in PIOc_put_vara(), code = " << ret
@@ -1735,24 +1460,17 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
     else
     {
         /* Calculate how many records/steps we have for this variable */
-        int nsteps = 1;
 		int ierr = BP2PIO_NOERR;
 
         /* Compute the total number of blocks */
 		const auto vb_blocks = bpReader.BlocksInfo(v_base, time_step);
-
-        if (var.is_timed)
-        {
-            nsteps = vb_blocks.size(); 
-        }
+		int nsteps = vb_blocks.size();
 
         /* Just read the arrays written by rank 0 (on every process here) and
          * write it collectively.
         */
         for (int ts = 0; ts < nsteps; ++ts)
         {
-            TimerStart(read);
-
             try
             {
                 int elemsize = adios2_type_size_a2(v_base.Type());
@@ -1771,49 +1489,33 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
 				PIO_Offset start[var_ndims], count[var_ndims];
 				PIO_Offset *start_ptr, *count_ptr;
 
-                if (pio_var_startp[0] < 0) /* NULL start */
-                {
+                if (pio_var_startp[0] < 0) { /* NULL start */
                     start_ptr = NULL;
-                }
-                else
-                {
-                    for (size_t d = 0; d < var_ndims; d++)
-                    {
+                } else {
+                    for (size_t d = 0; d < var_ndims; d++) {
                         start[d] = (PIO_Offset) pio_var_startp[d];
                     }
                     start_ptr = start;
                 }
 
-                if (pio_var_countp[0] < 0) /* NULL count */
-                {
-                    count_ptr = NULL;
-                    for (size_t d = 0; d < var_ndims; d++)
-                    {
+                if (pio_var_countp[0] < 0) { /* NULL count */
+					count_ptr = NULL;
+                    for (size_t d = 0; d < var_ndims; d++) {
                         pio_var_countp[d] = -1 * (pio_var_countp[d] + 1);
                     }
-                }
-                else
-                {
-                    for (size_t d = 0; d < var_ndims; d++)
-                    {
+                } else {
+                    for (size_t d = 0; d < var_ndims; d++) {
                         count[d] = (PIO_Offset) pio_var_countp[d];
                     }
                     count_ptr = count;
                 }
 
-				TimerStop(read);
-
-                TimerStart(write);
-
                 ret = put_vara_nm(ncid, var.nc_varid, var.nctype, v_base.Type(), start_ptr, count_ptr, data_buf);
-                if (ret != PIO_NOERR)
-                {
+                if (ret != PIO_NOERR) {
                     cout << "ERROR in PIOc_put_vara(), code = " << ret
                          << " at " << __func__ << ":" << __LINE__ << endl;
                     return BP2PIO_ERROR;
                 }
-
-                TimerStop(write);
             }
             catch (const std::exception &e)
             {
@@ -1953,7 +1655,6 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		return BP2PIO_ERROR;
 	}
 
-
 	/* Find block locations for each writer in each block for all time steps */
 	std::vector<std::vector<int> > writer_block_id;
 	int num_procs = 0;
@@ -1961,9 +1662,9 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		num_procs += block_procs[i];
 	}
 	writer_block_id.resize(num_procs);
-	for (int i=0;i<writer_block_id.size();i++) {
+	for (int i=0;i<num_procs;i++) {
 		writer_block_id[i].resize(nsteps);
-		for (int j=0;j<writer_block_id[i].size();j++) {
+		for (int j=0;j<nsteps;j++) {
 			writer_block_id[i][j] = -1; /* nothing written out by proc i at time step j */
 		}
 	}
@@ -1973,40 +1674,30 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 	for (int i=0;i<block_list.size();i++) {
 		blk_var.SetBlockSelection(i); 
 		bpReader[0].Get(blk_var, block_writer_cnt, adios2::Mode::Sync);
-		for (int j=0;j<block_writer_cnt.size();j++) {
-			for (int k=0;k<block_writer_cnt[j];k++) {
+		for (int j=0;j<block_writer_cnt.size();j++) { /* block_writer_cnt.size() == nsteps */
+			for (int k=0;k<block_writer_cnt[j];k++) { /* number of writers at time step j  */
 				int writer_id = block_list[i][k];
 				writer_block_id[writer_id][j] = 1;  /* block written out by writer_id at time step j */
 			}
 		}
 	}
 	int block_sum = -1;
-	for (int i=0;i<writer_block_id.size();i++) {
-		for (int j=0;j<writer_block_id[i].size();j++) {
-			if (writer_block_id[i][j]>=0) {
-				writer_block_id[i][j] += block_sum;
+	for (int i=0;i<writer_block_id.size();i++) { /* num_procs */
+		for (int j=0;j<writer_block_id[i].size();j++) { /* nsteps */
+			if (writer_block_id[i][j]>=0) {  /* data written out by i at time step j */
+				writer_block_id[i][j] += block_sum;  /* block id in BP file */
 				block_sum = writer_block_id[i][j];
 			}
 		}
 	}
-	for (int i=0;i<local_proc_blocks.size();i++) {
-		int local_proc_id = local_proc_blocks[i];
-        for (int j=0;j<block_list[local_proc_id].size();j++) {
-            int writer_id   = block_list[local_proc_id][j];
-			for (int k=0;k<nsteps;k++) {
-            	int bp_block_id = writer_block_id[writer_id][k]; 
-			}
-        }
-    }
-
-
+	
 	/* Allocate space for data buffer */
 	const auto vb_blocks = bpReader[0].BlocksInfo(*v_base, time_step);
 	uint64_t nelems = 0;
 	for (int i=0;i<local_proc_blocks.size();i++) {
-		int local_proc_id = local_proc_blocks[i];
-		for (int j=0;j<block_list[local_proc_id].size();j++) {
-			int writer_id   = block_list[local_proc_id][j];
+		int local_proc_block_id = local_proc_blocks[i];
+		for (int j=0;j<block_list[local_proc_block_id].size();j++) {
+			int writer_id   = block_list[local_proc_block_id][j];
 			int bp_block_id = writer_block_id[writer_id][0]; /* time step 0 */
 			if (bp_block_id>=0) {
 				nelems += vb_blocks[bp_block_id].Count[0];
@@ -2019,12 +1710,8 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		return BP2PIO_ERROR;
 	}
 
-	int start_merge_blocks_id = 0;
-	int start_data_blocks_id  = 0;
 	uint64_t offset = 0;
-	int blockid = 0;
-	int sum_blocks = 0;
-	int start_block = 0;
+	int bp_block_id = 0;
     for (int ts = 0; ts < nsteps; ++ts)
     {
         try
@@ -2032,10 +1719,10 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 
 			nelems = 0;
 			for (int i=0;i<local_proc_blocks.size();i++) {
-				int local_proc_id = local_proc_blocks[i];
-				for (int j=0;j<block_list[local_proc_id].size();j++) {
-					int writer_id   = block_list[local_proc_id][j];
-					int bp_block_id = writer_block_id[writer_id][ts]; /* time step ts */
+				int local_proc_block_id = local_proc_blocks[i];
+				for (int j=0;j<block_list[local_proc_block_id].size();j++) {
+					int writer_id   = block_list[local_proc_block_id][j];
+					bp_block_id = writer_block_id[writer_id][ts]; /* time step ts */
 					if (bp_block_id>=0) {
 						nelems += vb_blocks[bp_block_id].Count[0];
 					}
@@ -2049,13 +1736,15 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 			/* read in the data array */
 			offset = 0;
 			for (int i=0;i<local_proc_blocks.size();i++) {
-				int local_proc_id = local_proc_blocks[i];
-				for (int j=0;j<block_list[local_proc_id].size();j++) {
-					int writer_id   = block_list[local_proc_id][j];
-					blockid = writer_block_id[writer_id][ts]; /* time step ts */
-					v_base->SetBlockSelection(blockid);
-					bpReader[0].Get(*v_base, t_data+offset, adios2::Mode::Sync);
-					offset += (vb_blocks[blockid].Count[0]);
+				int local_proc_block_id = local_proc_blocks[i];
+				for (int j=0;j<block_list[local_proc_block_id].size();j++) {
+					int writer_id = block_list[local_proc_block_id][j];
+					bp_block_id = writer_block_id[writer_id][ts]; /* time step ts */
+					if (bp_block_id>=0) {
+						v_base->SetBlockSelection(bp_block_id);
+						bpReader[0].Get(*v_base, t_data+offset, adios2::Mode::Sync);
+						offset += (vb_blocks[bp_block_id].Count[0]);
+					}
 				}
 			}
 
@@ -2728,7 +2417,6 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
         {
            throw std::runtime_error("PIOc_finalize error.");
         }
-        TimerStop(write);
     }
     catch (const std::exception &e)
     {
@@ -2755,8 +2443,6 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
 {
     int ierr = BP2PIO_NOERR, err_val = 0, err_cnt = 0;
 
-    TimerInitialize_nm();
-
 	try 
 	{ 
 		ierr = ConvertBPFile(infilepath, outfilename, piotype, mem_opt, comm_in); 
@@ -2782,8 +2468,6 @@ int ConvertBPToNC(const string &infilepath, const string &outfilename,
 		/*
     ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm_in);
 	*/
-
-    TimerFinalize_nm();
 
     return BP2PIO_NOERR;
 }

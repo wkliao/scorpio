@@ -135,9 +135,9 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #ifdef TIMING
     GPTLstart("PIO:PIOc_createfile");
 
-#ifdef _ADIOS2 /* TAHSIN: timing */
+#ifdef _ADIOS2 
     if (*iotype == PIO_IOTYPE_ADIOS)
-        GPTLstart("PIO:PIOc_createfile_adios"); /* TAHSIN: start */
+        GPTLstart("PIO:PIOc_createfile_adios"); 
 #endif
 #endif
 
@@ -156,7 +156,7 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 
 #ifdef _ADIOS2 /* TAHSIN: timing */
         if (*iotype == PIO_IOTYPE_ADIOS)
-            GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
+            GPTLstop("PIO:PIOc_createfile_adios"); 
 #endif
 #endif
 
@@ -181,9 +181,9 @@ int PIOc_createfile(int iosysid, int *ncidp, int *iotype, const char *filename,
 #ifdef TIMING
     GPTLstop("PIO:PIOc_createfile");
 
-#ifdef _ADIOS2 /* TAHSIN: timing */
+#ifdef _ADIOS2 
     if (*iotype == PIO_IOTYPE_ADIOS)
-        GPTLstop("PIO:PIOc_createfile_adios"); /* TAHSIN: stop */
+        GPTLstop("PIO:PIOc_createfile_adios"); 
 #endif
 #endif
 
@@ -259,7 +259,7 @@ static int sync_file(int ncid)
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
 	{
-		/* ADIOS2_END_STEP(file,ios); */
+		ADIOS2_END_STEP(file,ios); 
         return PIO_NOERR;
 	}
 #endif
@@ -390,9 +390,9 @@ int PIOc_closefile(int ncid)
     ios = file->iosystem;
 
 #ifdef TIMING
-#ifdef _ADIOS2 /* TAHSIN: timing */
+#ifdef _ADIOS2 
     if (file->iotype == PIO_IOTYPE_ADIOS)
-        GPTLstart("PIO:PIOc_closefile_adios"); /* TAHSIN: start */
+        GPTLstart("PIO:PIOc_closefile_adios"); 
 #endif
 
     if (file->mode & PIO_WRITE)
@@ -548,6 +548,10 @@ int PIOc_closefile(int ncid)
 				free(file->array_disp);
 				file->array_disp = NULL;
 			}
+			if (file->block_list!=NULL) {
+				free(file->block_list);
+				file->block_list = NULL;
+			}
 		}
 
 #ifdef _ADIOS_BP2NC_TEST /* Comment out for large scale run */
@@ -563,10 +567,8 @@ int PIOc_closefile(int ncid)
         strncpy(outfilename, file->filename, len - 3);
         outfilename[len - 3] = '\0';
         LOG((1, "CONVERTING: %s", file->filename));
-		printf("Converting file: %s\n",file->filename);
         MPI_Barrier(ios->union_comm);
         ierr = C_API_ConvertBPToNC(file->filename, outfilename, conv_iotype, 0, ios->union_comm);
-		printf("DONE Converting file: %s\n",file->filename);
         MPI_Barrier(ios->union_comm);
         LOG((1, "DONE CONVERTING: %s", file->filename));
         if (ierr != PIO_NOERR)
@@ -580,7 +582,7 @@ int PIOc_closefile(int ncid)
 
 #ifdef TIMING
         if (file->iotype == PIO_IOTYPE_ADIOS)
-            GPTLstop("PIO:PIOc_closefile_adios"); /* TAHSIN: stop */
+            GPTLstop("PIO:PIOc_closefile_adios"); 
 
         if (file->mode & PIO_WRITE)
             GPTLstop("PIO:PIOc_closefile_write_mode");
