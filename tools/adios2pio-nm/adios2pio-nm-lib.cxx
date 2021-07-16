@@ -228,6 +228,7 @@ struct Variable
     int         nc_varid;
     bool        is_timed;
     nc_type     nctype;
+    int         adiostype;
 	int 		ndims;
 	std::string op;
 	std::string decomp_name;  /* decomposition */
@@ -1062,16 +1063,22 @@ void ProcessVariableDefinitions(adios2::IO &bpIO, adios2::Engine &bpReader,
 			*/
 			std::string op(adata[0].data());
 			std::string decomp_name = NO_DECOMP;
+			int adiostype = adios2_type_unknown;
 			if (op == "darray") 
 			{
 				attname = v + "/decomp";
 				ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
 				processed_attrs[attname] = 1;
-				/*
-				ERROR_CHECK_SINGLE_THROW(ierr, "adios_get_attr_a2 failed.")
-				*/
 				decomp_name.assign(adata[0].data());
-			}
+			} 
+			else if (op == "put_var") 
+			{
+				attname = v + "/adiostype";
+				ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
+				ERROR_CHECK_SINGLE_THROW(ierr, "adios_get_attr_a2 failed.")
+				adiostype = *((int*)adata[0].data());
+				processed_attrs[attname] = 1;
+            }
 
 			int varid;
 			PIOc_redef(ncid);
@@ -1084,7 +1091,7 @@ void ProcessVariableDefinitions(adios2::IO &bpIO, adios2::Engine &bpReader,
 			ERROR_CHECK_THROW(ierr, err_val, err_cnt, comm, "ProcessVariableDefinitions failed.")
 			*/
 
-			vars_map[v] = Variable{varid, timed, nctype, ndims, op, decomp_name, 0};
+			vars_map[v] = Variable{varid, timed, nctype, adiostype, ndims, op, decomp_name, 0};
 
 			ierr = ProcessVarAttributes(bpIO, bpReader, v, ncid, varid, comm, processed_attrs);
 			/*
@@ -1189,6 +1196,68 @@ int put_var_nm(int ncid, int varid, int nctype, const std::string &memtype, cons
     return ret;
 }
 
+int put_vara_nm(int ncid, int varid, int nctype, int adiostype,
+                const PIO_Offset *start, const PIO_Offset *count,
+                const void* buf)
+{
+    int ret = PIO_NOERR;
+
+    if (adiostype == adios2_type_int8_t)
+    {
+        if (nctype == PIO_BYTE)
+            ret = PIOc_put_vara_schar(ncid, varid, start, count, (const signed char*)buf);
+        else
+            ret = PIOc_put_vara_text(ncid, varid, start, count, (const char*)buf);
+    }
+    else if (adiostype == adios2_type_int16_t)
+    {
+        ret = PIOc_put_vara_short(ncid, varid, start, count, (const signed short*)buf);
+    }
+    else if (adiostype == adios2_type_int32_t)
+    {
+        ret = PIOc_put_vara_int(ncid, varid, start, count, (const signed int*)buf);
+    }
+    else if (adiostype == adios2_type_float)
+    {
+        ret = PIOc_put_vara_float(ncid, varid, start, count, (const float *)buf);
+    }
+    else if (adiostype == adios2_type_double)
+    {
+        ret = PIOc_put_vara_double(ncid, varid, start, count, (const double *)buf);
+    }
+    else if (adiostype == adios2_type_uint8_t)
+    {
+        ret = PIOc_put_vara_uchar(ncid, varid, start, count, (const unsigned char *)buf);
+    }
+    else if (adiostype == adios2_type_uint16_t)
+    {
+        ret = PIOc_put_vara_ushort(ncid, varid, start, count, (const unsigned short *)buf);
+    }
+    else if (adiostype == adios2_type_uint32_t)
+    {
+        ret = PIOc_put_vara_uint(ncid, varid, start, count, (const unsigned int *)buf);
+    }
+    else if (adiostype == adios2_type_int64_t)
+    {
+        ret = PIOc_put_vara_longlong(ncid, varid, start, count, (const signed long long *)buf);
+    }
+    else if (adiostype == adios2_type_uint64_t)
+    {
+        ret = PIOc_put_vara_ulonglong(ncid, varid, start, count, (const unsigned long long *)buf);
+    }
+    else if (adiostype == adios2_type_string)
+    {
+        ret = PIOc_put_vara_text(ncid, varid, start, count, (const char *)buf);
+    }
+    else
+    {
+        ret = PIOc_put_vara(ncid, varid, start, count, buf);
+    }
+
+    return ret;
+}
+
+#if 0
 int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
                 const PIO_Offset *start, const PIO_Offset *count,
                 const void* buf)
@@ -1246,6 +1315,7 @@ int put_vara_nm(int ncid, int varid, int nctype, const std::string &memtype,
 
     return ret;
 }
+#endif 
 
 template <class T>
 int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
@@ -1354,7 +1424,7 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
 					nelems *= pio_var_countp[d];
 				}
 
-				ret = put_vara_nm(ncid, var.nc_varid, var.nctype, v_base.Type(), start_ptr, count_ptr, data_buf);
+                ret = put_vara_nm(ncid, var.nc_varid, var.nctype, var.adiostype, start_ptr, count_ptr, data_buf);
 				if (ret != PIO_NOERR)
 				{
 					cout << "rank " << mpirank << ":ERROR in PIOc_put_vara(), code = " << ret
@@ -1424,7 +1494,6 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
     {
         try
         {
-			/* Scalar variable over time */
 			/* Written by only one process, so steps = number of blocks in file */
 			const auto v_blocks = bpReader.BlocksInfo(v_base, time_step);
 			int nsteps = v_blocks.size();
@@ -1510,7 +1579,7 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
                     count_ptr = count;
                 }
 
-                ret = put_vara_nm(ncid, var.nc_varid, var.nctype, v_base.Type(), start_ptr, count_ptr, data_buf);
+                ret = put_vara_nm(ncid, var.nc_varid, var.nctype, var.adiostype, start_ptr, count_ptr, data_buf);
                 if (ret != PIO_NOERR) {
                     cout << "ERROR in PIOc_put_vara(), code = " << ret
                          << " at " << __func__ << ":" << __LINE__ << endl;
