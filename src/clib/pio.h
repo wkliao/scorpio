@@ -47,7 +47,7 @@
 #include <unistd.h>
 #include <adios2_c.h>
 #define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
-#define MAX_BEGIN_STEP_CALLS   100
+#define MAX_BEGIN_STEP_CALLS   500
 #define MAX_ADIOS_BUFFER_COUNT 500 
 #define END_STEP_THRESHOLD ((unsigned long)(1024*1024*1024*1.9)) 
 #define BLOCK_METADATA_SIZE 70

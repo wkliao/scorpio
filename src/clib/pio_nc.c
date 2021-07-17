@@ -2335,6 +2335,7 @@ int PIOc_def_dim(int ncid, const char *name, PIO_Offset len, int *idp)
 		ADIOS2_BEGIN_STEP(file,ios);
 
         char dimname[PIO_MAX_NAME];
+		assert((strlen("/__pio__/dim/")+strlen(name))<PIO_MAX_NAME);
         snprintf(dimname, PIO_MAX_NAME, "/__pio__/dim/%s", name);
         adios2_variable *variableH = adios2_inquire_variable(file->ioH, dimname);
         if (variableH == NULL)
@@ -2576,7 +2577,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 		if (file->adios_iomaster == MPI_ROOT)
 		{
 			char att_name[PIO_MAX_NAME];
-			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ndims", av->name);
+			assert((strlen("/__pio__/var/")+strlen(av->name)+strlen("/def/ndims"))<PIO_MAX_NAME);
+			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/ndims", av->name);
 			adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
 			if (attributeH == NULL)
 			{
@@ -2588,7 +2590,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 				}
 			}
 
-			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/nctype", av->name);
+			assert((strlen("/__pio__/var/")+strlen(av->name)+strlen("/def/nctype"))<PIO_MAX_NAME);
+			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/nctype", av->name);
 			attributeH = adios2_inquire_attribute(file->ioH, att_name);
 			if (attributeH == NULL)
 			{
@@ -2607,7 +2610,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 				for (int i = 0; i < av->ndims; i++)
 					dimnames[i] = file->dim_names[av->gdimids[i]];
 
-				snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/dims", av->name);
+				assert((strlen("/__pio__/var/")+strlen(av->name)+strlen("/def/dims"))<PIO_MAX_NAME);
+				snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/dims", av->name);
 				attributeH = adios2_inquire_attribute(file->ioH, att_name);
 				if (attributeH == NULL)
 				{

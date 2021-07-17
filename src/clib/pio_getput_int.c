@@ -129,6 +129,7 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
         char path[PIO_MAX_NAME];
         if (varid != PIO_GLOBAL)
         {
+			assert((strlen("/__pio__/var/")+strlen(file->adios_vars[varid].name))<PIO_MAX_NAME);
 			snprintf(path,PIO_MAX_NAME,"/__pio__/var/%s",file->adios_vars[varid].name);
             ++file->adios_vars[varid].nattrs;
         }
@@ -1187,6 +1188,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 			{
 				/* Only the IO master does the IO, so we are not really
 				 * getting parallel IO here. */
+				assert((strlen("/__pio__/var/")+strlen(av->name))<PIO_MAX_NAME);
 				snprintf(vname,PIO_MAX_NAME,"/__pio__/var/%s",av->name);
 				av->adios_varid = adios2_inquire_variable(file->ioH, vname);
 				if (av->adios_varid == NULL)
@@ -1272,6 +1274,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				/* PIOc_put_var may be called multiple times with different start/count values
 				 * for a variable. ADIOS should output data for each of those calls not just
 				 * when the variable is not defined */
+				assert((strlen("/__pio__/var/")+strlen(av->name))<PIO_MAX_NAME);
 				snprintf(vname,PIO_MAX_NAME,"/__pio__/var/%s",av->name);
 				av->adios_varid = adios2_inquire_variable(file->ioH, vname);
 				if (av->adios_varid == NULL)
@@ -1333,7 +1336,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				}
 
 				char att_name[PIO_MAX_NAME];
-				snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/dims", av->name);
+				assert((strlen("/__pio__/var/")+strlen("/def/dims")+strlen(av->name))<PIO_MAX_NAME);
+				snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/dims", av->name);
 				adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
 				if (attributeH == NULL) {
 					attributeH = adios2_define_attribute_array(file->ioH, att_name, adios2_type_string, dimnames, av->ndims);
@@ -1348,7 +1352,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 			}
 
 			char att_name[PIO_MAX_NAME];
-			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ndims", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/ndims")+strlen(av->name))<PIO_MAX_NAME);
+			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/ndims", av->name);
 			adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
 			if (attributeH == NULL)
 			{
@@ -1363,7 +1368,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				}
 			}
 
-			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/nctype", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/nctype")+strlen(av->name))<PIO_MAX_NAME);
+			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/nctype", av->name);
 			attributeH = adios2_inquire_attribute(file->ioH, att_name);
 			if (attributeH == NULL)
 			{
@@ -1379,7 +1385,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 			}
 
 			/* Need to save adios type for conversion, since we merge blocks as char arrays */
-            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/adiostype", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/adiostype")+strlen(av->name))<PIO_MAX_NAME);
+            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/adiostype", av->name);
             attributeH = adios2_inquire_attribute(file->ioH, att_name);
             if (attributeH == NULL)
             {
@@ -1395,7 +1402,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
                 }
             }
 
-			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ncop", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/ncop")+strlen(av->name))<PIO_MAX_NAME);
+			snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/ncop", av->name);
 			attributeH = adios2_inquire_attribute(file->ioH, att_name);
 			if (attributeH == NULL)
 			{

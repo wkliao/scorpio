@@ -1134,6 +1134,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
        	/* Define the variable */
 		char vname[PIO_MAX_NAME];
+		assert((strlen("/__pio__/var/")+strlen(av->name))<PIO_MAX_NAME);
 		snprintf(vname,PIO_MAX_NAME,"/__pio__/var/%s",av->name);
        	av->adios_varid = adios2_define_variable(file->ioH, vname, atype,
                                                 1, NULL, NULL, &av_count,
@@ -1149,6 +1150,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		char name_varid[PIO_MAX_NAME];
         if (file->myrank == file->WRITE_DECOMP_ID)
         {
+			assert((strlen("/__pio__/track/decomp_id/")+strlen(av->name))<PIO_MAX_NAME);
 			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/decomp_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->decomp_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1171,6 +1173,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 		if (file->myrank == file->WRITE_FRAME_ID) 
 		{
+			assert((strlen("/__pio__/track/frame_id/")+strlen(av->name))<PIO_MAX_NAME);
 			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/frame_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->frame_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1193,6 +1196,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 
 		if (file->myrank == file->WRITE_FILLVAL_ID) 
 		{
+			assert((strlen("/__pio__/track/fillval_id/")+strlen(av->name))<PIO_MAX_NAME);
 			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/fillval_id/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->fillval_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1217,6 +1221,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		/* Variable to store the number of writer blocks, in case buffer merging doesn't happen */
 		if (file->block_myrank==0) 
 		{
+			assert((strlen("/__pio__/track/num_data_block_writers/")+strlen(av->name))<PIO_MAX_NAME);
 			snprintf(name_varid, PIO_MAX_NAME, "/__pio__/track/num_data_block_writers/%s", av->name);
 			av_count = av->max_buffer_cnt;
 			av->num_block_writers_varid = adios2_inquire_variable(file->ioH, name_varid);
@@ -1240,11 +1245,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		if (file->myrank == 0)
 		{
             /* Some of the codes were moved to pio_nc.c */
-            char decompname[PIO_MAX_NAME];
             char att_name[PIO_MAX_NAME];
-
+            char decompname[PIO_MAX_NAME];
             snprintf(decompname, PIO_MAX_NAME, "%d", ioid);
-            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/decomp", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/decomp")+strlen(av->name))<PIO_MAX_NAME);
+            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/decomp", av->name);
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, att_name);
             if (attributeH == NULL)
             {
@@ -1257,7 +1262,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                 }
             }
 
-            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/ncop", av->name);
+			assert((strlen("/__pio__/var/")+strlen("/def/ncop")+strlen(av->name))<PIO_MAX_NAME);
+            snprintf(att_name, PIO_MAX_NAME, "/__pio__/var/%s/def/ncop", av->name);
             attributeH = adios2_inquire_attribute(file->ioH, att_name);
             if (attributeH == NULL)
             {
