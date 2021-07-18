@@ -473,7 +473,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 									 	int iosysid, 
 										int mpirank, int nproc, MPI_Comm comm, 
 										uint64_t time_step,
-										std::vector<int> &block_procs,
 										std::vector<int> &local_proc_blocks, 
 										std::vector<std::vector<int> > &block_list,
 										std::map<std::string, char> &processed_attrs,
@@ -493,52 +492,11 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	{
 		ierr = BP2PIO_ERROR;
         return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
+		/*
+		DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm);
+		*/
 	}
 
-	/* Find block locations for each writer in each block */
-	int num_procs = 0;
-	for (int i=0;i<block_procs.size();i++) {
-		num_procs += block_procs[i];
-	}
-	std::vector<int> writer_block_id(num_procs);
-	for (int i=0;i<num_procs;i++) {
-		writer_block_id[i] = -1; /* nothing written out by proc i */
-	}
-	std::string var_name(varname+strlen("/__pio__/decomp/"));
-	adios2::Variable<int> blk_var = bpIO.InquireVariable<int>("/__pio__/track/num_decomp_block_writers/"+var_name);
-	std::vector<int> block_writer_cnt;
-	for (int i=0;i<block_list.size();i++) {
-		blk_var.SetBlockSelection(i); 
-		bpReader.Get(blk_var, block_writer_cnt, adios2::Mode::Sync);
-		for (int k=0;k<block_writer_cnt[0];k++) { /* number of writers */
-			int writer_id = block_list[i][k];
-			writer_block_id[writer_id] = 1;  /* block written out by writer_id */
-		}
-	}
-	int block_sum = -1;
-	for (int i=0;i<writer_block_id.size();i++) { /* num_procs */
-		if (writer_block_id[i]>=0) {  /* data written out by i at time step j */
-			writer_block_id[i] += block_sum;  /* block id in BP file */
-			block_sum = writer_block_id[i];
-		}
-	}
-
-	*v_base = bpIO.InquireVariable<T>(varname);
-    uint64_t nelems = 0;
-	const auto vb_blocks = bpReader.BlocksInfo(*v_base, time_step);
-	for (int i = 0; i<local_proc_blocks.size(); i++) {
-        int local_proc_block_id = local_proc_blocks[i];
-        for (int j=0;j<block_list[local_proc_block_id].size();j++) {
-            int writer_id = block_list[local_proc_block_id][j];
-            int bp_block_id = writer_block_id[writer_id]; 
-            if (bp_block_id>=0) {
-                nelems += vb_blocks[bp_block_id].Count[0];
-			}
-		}
-	}
-
-	// Orig
-#if 0
 	/* get block merge status of the decomposition */
 	std::vector<int> merge_blocks;
     try
@@ -601,7 +559,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	/*
     DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
 	*/
-#endif 
 
     /* Allocate +1 to prevent d_data.data() from returning NULL. Otherwise, read/write operations fail */
     /* nelems may be 0, when some processes do not have any data */
@@ -610,20 +567,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	std::vector<T> v_data;
 	try
 	{
-		for (int i=0;i<local_proc_blocks.size();i++) {
-			int local_proc_block_id = local_proc_blocks[i];
-			for (int j=0;j<block_list[local_proc_block_id].size();j++) {
-				int writer_id = block_list[local_proc_block_id][j];
-				int bp_block_id = writer_block_id[writer_id]; /* time step ts */
-				if (bp_block_id>=0) {
-					v_base->SetBlockSelection(bp_block_id);
-					bpReader.Get(*v_base, v_data, adios2::Mode::Sync);
-					d_out.insert(d_out.end(), v_data.begin(), v_data.end());
-				}
-			}
-		}
-
-#if 0
 		if (local_proc_blocks.size()>0) {
 			const auto v_blocks = bpReader.BlocksInfo(*v_base, time_step);
 			int block_id = 0;
@@ -641,7 +584,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 				}
 			}
 		}
-#endif 
 	}
 	catch (const std::exception &e)
 	{
@@ -654,6 +596,9 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	if (ierr!=BP2PIO_NOERR) {
         return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
 	}
+	/*
+    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
+	*/
     
 	std::string attname;
     int piotype = forced_type;
@@ -676,6 +621,9 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	if (ierr!=BP2PIO_NOERR) {
         return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
 	}
+	/*
+    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
+	*/
 
     attname = string(varname) + "/ndims";
     ierr = adios_get_attr_a2(bpIO, (char*)attname.c_str(), atype, adata);
@@ -683,6 +631,10 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	if (ierr!=BP2PIO_NOERR) {
         return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
 	}
+	/*
+    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
+	*/
+
     int decomp_ndims = *((int*)adata[0].data());
 
     attname = string(varname) + "/dimlen";
@@ -691,6 +643,10 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 	if (ierr!=BP2PIO_NOERR) {
         return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
 	}
+	/*
+    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
+	*/
+
     int *decomp_dims = (int*)adata[0].data();
 
     int ioid;
@@ -709,7 +665,6 @@ Decomposition ProcessOneDecomposition(adios2::IO &bpIO, adios2::Engine &bpReader
 							  		int iosysid, 
 									int mpirank, int nproc, MPI_Comm comm, 
 									uint64_t time_step,
-									std::vector<int> &block_procs,
 									std::vector<int> &local_proc_blocks,
 									std::vector<std::vector<int> > &block_list,
 									std::map<std::string, char> &processed_attrs,
@@ -728,8 +683,7 @@ Decomposition ProcessOneDecomposition(adios2::IO &bpIO, adios2::Engine &bpReader
         adios2::Variable<T> v_base; \
         return adios2_ProcessOneDecomposition(&v_base, bpIO, bpReader, ncid, \
                                               varname, iosysid, mpirank, nproc, comm, \
-	   										  time_step, block_procs, local_proc_blocks, block_list, \
-											  processed_attrs, forced_type); \
+	   										  time_step, local_proc_blocks, block_list, processed_attrs, forced_type); \
     }
 
     ADIOS2_FOREACH_ATTRIBUTE_TYPE_1ARG(declare_template_instantiation)
@@ -745,7 +699,6 @@ void ProcessDecompositions(adios2::IO &bpIO, adios2::Engine &bpReader,
 							MPI_Comm comm, int mpirank, int nproc, 
 							uint64_t time_step,
 							DecompositionMap &decomp_map,
-							std::vector<int> &block_procs,
 							std::vector<int> &local_proc_blocks,
 							std::vector<std::vector<int> > &block_list,
 							std::map<std::string, char> &processed_attrs)
@@ -763,7 +716,7 @@ void ProcessDecompositions(adios2::IO &bpIO, adios2::Engine &bpReader,
 
             Decomposition d = ProcessOneDecomposition(bpIO, bpReader, ncid, varname,
                                                       iosysid, mpirank, nproc, comm, 
-													  time_step, block_procs, local_proc_blocks, 
+													  time_step, local_proc_blocks, 
 													  block_list, processed_attrs);
 
             if (d.ioid == BP2PIO_ERROR)
@@ -781,7 +734,6 @@ Decomposition LoadDecomposition(DecompositionMap& decompmap,
 							  int nctype, int iosysid,
 							  int mpirank, int nproc, MPI_Comm comm,
 							  std::string file0, adios2::ADIOS &adios,
-							  std::vector<int> &block_procs,
 							  std::vector<int> &local_proc_blocks, 
 							  std::vector<std::vector<int> > &block_list,
 							  std::map<std::string, char> &processed_attrs)
@@ -800,8 +752,8 @@ Decomposition LoadDecomposition(DecompositionMap& decompmap,
 				found_it = 1;
        			d = ProcessOneDecomposition(bpIO, bpReader, ncid, (char*)decompname.c_str(), 
                   		                    iosysid, mpirank, nproc, comm, time_step, 
-											block_procs, local_proc_blocks, block_list, 
-											processed_attrs, nctype);
+											local_proc_blocks, block_list, processed_attrs, 
+											nctype);
        			if (d.ioid == BP2PIO_ERROR)
        			{
            			return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
@@ -833,7 +785,6 @@ Decomposition GetNewDecomposition(DecompositionMap& decompmap,
 							  int nctype, int iosysid,
 							  int mpirank, int nproc, MPI_Comm comm,
 							  std::string file0, adios2::ADIOS &adios,
-							  std::vector<int> &block_procs,
 							  std::vector<int> &local_proc_blocks,
 							  std::vector<std::vector<int> > &block_list,
 							  std::map<std::string, char> &processed_attrs)
@@ -859,8 +810,7 @@ Decomposition GetNewDecomposition(DecompositionMap& decompmap,
 					found_it = 1;
         			d = ProcessOneDecomposition(bpIO, bpReader, ncid, (char*)varname.c_str(), 
                    				                iosysid, mpirank, nproc, comm, time_step, 
-												block_procs, local_proc_blocks, block_list, 
-												processed_attrs, nctype);
+												local_proc_blocks, block_list, processed_attrs, nctype);
         			if (d.ioid == BP2PIO_ERROR)
         			{
             			return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
@@ -1541,6 +1491,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		}
 	}
 	adios2::Variable<int> blk_var = bpIO[0].InquireVariable<int>("/__pio__/track/num_data_block_writers/"+variable_name);
+	const auto mb_blocks = bpReader[0].BlocksInfo(blk_var, time_step);
 	std::vector<int> block_writer_cnt;
 	for (int i=0;i<block_list.size();i++) {
 		blk_var.SetBlockSelection(i); 
@@ -1643,7 +1594,7 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 				sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
 				decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
 										   ncid, NC_NAT, iosysid, mpirank, nproc, comm, 
-										   file0, adios, block_procs, local_proc_blocks,block_list,processed_attrs);
+										   file0, adios, local_proc_blocks,block_list,processed_attrs);
 			}
 			else
 			{
@@ -1671,14 +1622,14 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 					sprintf(decompname, "/__pio__/decomp/%d", decomp_id);
 					decomp = LoadDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
 												ncid, var.nctype, iosysid, mpirank, nproc, comm, 
-												file0,adios,block_procs, local_proc_blocks,block_list,processed_attrs);
+												file0,adios,local_proc_blocks,block_list,processed_attrs);
 				}
 				else
 				{
 					sprintf(decompname, "%d", decomp_id);
 					decomp = GetNewDecomposition(decomp_map, decompname, bpIO[1], bpReader[1],
 												ncid, var.nctype, iosysid, mpirank, nproc, comm, 
-												file0,adios,block_procs, local_proc_blocks,block_list,processed_attrs);
+												file0,adios,local_proc_blocks,block_list,processed_attrs);
 				}
 
 				if (decomp.ioid == BP2PIO_ERROR)
@@ -2090,7 +2041,7 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 		
         	/* Process decompositions */
            	ProcessDecompositions(bpIO[0], bpReader[0], ncid, iosysid, comm, mpirank, nproc, time_step, 
-								decomp_map, block_procs, local_proc_blocks, block_list, processed_attrs);
+								decomp_map, local_proc_blocks, block_list, processed_attrs);
 
 			/* Process variable and attribute definitions */
 			ProcessVariableAndAttributeDefinitions(bpIO[0], bpReader[0], ncid, dimension_map, vars_map, processed_attrs, mpirank,  nproc, comm);

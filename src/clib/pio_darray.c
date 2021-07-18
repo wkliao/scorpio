@@ -1211,7 +1211,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 							"Defining (ADIOS) variable (name=%s) failed for file (%s, ncid=%d)", 
 							name_varid, pio_get_fname_from_file(file), file->pio_ncid);
 				}
-				av->fillval_size   = adios2_type_size(atype, NULL);
+				av->fillval_size   = get_adios2_type_size(atype, NULL);
 				av->fillval_buffer = (char*)calloc(av->max_buffer_cnt,sizeof(char)*av->fillval_size);
 				assert(av->fillval_buffer!=NULL);
 				av->fillval_cnt = 0;
@@ -1510,7 +1510,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     if (temp_buf != NULL)
         free(temp_buf);
 
-	adios2_check_end_step(NULL,file);
+	check_adios_end_step(NULL,file);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_write_darray_adios_func");

@@ -3963,7 +3963,7 @@ const char *adios2_error_to_string(adios2_error error)
     }
 }
 
-int adios2_flush_tracking_data(file_desc_t *file)
+int flush_adios_tracking_data(file_desc_t *file)
 {
 	adios2_error adiosErr = adios2_error_none;
 	for (int i=0;i<file->num_vars;i++) {
@@ -3974,6 +3974,7 @@ int adios2_flush_tracking_data(file_desc_t *file)
 				adiosErr = adios2_set_selection(av->decomp_varid, 1, NULL, &count_val);
 				adiosErr = adios2_put(file->engineH, av->decomp_varid, av->decomp_buffer, adios2_mode_sync);
 				av->decomp_cnt = 0;
+				file->num_written_blocks += 1;
 			}
 		}
 
@@ -3983,6 +3984,7 @@ int adios2_flush_tracking_data(file_desc_t *file)
 				adiosErr = adios2_set_selection(av->frame_varid, 1, NULL, &count_val);
 				adiosErr = adios2_put(file->engineH, av->frame_varid, av->frame_buffer, adios2_mode_sync);
 				av->frame_cnt = 0;
+				file->num_written_blocks += 1;
 			}
 		}
 
@@ -3992,6 +3994,7 @@ int adios2_flush_tracking_data(file_desc_t *file)
 				adiosErr = adios2_set_selection(av->fillval_varid, 1, NULL, &count_val);
 				adiosErr = adios2_put(file->engineH, av->fillval_varid, av->fillval_buffer, adios2_mode_sync);
 				av->fillval_cnt = 0;
+				file->num_written_blocks += 1;
 			}
 		}
 
@@ -4001,18 +4004,18 @@ int adios2_flush_tracking_data(file_desc_t *file)
 				adiosErr = adios2_set_selection(av->num_block_writers_varid, 1, NULL, &count_val);
 				adiosErr = adios2_put(file->engineH, av->num_block_writers_varid, av->num_wb_buffer, adios2_mode_sync);
 				av->num_wb_cnt = 0;
+				file->num_written_blocks += 1;
 			}
 		}
 	}
 	return 0;
 }
 
-int adios2_check_end_step(iosystem_desc_t *ios, file_desc_t *file)
+int check_adios_end_step(iosystem_desc_t *ios, file_desc_t *file)
 {
 	int total_num_written_blocks;
 	MPI_Allreduce(&(file->num_written_blocks),&total_num_written_blocks,1,MPI_INT,MPI_SUM,file->all_comm);
-	file->num_written_blocks = total_num_written_blocks;
-	if (((unsigned long)file->num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
+	if (((unsigned long)total_num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
 	{
 		ADIOS2_END_STEP(file,ios);
 		file->num_begin_step_calls = 0;

@@ -22,7 +22,7 @@
 #endif
 
 #ifdef _ADIOS2
-int adios2_type_size(adios2_type type, const void *var)
+int get_adios2_type_size(adios2_type type, const void *var)
 {
     switch (type)
     {
@@ -477,7 +477,7 @@ int PIOc_inq_type(int ncid, nc_type xtype, char *name, PIO_Offset *sizep)
         if (sizep)
         {
             adios2_type atype = PIOc_get_adios_type(xtype);
-            int asize = adios2_type_size(atype, NULL);
+            int asize = get_adios2_type_size(atype, NULL);
             *sizep = (PIO_Offset) asize;
         }
 
@@ -2536,7 +2536,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
         file->adios_vars[file->num_vars].name = strdup(name);
         file->adios_vars[file->num_vars].nc_type = xtype;
         file->adios_vars[file->num_vars].adios_type = PIOc_get_adios_type(xtype);
-		file->adios_vars[file->num_vars].adios_type_size = adios2_type_size(file->adios_vars[file->num_vars].adios_type, NULL); 
+		file->adios_vars[file->num_vars].adios_type_size = get_adios2_type_size(file->adios_vars[file->num_vars].adios_type, NULL); 
         file->adios_vars[file->num_vars].nattrs = 0;
         file->adios_vars[file->num_vars].ndims = ndims;
         file->adios_vars[file->num_vars].adios_varid = NULL;

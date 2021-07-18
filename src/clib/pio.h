@@ -1500,9 +1500,9 @@ extern "C" {
 
 #ifdef _ADIOS2
     adios2_type PIOc_get_adios_type(nc_type xtype);
-    int adios2_type_size(adios2_type type, const void *var);
-	int adios2_flush_tracking_data(file_desc_t *file);
-	int adios2_check_end_step(iosystem_desc_t *ios,file_desc_t *file);
+    int get_adios2_type_size(adios2_type type, const void *var);
+	int flush_adios_tracking_data(file_desc_t *file);
+	int check_adios_end_step(iosystem_desc_t *ios,file_desc_t *file);
     const char *adios2_error_to_string(adios2_error error);
 #ifndef strdup
     char *strdup(const char *str);
@@ -1532,7 +1532,7 @@ extern "C" {
 
 #define ADIOS2_END_STEP(file,ios) \
 { \
-    adios2_flush_tracking_data(file); \
+    flush_adios_tracking_data(file); \
 	if (1==file->begin_step_called) \
 	{ \
 		adios2_error adiosStepErr = adios2_end_step(file->engineH); \

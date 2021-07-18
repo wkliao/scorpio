@@ -1177,7 +1177,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 		
 		/* No conversion to vartype will be made. Use the in-memory type of the data buffer */
         av->adios_type = PIOc_get_adios_type(xtype);
-		av->adios_type_size = adios2_type_size(av->adios_type, NULL);
+		av->adios_type_size = get_adios2_type_size(av->adios_type, NULL);
 
         /* Scalars are handled differently. */
 		char vname[PIO_MAX_NAME];
@@ -1246,30 +1246,34 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					}
 				}
 
-				/* Omit the unlimited time dimension from the adios variable definition.           */
-				/* if av->ndims == 1, it is a scalar variable over time, keep the first dimension. */
-				int d_start = 0;
-				if (av->ndims != 1 && file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) {
-					d_start = 1;
-				}
-
-				size_t av_count[PIO_MAX_DIMS];
-				for (int d = d_start; d < av->ndims; d++) {
-					if (count) {
-						av_count[d - d_start] = (size_t)count[d];
-					} else {
-						av_count[d - d_start] = (size_t)file->dim_values[av->gdimids[d]];
-					}
-				}
-
 				/* Create a one-dimensional byte array to combine start, count and buf */
 				size_t av_size  = 2*av->ndims*sizeof(int64_t); /* pio_var_start and pio_var_count */
 				size_t buf_size = 1;
-				for (int d = 0; d < (av->ndims-d_start); d++) {
-					buf_size *= av_count[d];
+				if (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) {
+					if (av->ndims>1) { 
+						if (count) {
+							for (int d = 1; d < av->ndims; d++) { /* ignore the time dimension */
+								buf_size *= (size_t)count[d];
+							}
+						} else {
+							for (int d = 1; d < av->ndims; d++) {
+                        		buf_size *=	(size_t)file->dim_values[av->gdimids[d]];
+							}
+						}
+					}
+				} else {
+					if (count) {
+						for (int d = 0; d < av->ndims; d++) {
+							buf_size *= (size_t)count[d];
+						}
+                   	} else {
+						for (int d = 0; d < av->ndims; d++) {
+                       		buf_size *=	(size_t)file->dim_values[av->gdimids[d]];
+						}
+                	}	
 				}
 				buf_size *= av->adios_type_size;
-				av_size += buf_size;
+				av_size  += buf_size;
 
 				/* PIOc_put_var may be called multiple times with different start/count values
 				 * for a variable. ADIOS should output data for each of those calls not just
