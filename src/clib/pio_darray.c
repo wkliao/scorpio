@@ -1298,7 +1298,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         }
     }
 
-    /* E3SM history data special handling: down-conversion from double to float */
+    /* Convert varibale data from memory type (piotype) to output type (nc_type) */
     void *databuf = array;
     void *fillbuf = fillvalue;
     int need_to_free_databuf = 0;
@@ -1353,16 +1353,6 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 				file->block_array_size = 0;
 			}
 		}
-
-#if 0
-		/* TEST */
-		double rand_val = (rand()*1.0)/RAND_MAX;
-		if (rand_val >= 1.1) {
-			can_merge_buffers = 0;
-		}
-		can_merge_buffers = 0;
-		/* TEST */
-#endif 
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
 
@@ -1510,6 +1500,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
     if (temp_buf != NULL)
         free(temp_buf);
 
+	/* Check if the num_written_blocks is greater than threshold. If so, call adios end step */
 	check_adios_end_step(NULL,file);
 
 #ifdef TIMING

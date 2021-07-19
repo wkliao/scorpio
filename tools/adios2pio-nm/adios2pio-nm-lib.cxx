@@ -523,6 +523,7 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 		}
 	}
 
+	/* Calculate the size of the data to be read */
 	*v_base = bpIO.InquireVariable<T>(varname);
     uint64_t nelems = 0;
 	const auto vb_blocks = bpReader.BlocksInfo(*v_base, time_step);
@@ -536,72 +537,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 			}
 		}
 	}
-
-	// Orig
-#if 0
-	/* get block merge status of the decomposition */
-	std::vector<int> merge_blocks;
-    try
-    {
-		std::string var_name(varname+strlen("/__pio__/decomp/")); 
-		adios2::Variable<int> tmp_base = bpIO.InquireVariable<int>("/__pio__/track/num_decomp_block_writers/"+var_name);
-		const auto v_blocks = bpReader.BlocksInfo(tmp_base, time_step);
-		merge_blocks.resize(v_blocks.size());
-		for (size_t j = 0; j < v_blocks.size(); j++) {
-			std::vector<int> v_value;
-		    tmp_base.SetBlockSelection(j);
-			bpReader.Get(tmp_base, v_value, adios2::Mode::Sync);
-			merge_blocks[j] = (int)v_value[0];
-		}
-    }
-    catch (const std::exception &e)
-    {
-        ierr = BP2PIO_ERROR;
-    }
-    catch (...)
-    {
-        ierr = BP2PIO_ERROR;
-    }
-	if (ierr!=BP2PIO_NOERR) {
-        return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
-	}
-	/*
-    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-	*/
-
-	*v_base = bpIO.InquireVariable<T>(varname);
-    uint64_t nelems = 0;
-    try
-    {
-		if (local_proc_blocks.size()>0) {
-			const auto v_blocks = bpReader.BlocksInfo(*v_base, time_step);
-			int start_block = 0;
-			for (int i = 0; i<local_proc_blocks[0]; i++) {
-				start_block += merge_blocks[i];
-			}
-			for (int i = 0; i<local_proc_blocks.size(); i++) {
-				for (int j=0; j<merge_blocks[i]; j++) {
-					nelems += v_blocks[start_block].Count[0];
-					start_block++;
-				}
-			}
-		}
-    }
-    catch (const std::exception &e)
-    {
-        ierr = BP2PIO_ERROR;
-    }
-    catch (...)
-    {
-        ierr = BP2PIO_ERROR;
-    }
-	if (ierr!=BP2PIO_NOERR) {
-        return Decomposition{BP2PIO_ERROR, BP2PIO_ERROR};
-	}
-	/*
-    DECOMPOSITION_ERROR_CHECK_RETURN(ierr, err_val, err_cnt, comm)
-	*/
-#endif 
 
     /* Allocate +1 to prevent d_data.data() from returning NULL. Otherwise, read/write operations fail */
     /* nelems may be 0, when some processes do not have any data */
@@ -622,26 +557,6 @@ Decomposition adios2_ProcessOneDecomposition(adios2::Variable<T> *v_base,
 				}
 			}
 		}
-
-#if 0
-		if (local_proc_blocks.size()>0) {
-			const auto v_blocks = bpReader.BlocksInfo(*v_base, time_step);
-			int block_id = 0;
-			for (int i = 0; i<local_proc_blocks[0]; i++) {
-				block_id += merge_blocks[i];
-			}
-			for (int i = 0; i<local_proc_blocks.size(); i++) {
-				for (int j=0; j<merge_blocks[i]; j++) {
-					v_base->SetBlockSelection(block_id);
-					adios2::Dims start = {0}, count = {v_blocks[block_id].Count[0]};
-					v_base->SetSelection({start, count});
-					bpReader.Get(*v_base, v_data, adios2::Mode::Sync);
-					d_out.insert(d_out.end(), v_data.begin(), v_data.end());
-					block_id++;
-				}
-			}
-		}
-#endif 
 	}
 	catch (const std::exception &e)
 	{

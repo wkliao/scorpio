@@ -1249,10 +1249,11 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 				/* Create a one-dimensional byte array to combine start, count and buf */
 				size_t av_size  = 2*av->ndims*sizeof(int64_t); /* pio_var_start and pio_var_count */
 				size_t buf_size = 1;
+				/* If it is a variable over time, ignore the time dimension in count[] */
 				if (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) {
 					if (av->ndims>1) { 
 						if (count) {
-							for (int d = 1; d < av->ndims; d++) { /* ignore the time dimension */
+							for (int d = 1; d < av->ndims; d++) { 
 								buf_size *= (size_t)count[d];
 							}
 						} else {
