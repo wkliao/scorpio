@@ -1456,15 +1456,28 @@ int adios2_ConvertVariableDarray(adios2::Variable<T> *v_base,
 		}
 	}
 	adios2::Variable<int> blk_var = bpIO[0].InquireVariable<int>("/__pio__/track/num_data_block_writers/"+variable_name);
+	const auto blk_blocks = bpReader[0].BlocksInfo(blk_var, time_step);
+	int num_bp_blocks_per_group = blk_blocks.size()/block_list.size();
+	if ((num_bp_blocks_per_group*block_list.size())!=blk_blocks.size()) {
+		printf("ERROR: #blocks: %d !=  #written: %d\n",num_bp_blocks_per_group*block_list.size(),blk_blocks.size());
+		return BP2PIO_ERROR;
+	}
 	std::vector<int> block_writer_cnt;
+	int b_idx = 0, t_idx = 0;
 	for (int i=0;i<block_list.size();i++) {
-		blk_var.SetBlockSelection(i); 
-		bpReader[0].Get(blk_var, block_writer_cnt, adios2::Mode::Sync);
-		for (int j=0;j<block_writer_cnt.size();j++) { /* block_writer_cnt.size() == nsteps */
-			for (int k=0;k<block_writer_cnt[j];k++) { /* number of writers at time step j  */
-				int writer_id = block_list[i][k];
-				writer_block_id[writer_id][j] = 1;  /* block written out by writer_id at time step j */
+		t_idx = 0;
+		/* num_data_block_writers may have been written out multiple times in an adios step */
+		for (int ii=0;ii<num_bp_blocks_per_group;ii++) { 
+			blk_var.SetBlockSelection(b_idx);  
+			bpReader[0].Get(blk_var, block_writer_cnt, adios2::Mode::Sync);
+			for (int j=0;j<block_writer_cnt.size();j++) { 
+				for (int k=0;k<block_writer_cnt[j];k++) { /* number of writers at time step t_idx  */
+					int writer_id = block_list[i][k];
+					writer_block_id[writer_id][t_idx] = 1;  /* block written out by writer_id at time step t_idx */
+				}
+				t_idx++;
 			}
+			b_idx++;
 		}
 	}
 	int block_sum = -1;
