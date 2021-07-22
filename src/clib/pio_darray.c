@@ -1040,7 +1040,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
                                    io_desc_t *iodesc, PIO_Offset arraylen,
                                    void *array, void *fillvalue)
 {
-    assert(file != NULL && iodesc != NULL && array != NULL);
+    assert(file != NULL && iodesc != NULL); 
     int ierr = PIO_NOERR;
     adios2_error adiosErr = adios2_error_none;
     if (varid < 0 || varid >= file->num_vars)
