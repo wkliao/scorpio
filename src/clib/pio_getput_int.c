@@ -1021,6 +1021,9 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
          "count_present = %d stride_present = %d xtype = %d", ncid, varid,
          start_present, count_present, stride_present, xtype));
 
+
+	printf("Putting variable: %d\n",varid);
+
     /* Get file info. */
     if ((ierr = pio_get_file(ncid, &file)))
     {
@@ -1182,7 +1185,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
         /* Scalars are handled differently. */
 		char vname[PIO_MAX_NAME];
 		/* Only the IO master does the IO, so we are not really getting parallel IO here. */
-		if (file->adios_iomaster == MPI_ROOT) 
+		if (file->myrank == 0) 
 		{
 			if (av->ndims == 0)
 			{
@@ -1215,6 +1218,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 								"Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
 								av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 				}
+				(file->num_written_blocks)++; 
 			}
 			else 
 			{
@@ -1228,50 +1232,38 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 								av->name, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 
-				/* Write start and count arrays to be able to reconstruct during conversion. */
+				/* Write start and count arrays to be able to reconstruct the variable during conversion. */
 				int64_t pio_var_start[PIO_MAX_DIMS], pio_var_count[PIO_MAX_DIMS];
-				for (int d = 0; d < av->ndims; d++) {
-					if (start) {
+				if (start) {
+					for (int d = 0; d < av->ndims; d++) {
 						pio_var_start[d] = (int64_t)start[d];
-					} else {
-						pio_var_start[d] = -1; /* start is NULL */
 					}
-
-					if (count) {
+				} else {
+					pio_var_start[0] = -1; /* if start is NULL */
+				}
+				if (count) {
+					for (int d = 0; d < av->ndims; d++) {
 						pio_var_count[d] = (int64_t)count[d];
-					} else {
-						/* count is NULL. set pio_var_count to -1 * (dim_values[] + 1) to capture it. */
-						/* dim_values[] + 1 so that pio_var_count[0] < 0, even if dim_values[0] is 0 */
-						pio_var_count[d] = (int64_t)(-1 * (file->dim_values[av->gdimids[d]] + 1));
 					}
+				} else {
+					pio_var_count[0] = -1; /* if count is NULL */
 				}
 
 				/* Create a one-dimensional byte array to combine start, count and buf */
 				size_t av_size  = 2*av->ndims*sizeof(int64_t); /* pio_var_start and pio_var_count */
 				size_t buf_size = 1;
-				/* If it is a variable over time, ignore the time dimension in count[] */
-				if (file->dim_values[av->gdimids[0]] == PIO_UNLIMITED) {
-					if (av->ndims>1) { 
-						if (count) {
-							for (int d = 1; d < av->ndims; d++) { 
-								buf_size *= (size_t)count[d];
-							}
-						} else {
-							for (int d = 1; d < av->ndims; d++) {
-                        		buf_size *=	(size_t)file->dim_values[av->gdimids[d]];
-							}
-						}
-					}
-				} else {
-					if (count) {
-						for (int d = 0; d < av->ndims; d++) {
+				if (count) {
+					for (int d = 0; d < av->ndims; d++) { 
+						if (file->dim_values[av->gdimids[d]] != PIO_UNLIMITED) {
 							buf_size *= (size_t)count[d];
 						}
-                   	} else {
-						for (int d = 0; d < av->ndims; d++) {
+					}
+				} else { 
+					for (int d = 0; d < av->ndims; d++) {
+						if (file->dim_values[av->gdimids[d]] != PIO_UNLIMITED) {
                        		buf_size *=	(size_t)file->dim_values[av->gdimids[d]];
 						}
-                	}	
+					}
 				}
 				buf_size *= av->adios_type_size;
 				av_size  += buf_size;
@@ -1309,13 +1301,13 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					}
 				}
 
-				unsigned char *mem_buffer = (unsigned char*)calloc(av_size,sizeof(unsigned char));
+				char *mem_buffer = (char*)calloc(av_size,sizeof(char));
 				if (mem_buffer==NULL) {
 					return pio_err(ios, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
 								"Putting (ADIOS) variable (name=%s) failed (adios2_error=%s) for file (%s, ncid=%d)", 
 								av->name, adios2_error_to_string(adiosErr), pio_get_fname_from_file(file), file->pio_ncid);
 				}
-				unsigned char *tmp_buf = mem_buffer;
+				char *tmp_buf = mem_buffer;
 				memcpy(tmp_buf,pio_var_start,av->ndims*sizeof(int64_t));
 				tmp_buf += (av->ndims*sizeof(int64_t));
 				memcpy(tmp_buf,pio_var_count,av->ndims*sizeof(int64_t));	
@@ -1354,6 +1346,7 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 									att_name, av->ndims, pio_get_fname_from_file(file), file->pio_ncid);
 					}
 				}
+				file->num_written_blocks += 2;
 			}
 
 			char att_name[PIO_MAX_NAME];
@@ -1422,8 +1415,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 								att_name, pio_get_fname_from_file(file), file->pio_ncid);
 				}
 			}
+			file->num_written_blocks += 4;
         }
-		file->num_written_blocks += 5;
 
         GPTLstop("PIO:PIOc_put_vars_tc");
         GPTLstop("PIO:PIOc_put_vars_tc_adios");

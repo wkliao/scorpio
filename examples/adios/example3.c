@@ -359,7 +359,7 @@ int main(int argc, char* argv[])
     for (int fmt = 0; fmt < num_flavors; fmt++)
     {
         /* Create a filename. */
-        sprintf(filename, "example3_%d.nc", fmt);
+        sprintf(filename, "output_example3_%d.nc", fmt);
 
         /* Create the netCDF output file. */
         if (verbose)

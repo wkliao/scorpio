@@ -929,7 +929,6 @@ int PIOc_InitDecomp_bc(int iosysid, int pio_type, int ndims, const int *gdimlen,
 
 #ifdef _ADIOS2
 static unsigned long adios2_io_cnt = 0;
-
 unsigned long get_adios2_io_cnt()
 {
     return adios2_io_cnt++;
@@ -1369,7 +1368,9 @@ int PIOc_finalize(int iosysid)
         adios2_error adiosErr = adios2_finalize(ios->adiosH);
         if (adiosErr != adios2_error_none)
         {
-            return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, "Finalizing ADIOS failed (adios2_error=%s) on iosystem (%d)", adios2_error_to_string(adiosErr), iosysid);
+            return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+				"Finalizing ADIOS failed (adios2_error=%s) on iosystem (%d)", 
+				adios2_error_to_string(adiosErr), iosysid);
         }
         ios->adiosH = NULL;
     }

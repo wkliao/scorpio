@@ -46,11 +46,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <adios2_c.h>
-#define ADIOS_PIO_MAX_DECOMPS 1024 /* Maximum number of decomps */
-#define MAX_BEGIN_STEP_CALLS   500
-#define MAX_ADIOS_BUFFER_COUNT 500 
-#define END_STEP_THRESHOLD ((unsigned long)(1024*1024*1024*1.9)) 
-#define BLOCK_METADATA_SIZE 70
+#define ADIOS_PIO_MAX_DECOMPS  1024 /* Maximum number of decomps */
+#define MAX_BEGIN_STEP_CALLS   512  /* maximum number of application steps before adios end step is called */
+#define MAX_ADIOS_BUFFER_COUNT 1024 /* maximum buffer size for aggregating decomp_id, frame_id, and fillval_id values */
+/* adios end step is called if the number of blocks written out exceeds BLOCK_COUNT_THRESHOLD */
+#define BLOCK_COUNT_THRESHOLD ((unsigned long)(1024*1024*1024*1.9)) 
+#define BLOCK_METADATA_SIZE 70 /* size of adios block metadata */
 adios2_adios *get_adios2_adios();
 unsigned long get_adios2_io_cnt();
 #endif
@@ -880,10 +881,9 @@ typedef struct file_desc_t
 	 * Used to call adios2_end_step to avoid buffer overflow in MPI_Gatherv 
 	 * during ADIOS metadata write operation. 
 	 *
-	 * if num_written_blocks*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD, call adios2_end_step
+	 * if num_written_blocks*BLOCK_METADATA_SIZE>=BLOCK_COUNT_THRESHOLD, call adios2_end_step
 	 */
 	unsigned int num_written_blocks;
-	unsigned int num_all_procs;
 
 	int WRITE_DECOMP_ID;
     int WRITE_FRAME_ID;
@@ -916,8 +916,8 @@ typedef struct file_desc_t
     int num_gattrs;
 
     /* ADIOS: assume all procs are also IO tasks */
-    int adios_iomaster;
 	int myrank;
+	int num_all_procs;
 
 	/* Merging distributed array blocks to reduce I/O overhead */
 	/* ADIOS: grouping of processes for block merging */
@@ -926,8 +926,6 @@ typedef struct file_desc_t
 	MPI_Comm block_comm;
 	int block_myrank, block_nprocs;
 	int *block_list;
-	MPI_Comm one_node_comm;
-	int one_node_rank, one_node_nprocs;
 	MPI_Comm all_comm;
 
 	/* Buffers for merging distributed array blocks */
@@ -936,13 +934,17 @@ typedef struct file_desc_t
 	int *array_disp;
 	int array_disp_size;
     char *block_array;
-	unsigned long block_array_size;
+	size_t block_array_size;
 
     /* Track attributes */
     struct adios_att_desc_t adios_attrs[PIO_MAX_ATTRS];
     int num_attrs;
 
     int fillmode;
+
+	/* Handle PIO_Offset */
+	int pio_offset_size;
+	adios2_type pio_offset_type;
 
     /** Array for decompositions that has been written already (must write only once) */
     int n_written_ioids;

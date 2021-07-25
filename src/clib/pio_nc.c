@@ -2574,7 +2574,7 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 		/* Define the attributes of a variable even if the variable may not be written out */
 		/* This is needed to reconstruct the variable during conversion from BP to NetCDF  */
 		adios_var_desc_t *av = &(file->adios_vars[*varidp]);
-		if (file->adios_iomaster == MPI_ROOT)
+		if (file->myrank == 0) 
 		{
 			char att_name[PIO_MAX_NAME];
 			assert((strlen("/__pio__/var/")+strlen(av->name)+strlen("/def/ndims"))<PIO_MAX_NAME);
@@ -2623,8 +2623,8 @@ int PIOc_def_var(int ncid, const char *name, nc_type xtype, int ndims,
 					}
 				}
 			}
+			file->num_written_blocks += 3;
 		}
-		file->num_written_blocks += 3;
 
         strncpy(file->varlist[*varidp].vname, name, PIO_MAX_NAME);
         file->varlist[*varidp].pio_type = xtype;

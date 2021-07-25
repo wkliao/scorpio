@@ -7,24 +7,21 @@ INCLUDE_DIRECTORIES(${PIO_INCLUDE_DIRS})
 include_directories("${CMAKE_SOURCE_DIR}/examples/adios")
 LINK_DIRECTORIES(${PIO_LIB_DIR})
 
-# Compiler-specific compiler options
-string (TOUPPER "${CMAKE_C_COMPILER_ID}" CMAKE_C_COMPILER_NAME)
-if (CMAKE_C_COMPILER_NAME STREQUAL "CRAY")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -h std=c99")
-elseif (CMAKE_C_COMPILER_NAME STREQUAL "PGI")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -c99")
-else ()
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-endif ()
-
-string (TOUPPER "${CMAKE_CXX_COMPILER_ID}" CMAKE_CXX_COMPILER_NAME)
-if (CMAKE_CXX_COMPILER_NAME STREQUAL "CRAY")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -h std=c++11")
-else ()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif ()
-
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -O0")
+# Compiler-specific compiler options
+if ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "PGI")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -c99")
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
+endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
 
@@ -35,6 +32,14 @@ add_dependencies(tests example_adios1)
 ADD_EXECUTABLE(example_adios2 example_adios2.c)
 TARGET_LINK_LIBRARIES(example_adios2 pioc)
 add_dependencies(tests example_adios2)
+
+ADD_EXECUTABLE(timesteps timesteps.c)
+TARGET_LINK_LIBRARIES(timesteps pioc)
+add_dependencies(tests timesteps)
+
+ADD_EXECUTABLE(timesteps_double timesteps_double.c)
+TARGET_LINK_LIBRARIES(timesteps_double pioc)
+add_dependencies(tests timesteps_double)
 
 ADD_EXECUTABLE(example_f4 example_f4.c)
 TARGET_LINK_LIBRARIES(example_f4 pioc)
@@ -80,22 +85,6 @@ ADD_EXECUTABLE(example_scalar_char_var example_scalar_char_var.c)
 TARGET_LINK_LIBRARIES(example_scalar_char_var pioc)
 add_dependencies(tests example_scalar_char_var)
 
-ADD_EXECUTABLE(example3 example3.c)
-TARGET_LINK_LIBRARIES(example3 pioc)
-add_dependencies(tests example3)
-
-ADD_EXECUTABLE(example_read example_read.c)
-TARGET_LINK_LIBRARIES(example_read pioc)
-add_dependencies(tests example_read)
-
-ADD_EXECUTABLE(timesteps timesteps.c)
-TARGET_LINK_LIBRARIES(timesteps pioc)
-add_dependencies(tests timesteps)
-
-ADD_EXECUTABLE(timesteps_double timesteps_double.c)
-TARGET_LINK_LIBRARIES(timesteps_double pioc)
-add_dependencies(tests timesteps_double)
-
 ADD_EXECUTABLE(example_num_frames example_num_frames.c)
 TARGET_LINK_LIBRARIES(example_num_frames pioc)
 add_dependencies(tests example_num_frames)
@@ -105,7 +94,7 @@ add_dependencies(tests example_num_frames)
 ###-------------------------------------------------------------------------###
 
 if (PIO_ENABLE_FORTRAN)
-  if (WITH_ADIOS)
+  if (WITH_ADIOS2)
 
     # Adding PIO definitions - defined in the root directory
     ADD_DEFINITIONS(${PIO_DEFINITIONS})
@@ -120,6 +109,6 @@ if (PIO_ENABLE_FORTRAN)
     SET(SRC examplePioADIOS.f90)
     ADD_EXECUTABLE(examplePioADIOS_f90 ${SRC})
     TARGET_LINK_LIBRARIES(examplePioADIOS_f90 piof pioc)
-  endif(WITH_ADIOS)
+  endif(WITH_ADIOS2)
 
 endif(PIO_ENABLE_FORTRAN)

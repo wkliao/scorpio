@@ -106,21 +106,6 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 	file->node_myrank = nodeRank;
 	file->node_nprocs = nodeNProc;
 
-	/* Communicator connecting rank 0 of each node */
-	MPI_Comm onePerNodeComm;
-	int onePerNodeNProc, onePerNodeRank;
-	int color = (nodeRank ? MPI_UNDEFINED : 0);
-	MPI_Comm_split(ios->union_comm, color, 0, &onePerNodeComm);
-	file->one_node_rank = MPI_UNDEFINED;
-	if (!nodeRank)
-	{
-		MPI_Comm_rank(onePerNodeComm, &onePerNodeRank);
-		MPI_Comm_size(onePerNodeComm, &onePerNodeNProc);
-		file->one_node_comm   = onePerNodeComm;
-		file->one_node_rank   = onePerNodeRank;	
-		file->one_node_nprocs = onePerNodeNProc;
-	}
-
 	/* Group processes on the same node */
 	int io_group_size = ios->num_comptasks/ios->num_iotasks;
 	if (io_group_size==0) io_group_size = ios->num_comptasks;
@@ -131,7 +116,6 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 	MPI_Comm_split(file->node_comm, io_color, 0, &nodeBlockComm);
 	MPI_Comm_rank(nodeBlockComm, &nodeBlockRank);
 	MPI_Comm_size(nodeBlockComm, &nodeBlockNProc);
-
 	file->block_comm   = nodeBlockComm;
 	file->block_myrank = nodeBlockRank;
 	file->block_nprocs = nodeBlockNProc;
@@ -145,6 +129,13 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 	MPI_Gather(&(file->myrank),1,MPI_INT,file->block_list,1,MPI_INT,0,file->block_comm);
 	/**** Group processes for block merging ****/
 
+	/* Arrays to be used for merging blocks */
+	file->block_array = NULL;
+	file->block_array_size = 0;
+	file->array_counts = NULL;
+	file->array_counts_size = 0;
+	file->array_disp = NULL;
+	file->array_disp_size = 0;
 	if (file->block_myrank==0) {	
 		adios2_error adiosErr = adios2_set_parameter(file->ioH, "InitialBufferSize", "1Gb");
 		if (adiosErr != adios2_error_none)
@@ -153,16 +144,7 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 						"Setting (ADIOS) parameter (InitialBufferSize) failed (adios2_error=%s) for file (%s)", 
 						adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
 		}
-	}
 
-	/* Arrays to be used for merging blocks */
-	file->block_array = NULL;
-	file->block_array_size = 0;
-	file->array_counts = NULL;
-	file->array_counts_size = 0;
-	file->array_disp = NULL;
-	file->array_disp_size = 0;
-	if (file->block_myrank==0) {
 		file->array_counts = (int*)calloc(file->block_nprocs,sizeof(int));
 		file->array_disp   = (int*)calloc(file->block_nprocs,sizeof(int));
 		if (file->array_counts==NULL || file->array_disp==NULL) {
@@ -221,8 +203,23 @@ int initialize_adios_parameters(iosystem_desc_t *ios, file_desc_t *file)
 	file->fillmode = NC_NOFILL;
 	file->n_written_ioids = 0;
 
+	/* Handle PIO_Offset size and corresponding adios type */
+	file->pio_offset_size = (int) sizeof(PIO_Offset);
+	if (file->pio_offset_size == 1) {
+		file->pio_offset_type = adios2_type_int8_t;
+	} else if (file->pio_offset_size == 2) {
+		file->pio_offset_type = adios2_type_int16_t;
+	} else if (file->pio_offset_size == 4) {
+		file->pio_offset_type = adios2_type_int32_t;
+	} else if (file->pio_offset_size == 8) {
+		file->pio_offset_type = adios2_type_int64_t;
+	} else {
+		return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__,
+                "PIO_Offet size (%d) is not supported for file (%s)",
+                file->pio_offset_size, pio_get_fname_from_file(file));	
+	}
+
 	/* Set communicator for all adios processes, process rank, and I/O master node */
-	file->adios_iomaster = (ios->union_rank == 0) ? MPI_ROOT : MPI_PROC_NULL;
 	file->all_comm = ios->union_comm;
 	file->myrank = ios->union_rank;
 	file->num_all_procs = ios->num_uniontasks;
@@ -2439,8 +2436,11 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         if (file->mode & PIO_NOCLOBBER) /* Check adios file/folder exists */
         {
             struct stat sf, sd;
-            if (0 == stat(file->filename, &sf) || 0 == stat(filefolder, &sd))
-                ierr = PIO_EEXIST;
+            if (0 == stat(file->filename, &sf) || 0 == stat(filefolder, &sd)) 
+			{
+				return pio_err(NULL, file, PIO_EEXIST, __FILE__, __LINE__,
+						"File (%s) exists.",pio_get_fname_from_file(file));
+			}
         }
         else
         {
@@ -2459,124 +2459,128 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
         }
 
         /* Create a new ADIOS group */
-        if (PIO_NOERR == ierr)
-        {
-            char declare_name[PIO_MAX_NAME];
-            snprintf(declare_name, PIO_MAX_NAME, "%s%lu", file->filename, get_adios2_io_cnt());
+		char declare_name[PIO_MAX_NAME];
+		snprintf(declare_name, PIO_MAX_NAME, "%s%lu", file->filename, get_adios2_io_cnt());
+		file->ioH = adios2_declare_io(ios->adiosH, (const char*)declare_name);
+		if (file->ioH == NULL)
+		{
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"Declaring (ADIOS) IO (name=%s) failed for file (%s)", 
+					declare_name, pio_get_fname_from_file(file));
+		}
 
-            file->ioH = adios2_declare_io(ios->adiosH, (const char*)declare_name);
-            if (file->ioH == NULL)
-            {
-                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-						"Declaring (ADIOS) IO (name=%s) failed for file (%s)", 
-						declare_name, pio_get_fname_from_file(file));
-            }
+		adios2_error adiosErr = adios2_set_engine(file->ioH, "BP4");
+		if (adiosErr != adios2_error_none)
+		{
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+				"Setting (ADIOS) engine (type=BP3) failed (adios2_error=%s) for file (%s)", 
+				adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+		}
 
-            adios2_error adiosErr = adios2_set_engine(file->ioH, "BP4");
-            if (adiosErr != adios2_error_none)
-            {
-                return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-					"Setting (ADIOS) engine (type=BP3) failed (adios2_error=%s) for file (%s)", 
-					adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-            }
+		/* Initialize adios I/O related parameters */
+		ierr = initialize_adios_parameters(ios, file);
+		if (ierr != PIO_NOERR)
+		{
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"Initializing parameters failed for file (%s)", 
+					declare_name, pio_get_fname_from_file(file));
+		}
 
-			/* Initialize adios I/O related parameters */
-			ierr = initialize_adios_parameters(ios, file);
-			if (ierr != PIO_NOERR)
-				return ierr;
+		/* Initialize for block merging in pio_write_darray */
+		ierr= initialize_for_block_merging(ios, file);
+		if (ierr != PIO_NOERR)
+		{
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"Initializing block merge failed for file (%s)", 
+					declare_name, pio_get_fname_from_file(file));
+		}
 
-			/* Initialize for block merging in pio_write_darray */
-			ierr= initialize_for_block_merging(ios, file);
-			if (ierr != PIO_NOERR)
-				return ierr;
+		file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);
+		if (file->engineH == NULL)
+		{
+			return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"Opening (ADIOS) file (%s) failed", 
+					pio_get_fname_from_file(file));
+		}
 
-            file->engineH = adios2_open(file->ioH, file->filename, adios2_mode_write);
-            if (file->engineH == NULL)
-            {
-                return pio_err(NULL, file, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-						"Opening (ADIOS) file (%s) failed", 
-						pio_get_fname_from_file(file));
-            }
+		ADIOS2_BEGIN_STEP(file,ios);
 
-			ADIOS2_BEGIN_STEP(file,ios);
+		if (file->myrank == 0) 
+		{
+			adios2_variable *variableH = adios2_inquire_variable(file->ioH, "/__pio__/info/nproc");
+			if (variableH == NULL)
+			{
+				variableH = adios2_define_variable(file->ioH,
+												   "/__pio__/info/nproc", adios2_type_int32_t,
+												   0, NULL, NULL, NULL, 
+												   adios2_constant_dims_true);
+				if (variableH == NULL)
+				{
+					return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+								"Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", 
+								pio_get_fname_from_file(file));
+				}
+			}
 
-            if (MPI_ROOT == file->adios_iomaster)
-            {
-                adios2_variable *variableH = adios2_inquire_variable(file->ioH, "/__pio__/info/nproc");
-                if (variableH == NULL)
-                {
-                    variableH = adios2_define_variable(file->ioH,
-                                                       "/__pio__/info/nproc", adios2_type_int32_t,
-                                                       0, NULL, NULL, NULL, 
-                                                       adios2_constant_dims_true);
-                    if (variableH == NULL)
-                    {
-                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Defining (ADIOS) variable (name=/__pio__/info/nproc) failed for file (%s)", 
-									pio_get_fname_from_file(file));
-                    }
-                }
-
-                adiosErr = adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
-                if (adiosErr != adios2_error_none)
-                {
-                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", 
-									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-                }
+			adiosErr = adios2_put(file->engineH, variableH, &ios->num_uniontasks, adios2_mode_sync);
+			if (adiosErr != adios2_error_none)
+			{
+				return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+								"Putting (ADIOS) variable (name=/__pio__/info/nproc) failed (adios2_error=%s) for file (%s)", 
+								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
 			}
 			(file->num_written_blocks)++;
+		}
 
-			/* Write the number and list of processes in block merges */
-			if (file->block_myrank==0) 
+		/* Write the number and list of processes in block merges */
+		if (file->block_myrank==0) 
+		{
+			/* Write the number of processes in block merges */
+			adios2_variable *variableH_blocks = adios2_inquire_variable(file->ioH, "/__pio__/info/block_nprocs");
+			if (variableH_blocks == NULL)
 			{
-				/* Write the number of processes in block merges */
-                adios2_variable *variableH_blocks = adios2_inquire_variable(file->ioH, "/__pio__/info/block_nprocs");
-                if (variableH_blocks == NULL)
-                {
-                    variableH_blocks = adios2_define_variable(file->ioH,
-                                                       "/__pio__/info/block_nprocs", adios2_type_int32_t,
-                                                       0, NULL, NULL, NULL, 
-                                                       adios2_constant_dims_true);
-                    if (variableH_blocks == NULL)
-                    {
-                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Defining (ADIOS) variable (name=/__pio__/info/block_nprocs) failed for file (%s)", 
-									pio_get_fname_from_file(file));
-                    }
-                }
-                adiosErr = adios2_put(file->engineH, variableH_blocks, &file->block_nprocs, adios2_mode_sync);
-                if (adiosErr != adios2_error_none)
-                {
-                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Putting (ADIOS) variable (name=/__pio__/info/block_nprocs) failed (adios2_error=%s) for file (%s)", 
-									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-                }
-
-				/* Write the list of processes in each block */
-				adios2_variable *variableH_list = adios2_inquire_variable(file->ioH, "/__pio__/info/block_list");
-				if (variableH_list == NULL) 
+				variableH_blocks = adios2_define_variable(file->ioH,
+												   "/__pio__/info/block_nprocs", adios2_type_int32_t,
+												   0, NULL, NULL, NULL, 
+												   adios2_constant_dims_true);
+				if (variableH_blocks == NULL)
 				{
-					size_t v_count = file->block_nprocs;
-					variableH_list = adios2_define_variable(file->ioH,
-                                                       "/__pio__/info/block_list", adios2_type_int32_t,
-                                                       1, NULL, NULL, &v_count,
-                                                       adios2_constant_dims_true);
-                    if (variableH_list == NULL)
-                    {
-                        return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__,
-                                    "Defining (ADIOS) variable (name=/__pio__/info/block_list) failed for file (%s)",
-                                    pio_get_fname_from_file(file));
-                    }
-                }
-                adiosErr = adios2_put(file->engineH, variableH_list, file->block_list, adios2_mode_sync);
-                if (adiosErr != adios2_error_none)
-                {
-                    return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
-									"Putting (ADIOS) variable (name=/__pio__/info/block_list) failed (adios2_error=%s) for file (%s)", 
-									adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
-                }
-            }
+					return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+								"Defining (ADIOS) variable (name=/__pio__/info/block_nprocs) failed for file (%s)", 
+								pio_get_fname_from_file(file));
+				}
+			}
+			adiosErr = adios2_put(file->engineH, variableH_blocks, &file->block_nprocs, adios2_mode_sync);
+			if (adiosErr != adios2_error_none)
+			{
+				return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+								"Putting (ADIOS) variable (name=/__pio__/info/block_nprocs) failed (adios2_error=%s) for file (%s)", 
+								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+			}
+
+			/* Write the list of processes in each block */
+			adios2_variable *variableH_list = adios2_inquire_variable(file->ioH, "/__pio__/info/block_list");
+			if (variableH_list == NULL) 
+			{
+				size_t v_count = file->block_nprocs;
+				variableH_list = adios2_define_variable(file->ioH,
+												   "/__pio__/info/block_list", adios2_type_int32_t,
+												   1, NULL, NULL, &v_count,
+												   adios2_constant_dims_true);
+				if (variableH_list == NULL)
+				{
+					return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__,
+								"Defining (ADIOS) variable (name=/__pio__/info/block_list) failed for file (%s)",
+								pio_get_fname_from_file(file));
+				}
+			}
+			adiosErr = adios2_put(file->engineH, variableH_list, file->block_list, adios2_mode_sync);
+			if (adiosErr != adios2_error_none)
+			{
+				return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+								"Putting (ADIOS) variable (name=/__pio__/info/block_list) failed (adios2_error=%s) for file (%s)", 
+								adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
+			}
 			file->num_written_blocks += 2;
         }
     }
@@ -4015,7 +4019,7 @@ int check_adios_end_step(iosystem_desc_t *ios, file_desc_t *file)
 {
 	int total_num_written_blocks;
 	MPI_Allreduce(&(file->num_written_blocks),&total_num_written_blocks,1,MPI_INT,MPI_SUM,file->all_comm);
-	if (((unsigned long)total_num_written_blocks)*BLOCK_METADATA_SIZE>=END_STEP_THRESHOLD)
+	if (((unsigned long)total_num_written_blocks)*BLOCK_METADATA_SIZE>=BLOCK_COUNT_THRESHOLD)
 	{
 		ADIOS2_END_STEP(file,ios);
 		file->num_begin_step_calls = 0;

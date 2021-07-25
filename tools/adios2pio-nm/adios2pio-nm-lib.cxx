@@ -1065,6 +1065,7 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
         {
             return BP2PIO_ERROR;
         }
+
         ret = put_var_nm(ncid, var.nc_varid, var.nctype, v_base.Type(), v_value.data());
         if (ret != PIO_NOERR)
         {
@@ -1122,10 +1123,6 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
 				if (pio_var_countp[0] < 0) /* NULL count */
 				{
 					count_ptr = NULL;
-					for (size_t d = 0; d < var_ndims; d++)
-					{
-						pio_var_countp[d] = -1 * (pio_var_countp[d] + 1);
-					}
 				}
 				else
 				{
@@ -1134,12 +1131,6 @@ int adios2_ConvertVariablePutVar(adios2::Variable<T>& v_base,
 						count[d] = (PIO_Offset) pio_var_countp[d];
 					}
 					count_ptr = count;
-				}
-
-				int64_t nelems = 1;
-				for (size_t d = 0; d < var_ndims; d++)
-				{
-					nelems *= pio_var_countp[d];
 				}
 
                 ret = put_vara_nm(ncid, var.nc_varid, var.nctype, var.adiostype, start_ptr, count_ptr, data_buf);
@@ -1220,18 +1211,15 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
 			for (int ts = 0; ts < nsteps; ts++)
 				v_mins[ts] = v_base.Min(ts);
 
-			PIO_Offset start[1], count[1];
 			for (int ts = 0; ts < nsteps; ++ts)
 			{
-				start[0] = ts+var.start_time_step;
-				count[0] = 1;
-				ret = PIOc_put_vara(ncid, var.nc_varid, start, count, (const void*)&v_mins[ts]);
-				if (ret != PIO_NOERR)
-				{
-					cout << "ERROR in PIOc_put_vara(), code = " << ret
-						 << " at " << __func__ << ":" << __LINE__ << endl;
-					return BP2PIO_ERROR;
-				}
+				ret = put_var_nm(ncid, var.nc_varid, var.nctype, v_base.Type(), (const void*)&v_mins[ts]);
+        	    if (ret != PIO_NOERR)
+        		{
+            		cout << "ERROR in PIOc_put_var(), code = " << ret
+                 		<< " at " << __func__ << ":" << __LINE__ << endl;
+            		return BP2PIO_ERROR;
+        		}
 			}
 			var.start_time_step += nsteps;  /* a timed variable may be stored across multiple adios time steps */
         }
@@ -1287,9 +1275,6 @@ int adios2_ConvertVariableTimedPutVar(adios2::Variable<T> &v_base,
 
                 if (pio_var_countp[0] < 0) { /* NULL count */
 					count_ptr = NULL;
-                    for (size_t d = 0; d < var_ndims; d++) {
-                        pio_var_countp[d] = -1 * (pio_var_countp[d] + 1);
-                    }
                 } else {
                     for (size_t d = 0; d < var_ndims; d++) {
                         count[d] = (PIO_Offset) pio_var_countp[d];
