@@ -161,8 +161,8 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 
 int initialize_adios_parameters(iosystem_desc_t *ios, file_desc_t *file)
 {
-	/* Don't use MPI aggregator with block merging */ 
-	snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_uniontasks)); 
+	/* ADIOS MPI Aggregator */
+	snprintf(file->params, PIO_MAX_NAME, "%d", (int)(ios->num_iotasks)); 
 	adios2_error adiosErr = adios2_set_parameter(file->ioH, "SubStreams", file->params);
 	if (adiosErr != adios2_error_none)
 	{

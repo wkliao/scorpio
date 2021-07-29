@@ -1815,6 +1815,61 @@ int GroupIOProcesses(MPI_Comm w_comm, int w_nproc, int w_mpirank,
 	return io_proc;
 }
 
+int CreateIOProcessGroup(MPI_Comm world_comm, int world_nproc, int world_mpirank,
+						std::vector<int> block_procs,
+						MPI_Comm *comm, int *mpirank, int *nproc, int *ioproc)
+{
+	int num_proc_blocks = block_procs.size();
+
+	/* First create a group of processes on the same node */
+	MPI_Comm node_comm;
+    MPI_Info info; 
+    int node_nproc, node_mpirank;
+    MPI_Info_create(&info);
+    MPI_Comm_split_type(world_comm, MPI_COMM_TYPE_SHARED, 0, info, &node_comm);
+    MPI_Comm_rank(node_comm, &node_mpirank);
+    MPI_Comm_size(node_comm, &node_nproc);
+
+	/* Calculate how many processes from each group should do I/O */
+	MPI_Comm one_per_node_comm;
+	int one_per_node_nproc, one_per_node_mpirank;
+	int color = (node_mpirank ? 1 : 0);
+	MPI_Comm_split(world_comm, color, 0, &one_per_node_comm);
+	int num_block_io_procs = 0;
+	if (node_mpirank==0) {
+		int *proc_cnt = NULL;
+		int *proc_sum = NULL;
+    	MPI_Comm_size(one_per_node_comm, &one_per_node_nproc);
+    	MPI_Comm_rank(one_per_node_comm, &one_per_node_mpirank);
+		proc_cnt = (int*)calloc(one_per_node_nproc,sizeof(int));
+		if (proc_cnt==NULL) 
+			return BP2PIO_ERROR;
+		MPI_Allgather(&node_nproc,1,MPI_INT,proc_cnt,1,MPI_INT,one_per_node_comm);
+		proc_sum = (int*)calloc(one_per_node_nproc,sizeof(int));
+		if (proc_sum==NULL)
+			return BP2PIO_ERROR;
+		int p_id = 0;
+		for (int i=0;i<num_proc_blocks;i++) {
+			if (proc_sum[p_id]<proc_cnt[p_id]) {
+				proc_sum[p_id]++;
+			}
+			p_id = (p_id+1)%one_per_node_nproc;
+		}
+		num_block_io_procs = proc_sum[one_per_node_mpirank];
+		free(proc_cnt); proc_cnt = NULL;
+		free(proc_sum); proc_sum = NULL;
+	}
+
+	/* Now create a I/O process group */
+	MPI_Bcast(&num_block_io_procs,1,MPI_INT,0,node_comm);
+	*ioproc = (node_mpirank<num_block_io_procs) ? 1 : 0; 
+	MPI_Comm_split(world_comm, *ioproc, world_mpirank, comm);
+    MPI_Comm_rank(*comm, mpirank);
+    MPI_Comm_size(*comm, nproc);
+	
+	return BP2PIO_NOERR; 	
+}
+
 enum PIO_IOTYPE GetIOType_nm(const string &t)
 {
     enum PIO_IOTYPE iotype = PIO_IOTYPE_NETCDF;
@@ -1931,7 +1986,10 @@ int ConvertBPFile(const string &infilepath, const string &outfilename, std::stri
 		bpReader[0].EndStep();
 		t_loop += (MPI_Wtime()-t1_loop);
 
-		int io_proc = GroupIOProcesses(w_comm, w_nproc, w_mpirank, block_procs, &comm, &mpirank, &nproc);
+		int io_proc;
+		ierr = CreateIOProcessGroup(w_comm, w_nproc, w_mpirank, block_procs, &comm, &mpirank, &nproc, &io_proc);
+		if (ierr!=BP2PIO_NOERR)
+			return ierr;
 
 		/* Close files. Create a new ADIOS object, because the MPI processes are clustered into two groups */
 		bpReader[0].Close();
