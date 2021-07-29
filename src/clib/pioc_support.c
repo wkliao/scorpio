@@ -156,6 +156,8 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 		file->array_disp_size   = file->block_nprocs*sizeof(int);
 	}
 
+	MPI_Info_free(&info);
+
 	return PIO_NOERR;
 }
 

@@ -1866,6 +1866,8 @@ int CreateIOProcessGroup(MPI_Comm world_comm, int world_nproc, int world_mpirank
 	MPI_Comm_split(world_comm, *ioproc, world_mpirank, comm);
     MPI_Comm_rank(*comm, mpirank);
     MPI_Comm_size(*comm, nproc);
+
+	MPI_Info_free(&info);
 	
 	return BP2PIO_NOERR; 	
 }
