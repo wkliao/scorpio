@@ -262,8 +262,8 @@ int PIOc_setframe(int ncid, int varid, int frame)
 		else if (file->current_frame!=frame) 
 		{
 			file->current_frame = frame;
-			(file->num_begin_step_calls)++;
-			if (file->num_begin_step_calls>file->max_begin_step_calls) 
+			(file->num_step_calls)++;
+			if (file->num_step_calls>file->max_step_calls) 
 			{
 				ADIOS2_END_STEP(file,ios);
 			}

@@ -45,10 +45,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <limits.h>
 #include <adios2_c.h>
 #define ADIOS_PIO_MAX_DECOMPS  1024 /* Maximum number of decomps */
-#define MAX_BEGIN_STEP_CALLS   512  /* maximum number of application steps before adios end step is called */
-#define MAX_ADIOS_BUFFER_COUNT 1024 /* maximum buffer size for aggregating decomp_id, frame_id, and fillval_id values */
+#define MAX_STEP_CALLS   512  /* maximum number of application steps before adios end step is called */
+#define MAX_ADIOS_BUFFER_COUNT (MAX_STEP_CALLS+16) /* buffer for aggregating decomp_id, frame_id, and fillval_id */
+#define BLOCK_MAX_BUFFER ((unsigned long)INT_MAX)  /* 2GB limit of MPI_Gatherv */
 /* adios end step is called if the number of blocks written out exceeds BLOCK_COUNT_THRESHOLD */
 #define BLOCK_COUNT_THRESHOLD ((unsigned long)(1024*1024*1024*1.9)) 
 #define BLOCK_METADATA_SIZE 70 /* size of adios block metadata */
@@ -874,8 +876,8 @@ typedef struct file_desc_t
 
 	/** Check if begin_step has been invoked. It is used to invoke end_step **/
 	int begin_step_called;
-	int num_begin_step_calls;
-	int max_begin_step_calls;
+	int num_step_calls;
+	int max_step_calls;
 
 	/* 
 	 * Used to call adios2_end_step to avoid buffer overflow in MPI_Gatherv 
@@ -934,7 +936,7 @@ typedef struct file_desc_t
 	int *array_disp;
 	int array_disp_size;
     char *block_array;
-	size_t block_array_size;
+	uint64_t block_array_size;
 
     /* Track attributes */
     struct adios_att_desc_t adios_attrs[PIO_MAX_ATTRS];
@@ -1504,8 +1506,12 @@ extern "C" {
     adios2_type PIOc_get_adios_type(nc_type xtype);
     int get_adios2_type_size(adios2_type type, const void *var);
 	int flush_adios_tracking_data(file_desc_t *file);
-	int check_adios_end_step(iosystem_desc_t *ios,file_desc_t *file);
+	int ADIOS2_check_block_limit(iosystem_desc_t *ios,file_desc_t *file);
     const char *adios2_error_to_string(adios2_error error);
+	adios2_adios *get_adios2_adios();
+	unsigned long get_adios2_io_cnt();
+	int ADIOS2_BEGIN_STEP(file_desc_t *file, iosystem_desc_t *ios); 
+	int ADIOS2_END_STEP(file_desc_t *file, iosystem_desc_t *ios); 
 #ifndef strdup
     char *strdup(const char *str);
 #endif
@@ -1514,41 +1520,5 @@ extern "C" {
 #if defined(__cplusplus)
 }
 #endif
-
-#ifdef _ADIOS2
-#define ADIOS2_BEGIN_STEP(file,ios) \
-{ \
-	if (0==file->begin_step_called) \
-	{ \
-		adios2_step_status step_status; \
-		adios2_error adiosStepErr = adios2_begin_step(file->engineH,adios2_step_mode_append,100.0,&step_status); \
-		if (adiosStepErr != adios2_error_none) \
-		{ \
-			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, \
-					"adios2_begin_step failed (adios2_error=%s) for file (%s)", \
-					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
-		} \
-		file->begin_step_called = 1; \
-	} \
-}
-
-#define ADIOS2_END_STEP(file,ios) \
-{ \
-    flush_adios_tracking_data(file); \
-	if (1==file->begin_step_called) \
-	{ \
-		adios2_error adiosStepErr = adios2_end_step(file->engineH); \
-		if (adiosStepErr != adios2_error_none) \
-		{ \
-			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, \
-					"adios2_end_step failed (adios2_error=%s) for file (%s)", \
-					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); \
-		} \
-		file->begin_step_called = 0; \
-		file->num_begin_step_calls = 0; \
-		file->num_written_blocks = 0; \
-	} \
-}
-#endif 
 
 #endif  // _PIO_H_

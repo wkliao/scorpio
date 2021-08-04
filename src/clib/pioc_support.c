@@ -92,6 +92,45 @@ int remove_directory(const char *path)
     return r;
 }
 
+
+int ADIOS2_BEGIN_STEP(file_desc_t *file, iosystem_desc_t *ios) 
+{ 
+	if (0==file->begin_step_called) 
+	{ 
+		adios2_step_status step_status; 
+		adios2_error adiosStepErr = adios2_begin_step(file->engineH,adios2_step_mode_append,100.0,&step_status); 
+		if (adiosStepErr != adios2_error_none) 
+		{ 
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"adios2_begin_step failed (adios2_error=%s) for file (%s)", 
+					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); 
+		} 
+		file->begin_step_called = 1; 
+	}
+
+	return PIO_NOERR; 
+}
+
+int ADIOS2_END_STEP(file_desc_t *file, iosystem_desc_t *ios) 
+{ 
+    flush_adios_tracking_data(file); 
+	if (1==file->begin_step_called) 
+	{ 
+		adios2_error adiosStepErr = adios2_end_step(file->engineH); 
+		if (adiosStepErr != adios2_error_none) 
+		{ 
+			return pio_err(ios, NULL, PIO_EADIOS2ERR, __FILE__, __LINE__, 
+					"adios2_end_step failed (adios2_error=%s) for file (%s)", 
+					adios2_error_to_string(adiosStepErr), pio_get_fname_from_file(file)); 
+		} 
+		file->begin_step_called = 0; 
+		file->num_step_calls = 0; 
+		file->num_written_blocks = 0; 
+	}
+
+	return PIO_NOERR; 
+}
+
 int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 {
 	/**** Group processes for block merging ****/
@@ -136,7 +175,11 @@ int initialize_for_block_merging(iosystem_desc_t *ios, file_desc_t *file)
 	file->array_counts_size = 0;
 	file->array_disp = NULL;
 	file->array_disp_size = 0;
-	if (file->block_myrank==0) {	
+	if (file->block_myrank==0) {
+		file->block_array = (char*)calloc(BLOCK_MAX_BUFFER,sizeof(char));
+		if (file->block_array!=NULL) {
+			file->block_array_size = BLOCK_MAX_BUFFER;
+		} 
 		adios2_error adiosErr = adios2_set_parameter(file->ioH, "InitialBufferSize", "1Gb");
 		if (adiosErr != adios2_error_none)
 		{
@@ -189,9 +232,9 @@ int initialize_adios_parameters(iosystem_desc_t *ios, file_desc_t *file)
 				adios2_error_to_string(adiosErr), pio_get_fname_from_file(file));
 	}
 
-	/* Call adios end step in PIOc_setframe(), if num_begin_step_calls>max_begin_step_calls */ 
-	file->max_begin_step_calls = MAX_BEGIN_STEP_CALLS; 
-	file->num_begin_step_calls = 0;
+	/* Call adios end step in PIOc_setframe(), if num_step_calls>max_step_calls */ 
+	file->max_step_calls = MAX_STEP_CALLS; 
+	file->num_step_calls = 0;
 	file->current_frame = -1;
 	file->begin_step_called = 0;
 	file->num_written_blocks = 0;
@@ -2505,7 +2548,8 @@ int PIOc_createfile_int(int iosysid, int *ncidp, int *iotype, const char *filena
 					pio_get_fname_from_file(file));
 		}
 
-		ADIOS2_BEGIN_STEP(file,ios);
+		ierr = ADIOS2_BEGIN_STEP(file,ios);
+		if (ierr!=PIO_NOERR) return ierr;
 
 		if (file->myrank == 0) 
 		{
@@ -4017,14 +4061,15 @@ int flush_adios_tracking_data(file_desc_t *file)
 	return 0;
 }
 
-int check_adios_end_step(iosystem_desc_t *ios, file_desc_t *file)
+int ADIOS2_check_block_limit(iosystem_desc_t *ios, file_desc_t *file)
 {
 	int total_num_written_blocks;
 	MPI_Allreduce(&(file->num_written_blocks),&total_num_written_blocks,1,MPI_INT,MPI_SUM,file->all_comm);
 	if (((unsigned long)total_num_written_blocks)*BLOCK_METADATA_SIZE>=BLOCK_COUNT_THRESHOLD)
 	{
-		ADIOS2_END_STEP(file,ios);
-		file->num_begin_step_calls = 0;
+		int ierr = ADIOS2_END_STEP(file,ios);
+		if (ierr!=PIO_NOERR) return ierr;
+		file->num_step_calls = 0;
 		file->num_written_blocks = 0;
 	}
 }

@@ -695,7 +695,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	int elem_size = file->pio_offset_size; 
     adios2_type type = file->pio_offset_type; 
 
-	ADIOS2_BEGIN_STEP(file,NULL);
+	int ierr = ADIOS2_BEGIN_STEP(file,NULL);
+	if (ierr!=PIO_NOERR) return ierr;
 
 	int maplen = (int)(iodesc->maplen);
 	void *mapbuf = iodesc->map; 
@@ -744,14 +745,13 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 	}
 
 	unsigned int inp_count = (unsigned int)maplen;
-	unsigned int buffer_count = (unsigned int)maplen;
+	uint64_t buffer_count = 0; 
     size_t av_count;
-	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
-	memset(file->array_counts,0,(size_t)(file->array_counts_size));
 	MPI_Gather(&inp_count,1,MPI_INT,file->array_counts,1,MPI_INT,0,file->block_comm);
 	if (file->block_myrank==0) 
 	{
 		for (int ii=0;ii<file->block_nprocs;ii++) { 
+			buffer_count += file->array_counts[ii];
 			file->array_counts[ii] *= elem_size;
 		}
 		file->array_disp[0] = 0;
@@ -803,18 +803,8 @@ static int PIOc_write_decomp_adios(file_desc_t *file, int ioid)
 
 	int can_merge_buffers = 1;
 	if (file->block_myrank==0) {
-		size_t av_buffer_size = (size_t) (elem_size*buffer_count);
-		if (file->block_array_size<av_buffer_size) {
-			if (file->block_array!=NULL) {
-				file->block_array = (char*)realloc(file->block_array,av_buffer_size);
-			} else {
-				file->block_array = (char*)calloc(av_buffer_size,sizeof(char));
-			}
-			file->block_array_size = av_buffer_size;
-			if (file->block_array==NULL) {
-				can_merge_buffers = 0;
-				file->block_array_size = 0;
-			}
+		if ((elem_size*buffer_count)>=file->block_array_size) {
+			can_merge_buffers = 0;
 		}
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
@@ -1052,7 +1042,7 @@ void *PIOc_copy_one_element_adios(void *array, io_desc_t *iodesc)
     return temp_buf;
 }
 
-static int define_adios_darray(file_desc_t *file, adios_var_desc_t *av, int inp_count, int buffer_count, int varid, int ioid)
+static int define_adios_darray(file_desc_t *file, adios_var_desc_t *av, int inp_count, uint64_t buffer_count, int varid, int ioid)
 {
 	int ierr = PIO_NOERR;
 
@@ -1343,7 +1333,8 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 		}
 	}
 
-	ADIOS2_BEGIN_STEP(file,NULL);
+	ierr = ADIOS2_BEGIN_STEP(file,NULL);
+	if (ierr!=PIO_NOERR) return ierr;
 
 	adios_var_desc_t *av = &(file->adios_vars[varid]);
 
@@ -1373,16 +1364,6 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         array = temp_buf;
     }
 
-	unsigned int inp_count = (unsigned int) arraylen;
-	unsigned int buffer_count = (unsigned int) arraylen;
-	MPI_Reduce(&inp_count,&buffer_count,1,MPI_INT,MPI_SUM,0,file->block_comm);
-    if (av->adios_varid == NULL)
-    {
-		ierr = define_adios_darray(file, av, inp_count, buffer_count, varid, ioid);
-		if (ierr!=PIO_NOERR)
-			return ierr;
-    }
-
     /* Check if we need to write the decomposition. Write it */
     if (needs_to_write_decomp(file, ioid))
     {
@@ -1401,6 +1382,30 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
 					varid, pio_get_fname_from_file(file), file->pio_ncid, ioid);
         }
     }
+
+	unsigned int inp_count = (unsigned int) arraylen;
+	uint64_t buffer_count = 0; 
+	MPI_Gather(&inp_count,1,MPI_INT,file->array_counts,1,MPI_INT,0,file->block_comm); 
+	if (file->block_myrank==0) {
+		for (int ii=0;ii<file->block_nprocs;ii++) { 
+			buffer_count += file->array_counts[ii];
+		}
+	}
+    if (av->adios_varid == NULL)
+    {
+		ierr = define_adios_darray(file, av, inp_count, buffer_count, varid, ioid);
+		if (ierr!=PIO_NOERR)
+			return ierr;
+    }
+	if (file->block_myrank==0) {
+		for (int ii=0;ii<file->block_nprocs;ii++) { 
+			file->array_counts[ii] *= av->elem_size;
+		}
+		file->array_disp[0] = 0;
+		for (int ii=1;ii<file->block_nprocs;ii++) {
+			file->array_disp[ii] = file->array_disp[ii-1]+file->array_counts[ii-1];
+		}
+	}
 
     /* Convert variable's data from memory type (piotype) to output type (nc_type) */
     void *databuf = array;
@@ -1429,33 +1434,11 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         need_to_free_databuf = 1;
     }
 
-	memset(file->array_counts,0,(size_t)file->array_counts_size);
-	MPI_Gather(&inp_count,1,MPI_INT,file->array_counts,1,MPI_INT,0,file->block_comm);
-	if (file->block_myrank==0) {
-		for (int ii=0;ii<file->block_nprocs;ii++) { 
-			file->array_counts[ii] *= av->elem_size;
-		}
-		file->array_disp[0] = 0;
-		for (int ii=1;ii<file->block_nprocs;ii++) {
-			file->array_disp[ii] = file->array_disp[ii-1]+file->array_counts[ii-1];
-		}
-	}
-
 	size_t num_block_writers = file->block_nprocs;
 	int can_merge_buffers = 1;
 	if (file->block_myrank==0) {
-		size_t av_buffer_size = (size_t) (av->elem_size*buffer_count);
-		if (file->block_array_size<av_buffer_size) {
-			if (file->block_array!=NULL) {
-				file->block_array = (char*)realloc(file->block_array,av_buffer_size);
-			} else {
-				file->block_array = (char*)calloc(av_buffer_size,sizeof(char));
-			}
-			file->block_array_size = av_buffer_size;
-			if (file->block_array==NULL) {
-				can_merge_buffers = 0;
-				file->block_array_size = 0;
-			}
+		if ((av->elem_size*buffer_count)>=file->block_array_size) {
+			can_merge_buffers = 0;
 		}
 	}
 	MPI_Bcast(&can_merge_buffers,1,MPI_INT,0,file->block_comm);
@@ -1560,7 +1543,7 @@ static int PIOc_write_darray_adios(file_desc_t *file, int varid, int ioid,
         free(temp_buf);
 
 	/* Check if the num_written_blocks is greater than threshold. If so, call adios end step */
-	check_adios_end_step(NULL,file);
+	ADIOS2_check_block_limit(NULL,file);
 
 #ifdef TIMING
     GPTLstop("PIO:PIOc_write_darray_adios_func");

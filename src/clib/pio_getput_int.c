@@ -122,7 +122,8 @@ int PIOc_put_att_tc(int ncid, int varid, const char *name, nc_type atttype,
     {
         LOG((2, "ADIOS define attribute %s, varid %d, type %d", name, varid, atttype));
 
-		ADIOS2_BEGIN_STEP(file,ios);
+		ierr = ADIOS2_BEGIN_STEP(file,ios);
+		if (ierr!=PIO_NOERR) return ierr;
 
         adios2_type adios_type = PIOc_get_adios_type(atttype);
 
@@ -1156,7 +1157,8 @@ int PIOc_put_vars_tc(int ncid, int varid, const PIO_Offset *start, const PIO_Off
 					pio_get_fname_from_file(file), ncid, varid, file->num_vars);
         }
 
-		ADIOS2_BEGIN_STEP(file,ios);
+		ierr = ADIOS2_BEGIN_STEP(file,ios);
+		if (ierr!=PIO_NOERR) return ierr;
 
         adios2_error adiosErr = adios2_error_none;
 

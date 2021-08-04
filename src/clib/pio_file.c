@@ -259,8 +259,7 @@ static int sync_file(int ncid)
 #ifdef _ADIOS2
     if (file->iotype == PIO_IOTYPE_ADIOS)
 	{
-		ADIOS2_END_STEP(file,ios); 
-        return PIO_NOERR;
+		return ADIOS2_END_STEP(file,ios); 
 	}
 #endif
 
@@ -429,7 +428,8 @@ int PIOc_closefile(int ncid)
         {
             LOG((2, "ADIOS close file %s", file->filename));
 
-			ADIOS2_BEGIN_STEP(file,NULL);
+			ierr = ADIOS2_BEGIN_STEP(file,NULL);
+			if (ierr!=PIO_NOERR) return ierr;
 
             adios2_attribute *attributeH = adios2_inquire_attribute(file->ioH, "/__pio__/fillmode");
             if (attributeH == NULL)
@@ -469,7 +469,8 @@ int PIOc_closefile(int ncid)
                 }
 			}
 
-			ADIOS2_END_STEP(file,ios);
+			ierr = ADIOS2_END_STEP(file,ios);
+			if (ierr!=PIO_NOERR) return ierr;
 
             adios2_error adiosErr = adios2_close(file->engineH);
             if (adiosErr != adios2_error_none)
@@ -539,14 +540,17 @@ int PIOc_closefile(int ncid)
 			if (file->block_array!=NULL) {
 				free(file->block_array);
 				file->block_array = NULL;
+				file->block_array_size = 0;
 			}
 			if (file->array_counts!=NULL) {
 				free(file->array_counts);
 				file->array_counts = NULL;
+				file->array_counts_size = 0;
 			}
 			if (file->array_disp!=NULL) {
 				free(file->array_disp);
 				file->array_disp = NULL;
+				file->array_disp_size = 0;
 			}
 			if (file->block_list!=NULL) {
 				free(file->block_list);
