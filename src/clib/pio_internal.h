@@ -28,11 +28,8 @@
 #define MPI_OFFSET OMPI_OFFSET_DATATYPE
 #endif
 #endif
-#ifndef MPI_Offset
-#define MPI_Offset long long
-#endif
 
-#if defined(MPT_VERSION) || defined(OPEN_MPI)
+#if defined(MPT_VERSION) || defined(OPEN_MPI) || (defined(MPICH_NUMVERSION) && (MPICH_NUMVERSION >= 40000300))
 /* Some MPI implementations do not allow passing MPI_DATATYPE_NULL to comm functions
  * even though the send or recv length is 0, in these cases we use MPI_CHAR */
 #define PIO_DATATYPE_NULL MPI_CHAR
